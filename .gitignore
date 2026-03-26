@@ -1,0 +1,377 @@
+# ================================================
+# LARAVEL FRAMEWORK
+# ================================================
+
+/vendor/
+/node_modules/
+/.idea
+/.vscode
+/.vite
+
+# Laravel specific
+.env
+.env.backup
+.env.production
+.env.local
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+auth.json
+npm-debug.log
+yarn-error.log
+composer.phar
+
+# Laravel storage & cache
+/storage/*.key
+/storage/logs/*
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/bootstrap/cache/*
+*.log
+
+# Public symlinks (will be regenerated)
+/public/hot
+/public/storage
+
+# ================================================
+# REACT ADMIN PANEL (Vite)
+# Location: resources/js/
+# ================================================
+
+# Dependencies
+resources/js/node_modules/
+
+# Build output
+resources/js/dist/
+resources/js/build/
+
+# Vite cache
+resources/js/.vite/
+
+# Environment files (keep .env.example)
+resources/js/.env.local
+resources/js/.env.*.local
+
+# Logs
+resources/js/npm-debug.log*
+resources/js/yarn-debug.log*
+resources/js/yarn-error.log*
+resources/js/pnpm-debug.log*
+resources/js/lerna-debug.log*
+
+# Testing & Coverage
+resources/js/coverage/
+resources/js/.nyc_output/
+
+# Editor directories & files
+resources/js/.vscode/
+resources/js/.idea/
+resources/js/*.suo
+resources/js/*.ntvs*
+resources/js/*.njsproj
+resources/js/*.sln
+resources/js/*.sw?
+
+# TypeScript
+*.tsbuildinfo
+resources/js/.tsbuildinfo
+
+# ESLint cache
+resources/js/.eslintcache
+
+# PWA files (auto-generated)
+public/workbox-*.js
+public/worker-*.js
+public/sw.js
+public/manifest.webmanifest
+
+# ================================================
+# CAPACITOR (Mobile Apps)
+# Location: resources/js/
+# ================================================
+
+resources/js/android/
+resources/js/ios/
+resources/js/.capacitor/
+resourcesjs/capacitor.config.json.temp
+
+# ================================================
+# OPERATING SYSTEM FILES
+# ================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+.DS_Store?
+._*
+.DocumentRevisions-V100
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# ================================================
+# EDITORS & IDEs
+# ================================================
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# PhpStorm / IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+Session.vim
+Sessionx.vim
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+
+# ================================================
+# BUILD & DEPLOYMENT
+# ================================================
+
+# Laravel Mix / Vite
+public/css/
+public/js/
+public/mix-manifest.json
+public/hot
+
+# Compiled assets
+*.min.css
+*.min.js
+*.min.css.map
+*.min.js.map
+
+# ================================================
+# TESTING
+# ================================================
+
+# PHPUnit
+.phpunit.result.cache
+.phpunit.cache
+
+# Pest
+.phpunit.result.cache
+tests/.phpunit.result.cache
+
+# Pest Coverage
+build/
+coverage/
+.phpunit.result.cache
+
+# ================================================
+# DATABASE
+# ================================================
+
+# Database dumps
+*.sql
+*.sqlite
+*.sqlite3
+*.db
+
+# Migration snapshots (if you don't want them in version control)
+# database/migrations/*_snapshot.php
+
+# ================================================
+# LOGS & TEMP FILES
+# ================================================
+
+*.log
+logs/
+*.tmp
+*.temp
+*.cache
+
+# Laravel Telescope
+database/telescope/
+
+# Laravel Pulse
+storage/app/pulse/
+
+# ================================================
+# CACHED FILES
+# ================================================
+
+bootstrap/cache/*
+config.php
+routes.php
+events.php
+*.cached
+
+# ================================================
+# DOCUMENTATION TEMP FILES
+# ================================================
+
+*.md.broken
+*.md.backup
+*.md.old
+
+# ================================================
+# SECURITY & SENSITIVE FILES
+# ================================================
+
+# SSH keys
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+
+# Password files
+passwords.txt
+secrets.txt
+credentials.json
+
+# API Keys
+api-keys.txt
+.tokens
+
+# ================================================
+# MISC
+# ================================================/
+
+# Archive files
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# OS generated files
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Package manager locks (optional - uncomment if you don't want them)
+# package-lock.json
+# yarn.lock
+# composer.lock
+
+# ================================================
+# AI ASSISTANTS & CODE GENERATION TOOLS
+# ================================================
+
+# Claude (Anthropic)
+CLAUDE.md
+.claude/
+.claude/memory/
+.claude/settings.json
+
+# Cursor AI
+.cursor/
+.cursorrules
+.cursorignore
+
+# GitHub Copilot
+.github/copilot-instructions.md
+
+# ChatGPT / OpenAI
+chatgpt-history/
+chatgpt-*.md
+openai-*.md
+
+# AI-generated plans & documentation
+*PLAN.md
+*IMPLEMENTATION*.md
+CONTACT_FORM_IMPLEMENTATION_PLAN.md
+global-instruction.md
+memory.md
+MEMORY.md
+
+# AI conversation history
+.aichat/
+.ai-history/
+conversations/
+chats/
+
+# AI code review files
+.aireview/
+.ai-suggestions/
+
+# Tabnine (AI code completion
+.tabnine/
+.tabnine-cache
+
+# CodeWhisperer (AWS)
+.codewhisperer/
+
+# Continue.dev (AI assistant)
+.continue/
+
+# Sourcegraph Cody
+.cody/
+
+# General AI tool files
+.ai/
+.ai-tools/
+.no-ai/
+llm-*.txt
+
+# ================================================
+# KEEP THESE EXAMPLES
+# ================================================
+
+# Example environment files
+!.env.example
+!resources/js/.env.example
+
+# Project documentation
+!README.md
+
+# Note: CLAUDE.md, memory.md, and other AI-related files are ignored above
+# If you want to track any of them, remove them from the AI section
