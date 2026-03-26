@@ -1,0 +1,48 @@
+{
+  "_mantine-vendor-WTcQ5w9H.js": {
+    "file": "assets/mantine-vendor-WTcQ5w9H.js",
+    "name": "mantine-vendor",
+    "imports": [
+      "_react-vendor-CcRuxgMB.js"
+    ]
+  },
+  "_other-vendor-C0Zqfgkc.js": {
+    "file": "assets/other-vendor-C0Zqfgkc.js",
+    "name": "other-vendor"
+  },
+  "_react-vendor-CcRuxgMB.js": {
+    "file": "assets/react-vendor-CcRuxgMB.js",
+    "name": "react-vendor"
+  },
+  "_zustand-vendor-B4qmNuGf.js": {
+    "file": "assets/zustand-vendor-B4qmNuGf.js",
+    "name": "zustand-vendor",
+    "imports": [
+      "_react-vendor-CcRuxgMB.js"
+    ]
+  },
+  "node_modules/workbox-window/build/workbox-window.prod.es5.mjs": {
+    "file": "assets/workbox-window.prod.es5-BIl4cyR9.js",
+    "name": "workbox-window.prod.es5",
+    "src": "node_modules/workbox-window/build/workbox-window.prod.es5.mjs",
+    "isDynamicEntry": true
+  },
+  "resources/js/main.tsx": {
+    "file": "assets/main-DnVkfhlL.js",
+    "name": "main",
+    "src": "resources/js/main.tsx",
+    "isEntry": true,
+    "imports": [
+      "_mantine-vendor-WTcQ5w9H.js",
+      "_react-vendor-CcRuxgMB.js",
+      "_other-vendor-C0Zqfgkc.js",
+      "_zustand-vendor-B4qmNuGf.js"
+    ],
+    "dynamicImports": [
+      "node_modules/workbox-window/build/workbox-window.prod.es5.mjs"
+    ],
+    "css": [
+      "assets/main-uUBfwxPj.css"
+    ]
+  }
+}
