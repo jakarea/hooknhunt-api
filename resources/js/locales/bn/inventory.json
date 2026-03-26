@@ -1,0 +1,10 @@
+{
+  "title": "ইনভেন্টরি",
+  "currentStock": "বর্তমান স্টক",
+  "sorting": "বাছাইকরণ",
+  "stockHistory": "স্টকের ইতিহাস",
+  "adjustments": "স্টক সমন্বয়",
+  "stockTake": "স্টক গণনা",
+  "warehouses": "গুদাম (Warehouse)",
+  "transfers": "স্থানান্তর"
+}

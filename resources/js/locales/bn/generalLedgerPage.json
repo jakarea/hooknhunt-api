@@ -1,0 +1,29 @@
+{
+  "title": "জেনারেল লেজার",
+  "subtitle": "সব অ্যাকাউন্টের বিস্তারিত লেনদেন ইতিহাস",
+  "exportExcel": "Excel এক্সপোর্ট করুন",
+  "print": "প্রিন্ট করুন",
+  "searchPlaceholder": "বিবরণ বা এন্ট্রি # দিয়ে খুঁজুন...",
+  "selectAccount": "হিসাব নির্বাচন করুন",
+  "startDate": "শুরুর তারিখ",
+  "endDate": "শেষ তারিখ",
+  "showingEntries": "{{count}}টি জার্নাল এন্ট্রি দেখাচ্ছে",
+  "totalDebit": "মোট ডেবিট",
+  "totalCredit": "মোট ক্রেডিট",
+  "balanced": "ব্যালেন্স আছে ✓",
+  "notBalanced": "ব্যালেন্স নেই ✗",
+  "noEntries": "কোনো জার্নাল এন্ট্রি পাওয়া যায়নি",
+  "tableHeaders": {
+    "account": "হিসাব",
+    "description": "বিবরণ",
+    "debit": "ডেবিট",
+    "credit": "ক্রেডিট"
+  },
+  "entryDetails": "দ্বারা {{name}}",
+  "dr": "ডেবিট",
+  "cr": "ক্রেডিট",
+  "notification": {
+    "exportSuccess": "এক্সপোর্ট সফল হয়েছে",
+    "exportSuccessMessage": "জেনারেল লেজার Excel এ এক্সপোর্ট করা হয়েছে"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "title": "General Ledger",
+  "subtitle": "Detailed transaction history for all accounts",
+  "exportExcel": "Export Excel",
+  "print": "Print",
+  "searchPlaceholder": "Search in description or entry #...",
+  "selectAccount": "Select account",
+  "startDate": "Start date",
+  "endDate": "End date",
+  "showingEntries": "Showing {{count}} journal entries",
+  "totalDebit": "Total Debit",
+  "totalCredit": "Total Credit",
+  "balanced": "Balanced ✓",
+  "notBalanced": "Not Balanced ✗",
+  "noEntries": "No journal entries found",
+  "tableHeaders": {
+    "account": "Account",
+    "description": "Description",
+    "debit": "Debit",
+    "credit": "Credit"
+  },
+  "entryDetails": "by {{name}}",
+  "dr": "Dr",
+  "cr": "Cr",
+  "notification": {
+    "exportSuccess": "Export Successful",
+    "exportSuccessMessage": "General Ledger exported to Excel"
+  }
+}

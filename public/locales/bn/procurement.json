@@ -1,0 +1,103 @@
+{
+  "products": "পণ্য়ডাক্ত",
+  "productsPage": {
+    "title": "সব পণ্য়ডাক্ত",
+    "subtitle": "আপনার পণ্য়ডাক্ত ক্যাটালগ পরিচালনা করুন",
+    "addProduct": "পণ্য়ডাক্ত যোগ করুন",
+    "accessDenied": "আপনার পণ্য়ডাক্ত দেখার অনুমতি নেই",
+    "filters": {
+      "searchPlaceholder": "পণ্য়ডাক্ত খুঁজুন...",
+      "status": "অবস্থা",
+      "category": "বিভাগ",
+      "brand": "ব্র্যান্ড",
+      "allStatus": "সকল অবস্থা"
+    },
+    "status": {
+      "draft": "খসড়া",
+      "published": "প্রকাশিত",
+      "archived": "আর্কাইভ",
+      "changeStatus": "অবস্থা পরিবর্তন করুন"
+    },
+    "stock": {
+      "outOfStock": "স্টক আউট",
+      "lowStock": "{{count}} বাকি আছে",
+      "inStock": "{{count}} স্টক আছে"
+    },
+    "table": {
+      "product": "পণ্য়ডাক্ত",
+      "variants": "ভেরিয়েন্ট",
+      "category": "বিভাগ",
+      "brand": "ব্র্যান্ড",
+      "stock": "স্টক",
+      "status": "অবস্থা",
+      "actions": "কর্ম",
+      "noProducts": "কোনো পণ্য়ডাক্ত পাওয়া যায়নি"
+    },
+    "menu": {
+      "actions": "কর্ম",
+      "duplicate": "ডুপ্লিকেট",
+      "viewDetails": "বিস্তারিত দেখুন"
+    },
+    "pagination": {
+      "page": "পৃষ্ঠা {{total}} এর {{current}}"
+    },
+    "notification": {
+      "fetchError": "পণ্য়ডাক্ত লোড করতে ব্যর্থ হয়েছে",
+      "deleteTitle": "পণ্য়ডাক্ত মুছুন",
+      "deleteConfirm": "আপনি কি \"{{name}}\" মুছে ফেলতে চান? এটি পূর্বাবাতন করা যাবে না।",
+      "deletePermission": "আপনার পণ্য়ডাক্ত মুছে ফেলার অনুমতি নেই",
+      "deleteSuccess": "পণ্য়ডাক্ত সফলভাবে মুছে ফেলা হয়েছে",
+      "deleteError": "পণ্য়ডাক্ত মুছে ফেলতে ব্যর্থ হয়েছে",
+      "duplicatePermission": "আপনার পণ্য়ডাক্ত ডুপ্লিকেট করার অনুমতি নেই",
+      "duplicateSuccess": "পণ্য়ডাক্ত সফলভাবে ডুপ্লিকেট করা হয়েছে",
+      "duplicateError": "পণ্য়ডাক্ত ডুপ্লিকেট করতে ব্যর্থ হয়েছে",
+      "statusPermission": "আপনার পণ্য়ডাক্ত অবস্থা পরিবর্তনের অনুমতি নেই",
+      "statusSuccess": "পণ্য়ডাক্ত অবস্থা সফলভাবে আপডেট করা হয়েছে",
+      "statusError": "পণ্য়ডাক্ত অবস্থা আপডেট করতে ব্যর্থ হয়েছে"
+    }
+  },
+  "productsCreate": {
+    "title": "নতুন পণ্য়ডাক্ত যোগ করুন",
+    "accessDenied": "আপনার পণ্য়ডাক্ত তৈরির অনুমতি নেই",
+    "basicInfo": "মৌলিক তথ্য",
+    "supplierInfo": "সরবরাহকারী তথ্য",
+    "productImage": "পণ্য়ডাক্ত ছবি",
+    "variants": "পণ্য়ডাক্ত ভেরিয়েন্ট",
+    "productName": "পণ্য়ডাক্তের নাম",
+    "productNamePlaceholder": "পণ্য়ডাক্তের নাম লিখুন",
+    "category": "বিভাগ",
+    "selectCategory": "বিভাগ নির্বাচন করুন",
+    "brand": "ব্র্যান্ড",
+    "selectBrand": "ব্র্যান্ড নির্বাচন করুন",
+    "suppliers": "সরবরাহকারী",
+    "selectSupplier": "সরবরাহকারী নির্বাচন করুন",
+    "supplierUrl": "সরবরাহকারী URL",
+    "productLink": "পণ্য়ডাক্ত লিংক",
+    "description": "বর্ণনা",
+    "videoUrl": "ভিডিও URL",
+    "status": "অবস্থা",
+    "noImageSelected": "কোনো ছবি নির্বাচন করা হয়নি",
+    "selectThumbnail": "থাম্বনেইল নির্বাচন করুন",
+    "addVariant": "ভেরিয়েন্ট যোগ করুন",
+    "variant": "ভেরিয়েন্ট",
+    "sku": "SKU",
+    "customSku": "কাস্টম SKU",
+    "variantName": "ভেরিয়েন্ট নাম",
+    "unit": "একক",
+    "size": "সাইজ",
+    "color": "রঙ",
+    "retailPrice": "খুচে মূল্য",
+    "wholesalePrice": "পাইকারাই মূল্য",
+    "purchaseCost": "ক্রয় মূল্য",
+    "alertQty": "সতর্কতা পরিমাণ",
+    "saveProduct": "পণ্য়ডাক্ত সংরক্ষণ করুন",
+    "validation": {
+      "titleRequired": "শিরোনাম প্রয়োজন"
+    },
+    "notification": {
+      "saved": "পণ্য়ডাক্ত সফলভাবে সংরক্ষণ করা হয়েছে",
+      "saveError": "পণ্য়ডাক্ত সংরক্ষণ করতে ব্যর্থ হয়েছে"
+    }
+  },
+  "products": "পণ্য়ডাক্ত"
+}

@@ -1,0 +1,677 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+import {
+  Box,
+  Stack,
+  Group,
+  Title,
+  Text,
+  Paper,
+  Table,
+  Badge,
+  Button,
+  ActionIcon,
+  TextInput,
+  Select,
+  Skeleton,
+  Alert,
+  SimpleGrid,
+  Flex,
+  Image,
+  Tooltip,
+  Menu,
+  Drawer,
+  NumberInput,
+  Textarea,
+  ScrollArea,
+} from '@mantine/core'
+import {
+  IconSearch,
+  IconRefresh,
+  IconPlus,
+  IconPhoto,
+  IconCopy,
+  IconTrash,
+  IconEdit,
+  IconEye,
+  IconPackages,
+  IconAlertCircle,
+  IconDots,
+  IconCube,
+  IconX,
+} from '@tabler/icons-react'
+import { notifications } from '@mantine/notifications'
+import { useDebouncedValue, useDisclosure } from '@mantine/hooks'
+import { usePermissions } from '@/hooks/usePermissions'
+import { useMediaSelector } from '@/hooks/useMediaSelector'
+import { modals } from '@mantine/modals'
+import {
+  getProducts,
+  deleteProduct,
+  duplicateProduct,
+  updateProductStatus,
+  getCategoriesDropdown,
+  getBrandsDropdown,
+  getSuppliers,
+  type Product,
+  type ProductFilters,
+  type Supplier,
+} from '@/utils/api'
+
+type StatusType = 'all' | 'draft' | 'published' | 'archived'
+
+export default function ProductsPage() {
+  const { t } = useTranslation()
+  const { hasPermission, isSuperAdmin } = usePermissions()
+  const { openSingleSelect } = useMediaSelector()
+
+  // Permission check
+  if (!isSuperAdmin() && !hasPermission('procurement.products.view')) {
+    return (
+      <Stack p="xl">
+        <Paper withBorder p="xl" shadow="sm" ta="center">
+          <Title order={3} className="text-xl md:text-2xl">{t('common.accessDenied')}</Title>
+          <Text c="dimmed" className="text-sm md:text-base">{t('procurement.productsPage.accessDenied')}</Text>
+        </Paper>
+      </Stack>
+    )
+  }
+
+  const [loading, setLoading] = useState(true)
+  const [products, setProducts] = useState<Product[]>([])
+  const [categories, setCategories] = useState<Array<{ value: string; label: string }>>([])
+  const [brands, setBrands] = useState<Array<{ value: string; label: string }>>([])
+  const [suppliers, setSuppliers] = useState<Array<{ value: string; label: string }>>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch] = useDebouncedValue(searchQuery, 300)
+  const [statusFilter, setStatusFilter] = useState<StatusType>('all')
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
+  const [brandFilter, setBrandFilter] = useState<string | null>(null)
+  const [pagination, setPagination] = useState({ page: 1, total: 0, perPage: 20 })
+
+  // Drawer state
+  const [opened, { open, close }] = useDisclosure(false)
+  const [drawerLoading, setDrawerLoading] = useState(false)
+
+  // Form state
+  const [formData, setFormData] = useState({
+    title: '',
+    categoryId: '',
+    brandId: '',
+    supplierIds: [] as string[],
+    thumbnailId: null as number | null,
+    thumbnailPreview: '',
+  })
+
+  // Fetch products
+  const fetchProducts = useCallback(async () => {
+    try {
+      setLoading(true)
+      const filters: ProductFilters = {
+        search: debouncedSearch || undefined,
+        category_id: categoryFilter ? parseInt(categoryFilter) : undefined,
+        status: statusFilter === 'all' ? undefined : statusFilter,
+        per_page: pagination.perPage,
+        page: pagination.page,
+      }
+
+      const response = await getProducts(filters)
+
+      // Handle paginated response
+      if (response.data) {
+        setProducts(response.data.data || response.data)
+        if (response.data.total) {
+          setPagination((prev) => ({ ...prev, total: response.data.total }))
+        }
+      } else {
+        setProducts(response.data || [])
+      }
+    } catch (error) {
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: t('procurement.productsPage.notification.fetchError') || 'Failed to load products',
+        color: 'red',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [debouncedSearch, categoryFilter, brandFilter, statusFilter, pagination.page])
+
+  // Fetch dropdown data
+  const fetchDropdownData = async () => {
+    try {
+      const [catsRes, brandsRes, suppliersRes] = await Promise.all([
+        getCategoriesDropdown(),
+        getBrandsDropdown(),
+        getSuppliers({ is_active: true, per_page: 100 }),
+      ])
+
+      if (catsRes.data) {
+        setCategories(catsRes.data.map((c: any) => ({ value: c.id.toString(), label: c.name })))
+      }
+
+      if (brandsRes.data) {
+        setBrands(brandsRes.data.map((b: any) => ({ value: b.id.toString(), label: b.name })))
+      }
+
+      if (suppliersRes.data) {
+        const suppliersData = Array.isArray(suppliersRes) ? suppliersRes : (suppliersRes?.data || [])
+        setSuppliers(suppliersData.map((s: any) => ({ value: s.id.toString(), label: s.name })))
+      }
+    } catch (error) {
+      console.error('Failed to load dropdown data:', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchProducts()
+  }, [fetchProducts])
+
+  useEffect(() => {
+    fetchDropdownData()
+  }, [])
+
+  // Handle open drawer
+  const handleOpenDrawer = () => {
+    setFormData({
+      title: '',
+      categoryId: '',
+      brandId: '',
+      supplierIds: [],
+      thumbnailId: null,
+      thumbnailPreview: '',
+    })
+    open()
+  }
+
+  // Handle thumbnail selection
+  const handleSelectThumbnail = () => {
+    openSingleSelect((mediaFile) => {
+      setFormData({ ...formData, thumbnailId: mediaFile.id, thumbnailPreview: mediaFile.url })
+    }, formData.thumbnailId ? [formData.thumbnailId] : [])
+  }
+
+  // Handle form submit
+  const handleSubmit = async () => {
+    if (!formData.title) {
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: t('procurement.productsCreate.validation.titleRequired') || 'Title is required',
+        color: 'red',
+      })
+      return
+    }
+
+    try {
+      setDrawerLoading(true)
+      // TODO: Call API to create product
+      // await createProduct(formData)
+
+      notifications.show({
+        title: t('common.success') || 'Success',
+        message: t('procurement.productsCreate.notification.saved') || 'Product saved successfully',
+        color: 'green',
+      })
+
+      close()
+      fetchProducts()
+    } catch (error) {
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: t('procurement.productsCreate.notification.saveError') || 'Failed to save product',
+        color: 'red',
+      })
+    } finally {
+      setDrawerLoading(false)
+    }
+  }
+
+  // Status badge helper
+  const getStatusBadge = (status: string, productId?: number, canEdit = false) => {
+    const statusConfig: Record<string, { color: string; label: string }> = {
+      draft: { color: 'gray', label: t('procurement.productsPage.status.draft') || 'Draft' },
+      published: { color: 'green', label: t('procurement.productsPage.status.published') || 'Published' },
+      archived: { color: 'red', label: t('procurement.productsPage.status.archived') || 'Archived' },
+    }
+    const config = statusConfig[status] || statusConfig.draft
+
+    if (canEdit && productId) {
+      return (
+        <Menu shadow="sm" position="bottom-start" withArrow>
+          <Menu.Target>
+            <Badge
+              color={config.color}
+              style={{ cursor: 'pointer' }}
+              className="hover:opacity-80 transition-opacity"
+            >
+              {config.label}
+            </Badge>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Label>{t('procurement.productsPage.status.changeStatus') || 'Change Status'}</Menu.Label>
+            <Menu.Item
+              leftSection={<div className="w-2 h-2 rounded-full bg-gray-500" />}
+              onClick={() => handleQuickStatusChange(productId, 'draft')}
+            >
+              {t('procurement.productsPage.status.draft') || 'Draft'}
+            </Menu.Item>
+            <Menu.Item
+              leftSection={<div className="w-2 h-2 rounded-full bg-green-500" />}
+              onClick={() => handleQuickStatusChange(productId, 'published')}
+            >
+              {t('procurement.productsPage.status.published') || 'Published'}
+            </Menu.Item>
+            <Menu.Item
+              leftSection={<div className="w-2 h-2 rounded-full bg-red-500" />}
+              onClick={() => handleQuickStatusChange(productId, 'archived')}
+            >
+              {t('procurement.productsPage.status.archived') || 'Archived'}
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
+      )
+    }
+
+    return <Badge color={config.color}>{config.label}</Badge>
+  }
+
+  // Handle quick status change
+  const handleQuickStatusChange = async (productId: number, newStatus: 'draft' | 'published' | 'archived') => {
+    if (!isSuperAdmin() && !hasPermission('procurement.products.update')) {
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: t('procurement.productsPage.notification.statusPermission') || "You don't have permission to change product status",
+        color: 'red',
+      })
+      return
+    }
+
+    try {
+      await updateProductStatus(productId, newStatus)
+      notifications.show({
+        title: t('common.success') || 'Success',
+        message: t('procurement.productsPage.notification.statusSuccess') || 'Product status updated successfully',
+        color: 'green',
+      })
+      fetchProducts()
+    } catch (error: any) {
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: error.response?.data?.message || t('procurement.productsPage.notification.statusError') || 'Failed to update product status',
+        color: 'red',
+      })
+    }
+  }
+
+  // Stock indicator helper
+  const getStockBadge = (product: Product) => {
+    const totalStock = product.variants?.reduce((sum, v) => sum + (v.currentStock || 0), 0) || 0
+    const lowStockThreshold = 10
+
+    if (totalStock === 0) {
+      return (
+        <Badge color="red" leftSection={<IconAlertCircle size={12} />}>
+          {t('procurement.productsPage.stock.outOfStock') || 'Out of Stock'}
+        </Badge>
+      )
+    }
+
+    if (totalStock <= lowStockThreshold) {
+      return (
+        <Badge color="orange" leftSection={<IconAlertCircle size={12} />}>
+          {t('procurement.productsPage.stock.lowStock', { count: totalStock }) || `${totalStock} left`}
+        </Badge>
+      )
+    }
+
+    return (
+      <Badge color="teal" leftSection={<IconCube size={12} />}>
+        {t('procurement.productsPage.stock.inStock', { count: totalStock }) || `${totalStock} in stock`}
+      </Badge>
+    )
+  }
+
+  // Handle delete
+  const handleDelete = (product: Product) => {
+    if (!isSuperAdmin() && !hasPermission('procurement.products.delete')) {
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: t('procurement.productsPage.notification.deletePermission') || "You don't have permission to delete products",
+        color: 'red',
+      })
+      return
+    }
+
+    modals.openConfirmModal({
+      title: t('procurement.productsPage.notification.deleteTitle') || 'Delete Product',
+      children: (
+        <Text size="sm">
+          {t('procurement.productsPage.notification.deleteConfirm', { name: product.name }) ||
+           `Are you sure you want to delete "${product.name}"? This action cannot be undone.`}
+        </Text>
+      ),
+      labels: {
+        confirm: t('common.delete') || 'Delete',
+        cancel: t('common.cancel') || 'Cancel',
+      },
+      confirmProps: { color: 'red' },
+      onConfirm: async () => {
+        try {
+          await deleteProduct(product.id)
+          notifications.show({
+            title: t('common.success') || 'Success',
+            message: t('procurement.productsPage.notification.deleteSuccess') || 'Product deleted successfully',
+            color: 'green',
+          })
+          fetchProducts()
+        } catch (error: any) {
+          notifications.show({
+            title: t('common.error') || 'Error',
+            message: error.response?.data?.message || t('procurement.productsPage.notification.deleteError') || 'Failed to delete product',
+            color: 'red',
+          })
+        }
+      },
+    })
+  }
+
+  // Handle duplicate
+  const handleDuplicate = async (product: Product) => {
+    if (!isSuperAdmin() && !hasPermission('procurement.products.create')) {
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: t('procurement.productsPage.notification.duplicatePermission') || "You don't have permission to duplicate products",
+        color: 'red',
+      })
+      return
+    }
+
+    try {
+      await duplicateProduct(product.id)
+      notifications.show({
+        title: t('common.success') || 'Success',
+        message: t('procurement.productsPage.notification.duplicateSuccess') || 'Product duplicated successfully',
+        color: 'green',
+      })
+      fetchProducts()
+    } catch (error: any) {
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: error.response?.data?.message || t('procurement.productsPage.notification.duplicateError') || 'Failed to duplicate product',
+        color: 'red',
+      })
+    }
+  }
+
+  // Calculate total stock across variants
+  const calculateTotalStock = useCallback((product: Product) => {
+    return product.variants?.reduce((sum, v) => sum + (v.currentStock || 0), 0) || 0
+  }, [])
+
+  // Memoized product cards for mobile
+
+  // Loading state
+  if (loading) {
+    return (
+      <Box p={{ base: 'md', md: 'xl' }}>
+        <Stack gap="md">
+          {/* Header Skeleton */}
+          <Group justify="space-between">
+            <Skeleton height={40} width={200} />
+            <Skeleton height={36} width={120} />
+          </Group>
+
+          {/* Filters Skeleton */}
+          <Skeleton height={50} radius="md" />
+
+          {/* Table Skeleton */}
+          <Paper withBorder p="0">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Group key={i} p="md" gap="md">
+                <Skeleton height={48} width={48} circle />
+                <Skeleton height={16} flex={1} />
+                <Skeleton height={16} width={100} />
+                <Skeleton height={16} width={80} />
+                <Skeleton height={30} width={30} />
+              </Group>
+            ))}
+          </Paper>
+        </Stack>
+      </Box>
+    )
+  }
+
+  return (
+    <Box p={{ base: 'md', md: 'xl' }}>
+      <Stack gap="md">
+        {/* Header */}
+        <Flex justify="space-between" align="center" direction={{ base: 'column', sm: 'row' }} gap="sm">
+          <Group>
+            <IconPackages size={32} className="text-blue-600" />
+            <div>
+              <Title order={1} className="text-lg md:text-xl lg:text-2xl">
+                {t('procurement.productsPage.title') || 'All Products'}
+              </Title>
+              <Text c="dimmed" className="text-sm md:text-base">
+                {t('procurement.productsPage.subtitle') || 'Manage your product catalog'}
+              </Text>
+            </div>
+          </Group>
+          <Button
+            leftSection={<IconPlus size={18} />}
+            onClick={() => window.location.href = '/admin/procurement/products/create'}
+            className="text-sm md:text-base"
+          >
+            {t('procurement.productsPage.addProduct') || 'Add Product'}
+          </Button>
+        </Flex>
+
+        {/* Filters */}
+        <Paper withBorder p="md">
+          <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
+            <TextInput
+              placeholder={t('procurement.productsPage.filters.searchPlaceholder') || 'Search products...'}
+              leftSection={<IconSearch size={18} />}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.currentTarget.value)}
+            />
+            <Select
+              placeholder={t('procurement.productsPage.filters.status') || 'Status'}
+              clearable
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v as StatusType)}
+              data={[
+                { value: 'all', label: t('procurement.productsPage.filters.allStatus') || 'All Status' },
+                { value: 'draft', label: t('procurement.productsPage.status.draft') || 'Draft' },
+                { value: 'published', label: t('procurement.productsPage.status.published') || 'Published' },
+                { value: 'archived', label: t('procurement.productsPage.status.archived') || 'Archived' },
+              ]}
+            />
+            <Select
+              placeholder={t('procurement.productsPage.filters.category') || 'Category'}
+              clearable
+              searchable
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+              data={categories}
+            />
+            <Select
+              placeholder={t('procurement.productsPage.filters.brand') || 'Brand'}
+              clearable
+              searchable
+              value={brandFilter}
+              onChange={setBrandFilter}
+              data={brands}
+            />
+          </SimpleGrid>
+        </Paper>
+
+        {/* Desktop Table View */}
+        <Paper withBorder p="0" className="hidden md:block">
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>{t('procurement.productsPage.table.product') || 'Product'}</Table.Th>
+                <Table.Th>{t('procurement.productsPage.table.variants') || 'Variants'}</Table.Th>
+                <Table.Th>{t('procurement.productsPage.table.category') || 'Category'}</Table.Th>
+                <Table.Th>{t('procurement.productsPage.table.brand') || 'Brand'}</Table.Th>
+                <Table.Th>{t('procurement.productsPage.table.stock') || 'Stock'}</Table.Th>
+                <Table.Th>{t('procurement.productsPage.table.status') || 'Status'}</Table.Th>
+                <Table.Th ta="center">{t('procurement.productsPage.table.actions') || 'Actions'}</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {products.length === 0 ? (
+                <Table.Tr>
+                  <Table.Td colSpan={7} ta="center">
+                    <Stack py="xl" align="center" gap="sm">
+                      <IconPackages size={48} className="text-gray-300" />
+                      <Text c="dimmed" className="text-sm md:text-base">
+                        {t('procurement.productsPage.table.noProducts') || 'No products found'}
+                      </Text>
+                    </Stack>
+                  </Table.Td>
+                </Table.Tr>
+              ) : (
+                products.map((product) => (
+                  <Table.Tr key={product.id}>
+                    <Table.Td>
+                      <Group gap="sm">
+                        <Box
+                          w={40}
+                          h={40}
+                          className="bg-gray-100 rounded flex items-center justify-center"
+                        >
+                          {product.thumbnail ? (
+                            <Image
+                              src={product.thumbnail.filePath}
+                              alt={product.name}
+                              w={40}
+                              h={40}
+                              fit="cover"
+                              radius="sm"
+                            />
+                          ) : (
+                            <IconPhoto size={20} className="text-gray-400" />
+                          )}
+                        </Box>
+                        <Box>
+                          <Text className="text-sm md:text-base" fw={500} lineClamp={1}>
+                            {product.name}
+                          </Text>
+                          {product.variants && product.variants.length > 0 && (
+                            <Text className="text-xs md:text-sm" c="dimmed">
+                              {product.variants.length} {t('procurement.productsPage.table.variants') || 'variant(s)'}
+                            </Text>
+                          )}
+                        </Box>
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text className="text-sm md:text-base">
+                        {product.variants?.length || 0}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      {product.category ? (
+                        <Text className="text-sm md:text-base">{product.category.name}</Text>
+                      ) : (
+                        <Text className="text-sm md:text-base" c="dimmed">-</Text>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      {product.brand ? (
+                        <Text className="text-sm md:text-base">{product.brand.name}</Text>
+                      ) : (
+                        <Text className="text-sm md:text-base" c="dimmed">-</Text>
+                      )}
+                    </Table.Td>
+                    <Table.Td>{getStockBadge(product)}</Table.Td>
+                    <Table.Td>{getStatusBadge(product.status, product.id, isSuperAdmin() || hasPermission('procurement.products.update'))}</Table.Td>
+                    <Table.Td ta="center">
+                      <Group gap="xs" justify="center" wrap="nowrap">
+                        <Tooltip label={t('common.edit') || 'Edit'}>
+                          <ActionIcon
+                            size="lg"
+                            variant="light"
+                            color="blue"
+                            onClick={() => window.location.href = `/admin/procurement/products/${product.id}/edit`}
+                          >
+                            <IconEdit size={18} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Tooltip label={t('procurement.productsPage.menu.duplicate') || 'Duplicate'}>
+                          <ActionIcon
+                            size="lg"
+                            variant="light"
+                            color="gray"
+                            onClick={() => handleDuplicate(product)}
+                          >
+                            <IconCopy size={18} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Menu shadow="md" width={160} position="bottom-end">
+                          <Menu.Target>
+                            <ActionIcon size="lg" variant="light">
+                              <IconDots size={18} />
+                            </ActionIcon>
+                          </Menu.Target>
+
+                          <Menu.Dropdown>
+                            <Menu.Label>{t('procurement.productsPage.menu.actions') || 'Actions'}</Menu.Label>
+                            <Menu.Item
+                              leftSection={<IconEye size={16} />}
+                              onClick={() => window.location.href = `/admin/procurement/products/${product.id}`}
+                            >
+                              {t('procurement.productsPage.menu.viewDetails') || 'View Details'}
+                            </Menu.Item>
+                            <Menu.Divider />
+                            <Menu.Item
+                              leftSection={<IconTrash size={16} />}
+                              c="red"
+                              onClick={() => handleDelete(product)}
+                            >
+                              {t('common.delete') || 'Delete'}
+                            </Menu.Item>
+                          </Menu.Dropdown>
+                        </Menu>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))
+              )}
+            </Table.Tbody>
+          </Table>
+        </Paper>
+
+        {/* Pagination (if needed) */}
+        {pagination.total > pagination.perPage && (
+          <Group justify="center" mt="md">
+            <Button
+              variant="light"
+              disabled={pagination.page === 1}
+              onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))}
+            >
+              {t('common.previous') || 'Previous'}
+            </Button>
+            <Text className="text-sm md:text-base">
+              {t('procurement.productsPage.pagination.page', {
+                current: pagination.page,
+                total: Math.ceil(pagination.total / pagination.perPage)
+              }) || `Page ${pagination.page} of ${Math.ceil(pagination.total / pagination.perPage)}`}
+            </Text>
+            <Button
+              variant="light"
+              disabled={pagination.page >= Math.ceil(pagination.total / pagination.perPage)}
+              onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
+            >
+              {t('common.next') || 'Next'}
+            </Button>
+          </Group>
+        )}
+      </Stack>
+    </Box>
+  )
+}

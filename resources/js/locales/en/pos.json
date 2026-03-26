@@ -1,0 +1,10 @@
+{
+  "title": "POS",
+  "posTerminal": "POS Terminal",
+  "history": "History",
+  "posHistory": "POS History",
+  "register": "Register",
+  "registerReport": "Register Report",
+  "held": "Held",
+  "heldOrders": "Held Orders"
+}

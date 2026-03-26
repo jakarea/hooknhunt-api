@@ -1,0 +1,45 @@
+{
+  "title": "সেটিংস",
+  "users": "ব্যবহারকারী",
+  "roles": "রোল (Role)",
+  "permissions": "পারমিশন",
+  "auditLogs": "অডিট লগ",
+  "general": "সাধারণ",
+  "payments": "পেমেন্ট",
+  "taxes": "ট্যাক্স",
+  "apiKeys": "এপিআই কী",
+  "backup": "ব্যাকআপ",
+  "profile": "প্রোফাইল",
+  "workingHours": "কর্ম সময়",
+  "workingHoursTitle": "কর্ম সময় সেটিংস",
+  "workingHoursConfig": {
+    "title": "কর্ম সময়",
+    "subtitle": "অফিসের কর্ম সময় এবং উপস্থিতি নিয়ম কনফিগার করুন",
+    "workStartTime": "কাজের শুরু সময়",
+    "workStartTimeLabel": "কাজের দিন কখন শুরু হয়?",
+    "workStartTimeHint": "কর্মীরা এই সময়ের পরে + অনুগ্রহ সময়ে উপস্থিত হলে বিলম্ব হিসাবে চিহ্নিত করা হবে",
+    "workEndTime": "কাজের শেষ সময়",
+    "workEndTimeLabel": "কাজের দিন কখন শেষ হয়?",
+    "workEndTimeHint": "অসম্পূর্ণ উপস্থিতি রেকর্ড স্বয়ংক্রিয়ভাবে সম্পূর্ণ করার জন্য মানক সময়",
+    "breakDuration": "বিরতির সময়",
+    "breakDurationLabel": "মানক বিরতি কতক্ষণ?",
+    "breakDurationHint": "মিনিটে মানক বিরতির সময় (ডিফল্ট: ৬০ মিনিট = ১ ঘন্টা)",
+    "gracePeriod": "অনুগ্রহ সময়",
+    "gracePeriodLabel": "বিলম্ব আসার জন্য কত মিনিট অনুগ্রহ সময়?",
+    "gracePeriodHint": "কর্মীরা যারা শুরুর সময়ের পরে এই সময়ের মধ্যে আসেন তারা বিলম্ব হিসাবে চিহ্নিত হবেন না",
+    "minutes": "মিনিট",
+    "summaryTitle": "সারাংশ",
+    "summary": "কর্ম দিবস: {{start}} - {{end}} | বিরতি: {{breakHours}}ঘ {{breakMinutes}}মি | অনুগ্রহ: {{grace}}মি",
+    "resetToDefaults": "ডিফল্ট রিসেট করুন",
+    "success": {
+      "saved": "সেটিংস সফলভাবে সংরক্ষণ করা হয়েছে"
+    },
+    "error": {
+      "loadFailed": "সেটিংস লোড করতে ব্যর্থ হয়েছে",
+      "saveFailed": "সেটিংস সংরক্ষণ করতে ব্যর্থ হয়েছে"
+    },
+    "info": {
+      "resetToDefaults": "সেটিংস ডিফল্ট মানে রিসেট করা হয়েছে। প্রয়োগ করতে সংরক্ষণ করুন ক্লিক করুন।"
+    }
+  }
+}

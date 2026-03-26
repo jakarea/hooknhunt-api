@@ -1,0 +1,103 @@
+{
+  "title": "পণ্যসমূহ",
+  "productList": "পণ্যের তালিকা",
+  "createProduct": "নতুন পণ্য যোগ করুন",
+  "variants": "ভ্যারিয়েন্ট",
+  "categories": "ক্যাটাগরি",
+  "brands": "ব্র্যান্ড",
+  "attributes": "বৈশিষ্ট্য",
+  "units": "ইউনিট",
+  "printLabels": "লেবেল প্রিন্ট",
+  "detail": {
+    "breadcrumbs": {
+      "dashboard": "ড্যাশবোর্ড",
+      "catalog": "ক্যাটালগ",
+      "products": "পণ্যসমূহ"
+    },
+    "header": {
+      "productId": "পণ্য আইডি",
+      "created": "তৈরি হয়েছে",
+      "back": "পিছনে",
+      "editProduct": "পণ্য সম্পাদনা করুন"
+    },
+    "warranty": {
+      "label": "ওয়ারেন্টি"
+    },
+    "package": {
+      "label": "বাক্সের মধ্যে যা আছে"
+    },
+    "productInformation": {
+      "title": "পণ্যের তথ্য",
+      "thumbnail": "থাম্বনেইল ছবি",
+      "category": "ক্যাটাগরি",
+      "brand": "ব্র্যান্ড",
+      "urlSlug": "ইউআরএল স্লাগ",
+      "description": "বর্ণনা",
+      "videoUrl": "ভিডিও ইউআরএল"
+    },
+    "variants": {
+      "title": "পণ্য ভ্যারিয়েন্ট",
+      "addVariant": "ভ্যারিয়েন্ট যোগ করুন",
+      "variant": "ভ্যারিয়েন্ট",
+      "sku": "এসকেউ",
+      "customSku": "কাস্টম",
+      "attributes": "বৈশিষ্ট্য",
+      "color": "রং",
+      "size": "সাইজ",
+      "material": "উপাদান",
+      "pattern": "প্যাটার্ন",
+      "retailPrice": "খুচরা মূল্য",
+      "wholesalePrice": "পাইকারি",
+      "price": "মূল্য",
+      "cost": "খরচ",
+      "profit": "লাভ",
+      "stock": "স্টক",
+      "actions": "কর্ম",
+      "preorder": "প্রি-অর্ডার",
+      "expectedDelivery": "প্রত্যাশিত",
+      "weight": "ওজন",
+      "inStock": "স্টকে আছে",
+      "lowStock": "কম স্টক",
+      "outOfStock": "স্টক নেই",
+      "usingDefaultName": "ডিফল্ট নাম ব্যবহার করা হচ্ছে",
+      "active": "সক্রিয়",
+      "inactive": "নিষ্ক্রিয়"
+    },
+    "channels": {
+      "title": "ভ্যারিয়েন্ট অনুযায়ী চ্যানেল সেটিংস",
+      "channel": "চ্যানেল",
+      "status": "অবস্থা",
+      "customName": "কাস্টম নাম",
+      "channelPrice": "চ্যানেল মূল্য",
+      "retailWeb": "খুচরা ওয়েব",
+      "wholesaleWeb": "পাইকারি ওয়েব",
+      "daraz": "দারাজ",
+      "pos": "পিওএস",
+      "active": "সক্রিয়",
+      "inactive": "নিষ্ক্রিয়"
+    },
+    "gallery": {
+      "title": "গ্যালারি ছবি",
+      "addImages": "ছবি যোগ করুন",
+      "noImages": "এখনও কোন গ্যালারি ছবি যোগ করা হয়নি"
+    },
+    "highlights": {
+      "title": "পণ্যের বৈশিষ্ট্যসমূহ"
+    },
+    "seo": {
+      "title": "এসইও তথ্য",
+      "seoTitle": "এসইও শিরোনাম",
+      "seoDescription": "এসইও বর্ণনা",
+      "seoTags": "এসইও ট্যাগ / কীওয়ার্ড",
+      "characters": "অক্ষর",
+      "title": "শিরোনাম",
+      "description": "বর্ণনা",
+      "tags": "ট্যাগসমূহ"
+    },
+    "status": {
+      "draft": "খসড়া",
+      "published": "প্রকাশিত",
+      "archived": "আর্কাইভ করা"
+    }
+  }
+}

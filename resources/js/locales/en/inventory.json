@@ -1,0 +1,10 @@
+{
+  "title": "Inventory",
+  "currentStock": "Current Stock",
+  "sorting": "Sorting",
+  "stockHistory": "Stock History",
+  "adjustments": "Adjustments",
+  "stockTake": "Stock Take",
+  "warehouses": "Warehouses",
+  "transfers": "Transfers"
+}

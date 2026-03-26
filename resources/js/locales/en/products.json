@@ -1,0 +1,103 @@
+{
+  "title": "Products",
+  "productList": "Product List",
+  "createProduct": "Create Product",
+  "variants": "Variants",
+  "categories": "Categories",
+  "brands": "Brands",
+  "attributes": "Attributes",
+  "units": "Units",
+  "printLabels": "Print Labels",
+  "detail": {
+    "breadcrumbs": {
+      "dashboard": "Dashboard",
+      "catalog": "Catalog",
+      "products": "Products"
+    },
+    "header": {
+      "productId": "Product ID",
+      "created": "Created",
+      "back": "Back",
+      "editProduct": "Edit Product"
+    },
+    "warranty": {
+      "label": "Warranty"
+    },
+    "package": {
+      "label": "What's in the Box"
+    },
+    "productInformation": {
+      "title": "Product Information",
+      "thumbnail": "Thumbnail Image",
+      "category": "Category",
+      "brand": "Brand",
+      "urlSlug": "URL Slug",
+      "description": "Description",
+      "videoUrl": "Video URL"
+    },
+    "variants": {
+      "title": "Product Variants",
+      "addVariant": "Add Variant",
+      "variant": "Variant",
+      "sku": "SKU",
+      "customSku": "Custom",
+      "attributes": "Attributes",
+      "color": "Color",
+      "size": "Size",
+      "material": "Material",
+      "pattern": "Pattern",
+      "retailPrice": "Retail Price",
+      "wholesalePrice": "Wholesale",
+      "price": "Price",
+      "cost": "Cost",
+      "profit": "Profit",
+      "stock": "Stock",
+      "actions": "Actions",
+      "preorder": "Preorder",
+      "expectedDelivery": "Expected",
+      "weight": "Weight",
+      "inStock": "In Stock",
+      "lowStock": "Low Stock",
+      "outOfStock": "Out of Stock",
+      "usingDefaultName": "Using default name",
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "channels": {
+      "title": "Channel Settings by Variant",
+      "channel": "Channel",
+      "status": "Status",
+      "customName": "Custom Name",
+      "channelPrice": "Channel Price",
+      "retailWeb": "RETAIL WEB",
+      "wholesaleWeb": "WHOLESALE WEB",
+      "daraz": "DARAZ",
+      "pos": "POS",
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "gallery": {
+      "title": "Gallery Images",
+      "addImages": "Add Images",
+      "noImages": "No gallery images added yet"
+    },
+    "highlights": {
+      "title": "Product Highlights"
+    },
+    "seo": {
+      "title": "SEO Information",
+      "seoTitle": "SEO Title",
+      "seoDescription": "SEO Description",
+      "seoTags": "SEO Tags / Keywords",
+      "characters": "characters",
+      "title": "Title",
+      "description": "Description",
+      "tags": "Tags"
+    },
+    "status": {
+      "draft": "Draft",
+      "published": "Published",
+      "archived": "Archived"
+    }
+  }
+}

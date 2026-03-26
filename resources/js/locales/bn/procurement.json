@@ -1,0 +1,387 @@
+{
+  "title": "সংগ্রহ",
+  "suppliers": "সরবরাহকারী",
+  "orders": "অর্ডার",
+  "purchaseOrders": "পারচেজ অর্ডার",
+  "createPO": "PO তৈরি করুন",
+  "purchaseReturns": "ক্রয় ফেরত",
+  "returns": "ক্রয় ফেরত",
+  "products": "পণ্য",
+  "returnsPage": {
+    "title": "ক্রয় ফেরত",
+    "subtitle": "ক্রয়ের ফেরত এবং রিফান্ড পরিচালনা করুন"
+  },
+  "productsPage": {
+    "title": "পণ্য ক্রয়ের তালিকা",
+    "subtitle": "সরবরাহকারীদের কাছ থেকে ক্রয়ের জন্য পণ্য পরিচালনা করুন",
+    "addProduct": "পণ্য যোগ করুন",
+    "accessDenied": "আপনার পণ্য দেখার অনুমতি নেই।",
+    "filters": {
+      "searchPlaceholder": "পণ্য খুঁজুন...",
+      "status": "স্ট্যাটাস",
+      "allStatus": "সব স্ট্যাটাস",
+      "category": "ক্যাটাগরি",
+      "brand": "ব্র্যান্ড"
+    },
+    "table": {
+      "product": "পণ্য",
+      "variants": "ভেরিয়েন্ট",
+      "category": "ক্যাটাগরি",
+      "brand": "ব্র্যান্ড",
+      "stock": "স্টক",
+      "status": "স্ট্যাটাস",
+      "actions": "পদক্ষেপ",
+      "noProducts": "কোনো পণ্য পাওয়া যায়নি"
+    },
+    "status": {
+      "draft": "খসড়া",
+      "published": "প্রকাশিত",
+      "archived": "আর্কাইভ",
+      "changeStatus": "স্ট্যাটাস পরিবর্তন করুন"
+    },
+    "stock": {
+      "outOfStock": "স্টক নেই",
+      "lowStock": "{{count}}টি বাকি",
+      "inStock": "{{count}}টি স্টকে আছে"
+    },
+    "menu": {
+      "actions": "পদক্ষেপ",
+      "duplicate": "ডুপ্লিকেট",
+      "viewDetails": "বিস্তারিত দেখুন"
+    },
+    "pagination": {
+      "page": "পৃষ্ঠা {{current}} / {{total}}"
+    },
+    "notification": {
+      "fetchError": "পণ্য লোড করতে ব্যর্থ হয়েছে",
+      "deletePermission": "আপনার পণ্য মুছে ফেলার অনুমতি নেই",
+      "duplicatePermission": "আপনার পণ্য ডুপ্লিকেট করার অনুমতি নেই",
+      "statusPermission": "আপনার পণ্যের স্ট্যাটাস পরিবর্তনের অনুমতি নেই",
+      "deleteTitle": "পণ্য মুছুন",
+      "deleteConfirm": "\"{{name}}\" মুছে ফেলতে চান? এটি ফিরিয়ে আনা যাবে না।",
+      "deleteSuccess": "পণ্য সফলভাবে মুছে ফেলা হয়েছে",
+      "deleteError": "পণ্য মুছে ফেলতে ব্যর্থ হয়েছে",
+      "duplicateSuccess": "পণ্য সফলভাবে ডুপ্লিকেট করা হয়েছে",
+      "duplicateError": "পণ্য ডুপ্লিকেট করতে ব্যর্থ হয়েছে",
+      "statusSuccess": "পণ্যের স্ট্যাটাস সফলভাবে আপডেট করা হয়েছে",
+      "statusError": "পণ্যের স্ট্যাটাস আপডেট করতে ব্যর্থ হয়েছে"
+    },
+    "drawer": {
+      "title": "নতুন পণ্য যোগ করুন"
+    }
+  },
+  "ordersPage": {
+    "title": "ক্রয়াদেশ",
+    "subtitle": "চীন থেকে সরবরাহকারীদের ক্রয়াদেশ পরিচালনা করুন",
+    "statistics": {
+      "totalOrders": "মোট অর্ডার",
+      "draftOrders": "খসড়া অর্ডার",
+      "activeOrders": "সক্রিয় অর্ডার",
+      "completedOrders": "সম্পন্ন অর্ডার",
+      "totalValueRmb": "মোট মূল্য (RMB)"
+    },
+    "filters": {
+      "title": "ফিল্টার",
+      "status": "অবস্থা",
+      "allStatuses": "সকল অবস্থা",
+      "supplier": "সরবরাহকারী",
+      "allSuppliers": "সব সরবরাহকারী",
+      "search": "খুঁজুন",
+      "searchPlaceholder": "PO নম্বর",
+      "fromDate": "শুরু তারিখ",
+      "toDate": "শেষ তারিখ"
+    },
+    "statuses": {
+      "draft": "খসড়া",
+      "paymentConfirmed": "পেমেন্ট নিশ্চিত",
+      "supplierDispatched": "সরবরাহকারী প্রেরণ",
+      "warehouseReceived": "গুদাম গৃহীত",
+      "shippedBd": "বাংলাদেশে প্রেরিত",
+      "arrivedBd": "বাংলাদেশে এসেছে",
+      "inTransitBogura": "বগুড়ার পথে",
+      "receivedHub": "হাবে গৃহীত",
+      "partiallyCompleted": "আংশিক সম্পন্ন",
+      "completed": "সম্পন্ন",
+      "lost": "হারানো"
+    },
+    "tableHeaders": {
+      "poNumber": "অর্ডার নম্বর",
+      "supplier": "সরবরাহকারী",
+      "orderDate": "অর্ডারের তারিখ",
+      "status": "অবস্থা",
+      "totalRmb": "মোট (RMB)",
+      "totalBdt": "মোট (BDT)",
+      "items": "পণ্য",
+      "actions": "অ্যাকশন"
+    },
+    "actions": {
+      "view": "দেখুন",
+      "edit": "এডিট",
+      "delete": "ডিলিট"
+    },
+    "notifications": {
+      "loading": "অর্ডার লোড হচ্ছে...",
+      "refreshed": "ডেটা রিফ্রেশ হয়েছে",
+      "noOrdersFound": "কোনো পারচেজ অর্ডার পাওয়নি",
+      "created": "পারচেজ অর্ডার সফলভাবে তৈরি হয়েছে",
+      "updated": "পারচেজ অর্ডার সফলভাবে আপডেট হয়েছে",
+      "deleted": "পারচেজ অর্ডার সফলভাবে মুছে ফেলা হয়েছে",
+      "errorLoading": "পারচেজ অর্ডার লোড করতে ব্যর্থ হয়েছে",
+      "errorCreating": "পারচেজ অর্ডার তৈরি করতে ব্যর্থ হয়েছে",
+      "errorUpdating": "পারচেজ অর্ডার আপডেট করতে ব্যর্থ হয়েছে",
+      "errorDeleting": "পারচেজ অর্ডার মুছে ফেলতে ব্যর্থ হয়েছে"
+    },
+    "deleteConfirm": {
+      "title": "অর্ডার ডিলিট করবেন?",
+      "message": "আপনি কি {{poNumber}} ডিলিট করতে চান?",
+      "warning": "এটি আর ফেরত আনা যাবে না। সব ডাটা চিরতরে মুছে যাবে।",
+      "cancel": "বন্ধ করুন",
+      "confirm": "ডিলিট করুন"
+    },
+    "details": {
+      "title": "অর্ডারের বিস্তারিত",
+      "orderInformation": "অর্ডার তথ্য",
+      "orderDate": "অর্ডারের তারিখ",
+      "expectedDate": "প্রত্যাশিত তারিখ",
+      "exchangeRate": "এক্সচেঞ্জ রেট",
+      "courierTracking": "কুরিয়ার / ট্র্যাকিং",
+      "lotNumber": "লট নম্বর",
+      "bdTracking": "বিডি ট্র্যাকিং",
+      "statusTimeline": "অবস্থা সময়রেখা",
+      "orderItems": "অর্ডারের পণ্য",
+      "items": "পণ্য ({{count}})",
+      "product": "পণ্য",
+      "quantity": "পরিমাণ",
+      "unitPrice": "একক মূল্য (RMB)",
+      "total": "মোট",
+      "shippingCost": "শিপিং খরচ",
+      "totals": {
+        "itemsTotalRmb": "পণ্য মোট (RMB)",
+        "itemsTotalBdt": "পণ্য মোট (BDT)",
+        "shippingCost": "শিপিং খরচ",
+        "itemShippingCosts": "পণ্য শিপিং খরচ",
+        "extraCost": "অতিরিক্ত খরচ",
+        "grandTotal": "সব মিলিয়ে মোট",
+        "note": "* অর্ডার আগাতে অতিরিক্ত খরচ যোগ হবে"
+      },
+      "alerts": {
+        "draft": "এই অর্ডারটি এখনো ড্রাফট অবস্থায় আছে। আপনি এখনো অর্ডারের পণ্য ও বিস্তারিত এডিট করতে পারবেন। অর্ডার কনফার্ম করলে এটি লক হয়ে যাবে এবং অর্ডার নম্বর তৈরি হবে।",
+        "partiallyCompleted": "এই অর্ডারটি আংশিক সম্পন্ন হয়েছে। গ্রহণের সময় কিছু পণ্য মিসিং ছিল। গৃহীত পরিমাণ অনুযায়ী অর্ডার প্রসেস করা হয়েছে এবং রিফান্ড সরবরাহকারীর ওয়ালেটে জমা হয়েছে। এখন আর এটি পরিবর্তন করা যাবে না।",
+        "completed": "এই অর্ডারটি সম্পন্ন হয়েছে। সব আপডেট ও ইনভেন্টরি প্রসেস হয়ে গেছে। এখন আর এটি পরিবর্তন করা যাবে না।"
+      },
+      "actions": {
+        "editOrder": "অর্ডার এডিট",
+        "back": "পেছনে",
+        "confirmOrder": "অর্ডার কনফার্ম",
+        "nextStatus": "পরবর্তী: {{status}}",
+        "approveStock": "অনুমোদন ও স্টক",
+        "approveConfirm": {
+          "title": "অর্ডার স্টক অ্যাপ্রুভ করবেন?",
+          "message": "আপনি কি {{poNumber}} অ্যাপ্রুভ ও ইনভেন্টরি আপডেট করতে চান?",
+          "warning": "এটি গৃহীত পণ্য প্রসেস করবে এবং স্টক আপডেট করবে। এটি আর ফেরত আনা যাবে না।",
+          "partialWarning": "এই অর্ডারটি আংশিক সম্পন্ন হয়েছে কিছু পণ্য মিসিং সহ। শুধুমাত্র গৃহীত পরিমাণ স্টকে যোগ হবে।",
+          "cancel": "বন্ধ করুন",
+          "confirm": "স্টক অ্যাপ্রুভ করুন"
+        },
+        "editComments": "কমেন্ট এডিট",
+        "editData": {
+          "title": "{{status}} ডেটা সম্পাদনা",
+          "success": "ডাটা সফলভাবে আপডেট হয়েছে"
+        }
+      },
+      "statusUpdate": {
+        "draft": {
+          "title": "অর্ডার কনফার্ম করুন",
+          "message": "আপনি এই অর্ডারটি কনফার্ম করতে যাচ্ছেন। CNY থেকে BDT এক্সচেঞ্জ রেট চেক করে সেট করুন। এই রেট সব হিসাবের জন্য ব্যবহার হবে এবং কারেন্সি টেবিল আপডেট করবে।",
+          "exchangeRate": "এক্সচেঞ্জ রেট (¥1 = ৳?)",
+          "exchangeRateDescription": "১ CNY এর জন্য কত ৳ (BDT)?"
+        },
+        "paymentConfirmed": {
+          "title": "সরবরাহকারী ডিসপ্যাচ",
+          "message": "সরবরাহকারী অর্ডার ডিসপ্যাচ করেছে। ইন্টারন্যাশনাল কুরিয়ারের তথ্য দিন।",
+          "courierName": "কুরিয়ারের নাম",
+          "courierPlaceholder": "DHL, FedEx, UPS, ইত্যাদি",
+          "trackingNumber": "ট্র্যাকিং নম্বর",
+          "trackingPlaceholder": "ইন্টারন্যাশনাল ট্র্যাকিং নম্বর"
+        },
+        "warehouseReceived": {
+          "title": "বাংলাদেশে পাঠানো হচ্ছে",
+          "message": "শিপমেন্ট বাংলাদেশে পাঠানো হচ্ছে। ট্র্যাকিংয়ের জন্য লট নম্বর দিন।",
+          "lotNumber": "লট নম্বর",
+          "lotPlaceholder": "যেমন: LOT-202602-001"
+        },
+        "shippedBd": {
+          "title": "বাংলাদেশে এসেছে",
+          "message": "পণ্য বাংলাদেশে এসেছে। পরিবহন মাধ্যম ও মোট শিপিং খরচ দিন। এই খরচ পণ্যের দাম অনুযায়ী ভাগ করা হবে যখন আসল পণ্যের খরচ হিসাব করা হবে।",
+          "transportType": "পরিবহন মাধ্যম",
+          "selectTransport": "পরিবহন মাধ্যম সিলেক্ট করুন",
+          "byAir": "বিমান",
+          "byShip": "জাহাজ",
+          "shippingCost": "মোট শিপিং খরচ (BDT)",
+          "shippingCostDescription": "এই পরিবহনের মোট খরচ (পণ্যে ভাগ করা হবে)",
+          "itemsList": "এই অর্ডারে পণ্য ({{count}}):",
+          "total": "মোট"
+        },
+        "arrivedBd": {
+          "title": "বগুড়ার উদ্দেশে",
+          "message": "পণ্য বগুড়ার উদ্দেশে রওনা হচ্ছে। বিডি কুরিয়ার ট্র্যাকিং নম্বর দিন।",
+          "bdCourierTracking": "বিডি কুরিয়ার ট্র্যাকিং",
+          "bdPlaceholder": "Pathao, Steadfast, RedX, ইত্যাদি"
+        },
+        "comments": "কমেন্ট / নোট",
+        "commentsPlaceholder": "এই স্ট্যাটাস পরিবর্তন সম্পর্কে কোনো নোট বা মন্তব্য যোগ করুন...",
+        "commentsDescription": "ঐচ্ছিক: গুরুত্বপূর্ণ বিবরণ, সমস্যা বা নোট নথিভুক্ত করুন",
+        "update": "স্ট্যাটাস আপডেট করুন",
+        "transitionDescription": "অর্ডার স্ট্যাটাস পরবর্তীকরণ করুন"
+      }
+    }
+  },
+  "suppliersPage": {
+    "title": "সরবরাহকারী",
+    "products": "পণ্যসমূহ"
+  },
+  "receivingModal": {
+    "title": "পণ্য গ্রহণ - পিও {{poNumber}}",
+    "validation": {
+      "error": "বৈধতা ত্রুটি",
+      "unitWeightRequired": "দয়া করে {{productName}} এর জন্য ইউনিট ওজন লিখুন"
+    },
+    "summary": {
+      "title": "গ্রহণের সারসংক্ষেপ",
+      "manualReviewRequired": "ম্যানুয়াল রিভিউ প্রয়োজন",
+      "partialCompletion": "আংশিক সম্পন্ন",
+      "total": "মোট",
+      "units": "ইউনিট",
+      "received": "গ্রহণ করা হয়েছে",
+      "lost": "হারিয়ে গেছে",
+      "found": "পাওয়া গেছে",
+      "extra": "অতিরিক্ত",
+      "manualReviewWarning": "⚠️ হারানোর হার ১০% এর বেশি। {{lostValue}} টাকা রিফান্ডের জন্য ম্যানুয়াল রিভিউ প্রয়োজন।",
+      "partialWarning": "⚠️ কিছু আইটেম হারিয়ে গেছে ({{lostUnits}} ইউনিট)। অর্ডারটি <strong>আংশিক সম্পন্ন</strong> হিসেবে চিহ্নিত করা হবে এবং {{lostValue}} টাকা রিফান্ড সরবরাহকারীর ওয়ালেটে স্বয়ংক্রিয়ভাবে জমা হবে।",
+      "foundItemsInfo": "✓ {{foundUnits}} অতিরিক্ত ইউনিট পাওয়া গেছে। পাওয়া আইটেমগুলো খরচ হ্রাস করে।",
+      "autoCreditSuccess": "✓ হারানোর হার ১০% এর মধ্যে। রিফান্ড সরবরাহকারীর ওয়ালেটে স্বয়ংক্রিয়ভাবে জমা হবে।"
+    },
+    "extraCost": {
+      "label": "অতিরিক্ত খরচ (টাকা)",
+      "description": "অতিরিক্ত শিপিং, হ্যান্ডলিং বা কাস্টমস খরচ। মূল্য অনুপাত অনুযায়ী আইটেমগুলোর মধ্যে বণ্টন করা হবে।"
+    },
+    "shippingCost": {
+      "label": "শিপিং খরচ (টাকা)",
+      "description": "চীন থেকে বাংলাদেশ পর্যন্ত মোট শিপিং খরচ। গ্রহণ করা আইটেমগুলোর মূল্য অনুপাত অনুযায়ী অনুযায়ী অনুপাতে বণ্টন করা হবে।"
+    },
+    "table": {
+      "headers": {
+        "item": "আইটেম",
+        "ordered": "অর্ডার করা",
+        "received": "গ্রহণ করা",
+        "lost": "হারিয়ে গেছে",
+        "found": "পাওয়া গেছে",
+        "unitWeight": "ইউনিট ওজন (গ্রাম)",
+        "extraWeight": "অতিরিক্ত ওজন (গ্রাম)",
+        "originalCost": "মূল মূল্য",
+        "adjustment": "সমন্বয়",
+        "finalCost": "চূড়ান্ত মূল্য"
+      },
+      "chinaPrice": "চায়না মূল্য"
+    },
+    "costAdjustment": {
+      "title": "খরচ সমন্বয় (হারানো আইটেম বণ্টিত)",
+      "itemBreakdown": "হারানো আইটেমের মূল্য ({{lostValue}} টাকা) {{receivedUnits}} গ্রহণ করা ইউনিটের মধ্যে বণ্টন করা হয়েছে। প্রতি ইউনিটে সমন্বয়: ৳ {{adjustmentPerUnit}}",
+      "itemNote": "মূল মূল্য: ৳ {{originalCost}} → চূড়ান্ত মূল্য: ৳ {{finalCost}} (বৃদ্ধি: ৳ {{increase}})"
+    },
+    "costDistribution": {
+      "title": "খরচ বণ্টন পদ্ধতি",
+      "description": "অতিরিক্ত খরচ আইটেমগুলোর গ্রহণ করা মূল্য অনুপাত অনুযায়ী বণ্টন করা হয় (china_price × received_quantity)। চূড়ান্ত ইউনিট মূল্য = china_price + (extra_cost ÷ received_quantity)"
+    },
+    "actions": {
+      "cancel": "বাতিল",
+      "submitForReview": "রিভিউয়ের জন্য জমা দিন",
+      "confirmPartial": "আংশিক গ্রহণ নিশ্চিত করুন",
+      "confirm": "গ্রহণ নিশ্চিত করুন"
+    },
+    "comments": {
+      "label": "মন্তব্য",
+      "placeholder": "এই গ্রহণ সম্পর্কে কোনো নোট যোগ করুন (ঐচ্ছিক)",
+      "description": "ঐচ্ছিক: এই গ্রহণ সম্পর্কে কোনো গুরুত্বপূর্ণ বিবরণ, সমস্যা বা নোট লিপিবদ্ধ করুন"
+    }
+  },
+  "lostAndFound": {
+    "title": "হারানো এবং পাওয়া আইটেম",
+    "tableHeaders": {
+      "product": "পণ্য",
+      "ordered": "অর্ডার করা",
+      "received": "গ্রহণ করা",
+      "lost": "হারানো",
+      "found": "পাওয়া",
+      "unitPrice": "একক মূল্য",
+      "lostCost": "ক্ষতির খরচ"
+    },
+    "summary": {
+      "totalLostCost": "মোট ক্ষতির খরচ",
+      "description": "অনুপস্থিত আইটেমগুলির জন্য রিফান্ড হিসেবে এই পরিমাণ সরবরাহকারীর ওয়ালেটে স্বয়ংক্রিয়ভাবে যোগ করা হবে।"
+    }
+  },
+  "productsCreate": {
+    "title": "নতুন পণ্য যোগ করুন (ক্রয়)",
+    "subtitle": "সরবরাহকারীদের কাছ থেকে ক্রয়ের জন্য নতুন পণ্য তৈরি করুন",
+    "infoAlert": "নিচে পণ্যের বিবরণ পূরণ করুন। পণ্য তৈরি করার পরে, আপনি বিভিন্ন SKU, সাইজ এবং রঙ সহ ভেরিয়েন্ট যোগ করতে পারবেন।",
+    "basicInfo": "মৌলিক তথ্য",
+    "productName": "পণ্যের নাম",
+    "productNamePlaceholder": "পণ্যের নাম লিখুন",
+    "category": "ক্যাটাগরি",
+    "selectCategory": "ক্যাটাগরি নির্বাচন করুন",
+    "brand": "ব্র্যান্ড",
+    "selectBrand": "ব্র্যান্ড নির্বাচন করুন",
+    "description": "বিবরণ",
+    "descriptionPlaceholder": "পণ্যের বিবরণ লিখুন",
+    "videoUrl": "ভিডিও URL (ঐচ্ছিক)",
+    "status": "স্ট্যাটাস",
+    "productImage": "পণ্যের ছবি",
+    "clickToUpload": "পণ্যের ছবি আপলোড করতে ক্লিক করুন",
+    "selectThumbnail": "থাম্বনেইল নির্বাচন করুন",
+    "suppliers": "সরবরাহকারী",
+    "supplierUrl": "সরবরাহকারী URL",
+    "supplierInfo": "সরবরাহকারী তথ্য",
+    "supplierInfoDesc": "এই পণ্যের জন্য সরবরাহকারী সম্পর্ক এবং উৎস পরিচালনা করুন।",
+    "variants": "পণ্য ভেরিয়েন্ট",
+    "addVariant": "ভেরিয়েন্ট যোগ করুন",
+    "variant": "ভেরিয়েন্ট",
+    "sku": "SKU",
+    "customSku": "কাস্টম SKU",
+    "customSkuPlaceholder": "মালিকের কোড",
+    "variantName": "ভেরিয়েন্ট নাম",
+    "unit": "ইউনিট",
+    "size": "সাইজ",
+    "color": "রঙ",
+    "retailPrice": "খুচরা মূল্য",
+    "wholesalePrice": "পাইকারি মূল্য",
+    "purchaseCost": "ক্রয় মূল্য",
+    "alertQty": "সতর্কতা পরিমাণ",
+    "saveProduct": "পণ্য সংরক্ষণ করুন",
+    "validation": {
+      "titleRequired": "শিরোনাম প্রয়োজন"
+    },
+    "notification": {
+      "saved": "পণ্য সফলভাবে সংরক্ষণ করা হয়েছে (স্ট্যাটিক UI)",
+      "saveError": "পণ্য সংরক্ষণ করতে ব্যর্থ হয়েছে",
+      "atLeastOneVariant": "অন্তত একটি ভেরিয়েন্ট প্রয়োজন",
+      "thumbnailRequired": "অনুগ্রহ করে একটি থাম্বনেইল ছবি নির্বাচন করুন"
+    }
+  },
+  "lostAndFound": {
+    "title": "হারানো এবং পাওয়া আইটেম",
+    "tableHeaders": {
+      "product": "পণ্য",
+      "ordered": "অর্ডার করা",
+      "received": "প্রাপ্ত",
+      "lost": "হারিয়েছে",
+      "found": "পাওয়া",
+      "unitPrice": "একক মূল্য",
+      "lostCost": "হারানো খরচ"
+    },
+    "summary": {
+      "totalLostCost": "মোট হারানো খরচ",
+      "description": "এই পরিমাণটি হারানো আইটেমগুলির জন্য রিফান্ড হিসাবে স্বয়ংক্রিয়ভাবে সরবরাহকারী ওয়ালেটে জমা হবে।"
+    }
+  }
+}

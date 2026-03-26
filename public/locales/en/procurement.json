@@ -1,0 +1,103 @@
+{
+  "products": "Products",
+  "productsPage": {
+    "title": "All Products",
+    "subtitle": "Manage your product catalog",
+    "addProduct": "Add Product",
+    "accessDenied": "You don't have permission to view products",
+    "filters": {
+      "searchPlaceholder": "Search products...",
+      "status": "Status",
+      "category": "Category",
+      "brand": "Brand",
+      "allStatus": "All Status"
+    },
+    "status": {
+      "draft": "Draft",
+      "published": "Published",
+      "archived": "Archived",
+      "changeStatus": "Change Status"
+    },
+    "stock": {
+      "outOfStock": "Out of Stock",
+      "lowStock": "{{count}} left",
+      "inStock": "{{count}} in stock"
+    },
+    "table": {
+      "product": "Product",
+      "variants": "Variants",
+      "category": "Category",
+      "brand": "Brand",
+      "stock": "Stock",
+      "status": "Status",
+      "actions": "Actions",
+      "noProducts": "No products found"
+    },
+    "menu": {
+      "actions": "Actions",
+      "duplicate": "Duplicate",
+      "viewDetails": "View Details"
+    },
+    "pagination": {
+      "page": "Page {{current}} of {{total}}"
+    },
+    "notification": {
+      "fetchError": "Failed to load products",
+      "deleteTitle": "Delete Product",
+      "deleteConfirm": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
+      "deletePermission": "You don't have permission to delete products",
+      "deleteSuccess": "Product deleted successfully",
+      "deleteError": "Failed to delete product",
+      "duplicatePermission": "You don't have permission to duplicate products",
+      "duplicateSuccess": "Product duplicated successfully",
+      "duplicateError": "Failed to duplicate product",
+      "statusPermission": "You don't have permission to change product status",
+      "statusSuccess": "Product status updated successfully",
+      "statusError": "Failed to update product status"
+    }
+  },
+  "productsCreate": {
+    "title": "Add New Product",
+    "accessDenied": "You don't have permission to create products",
+    "basicInfo": "Basic Information",
+    "supplierInfo": "Supplier Information",
+    "productImage": "Product Image",
+    "variants": "Product Variants",
+    "productName": "Product Name",
+    "productNamePlaceholder": "Enter product name",
+    "category": "Category",
+    "selectCategory": "Select category",
+    "brand": "Brand",
+    "selectBrand": "Select brand",
+    "suppliers": "Suppliers",
+    "selectSupplier": "Select suppliers",
+    "supplierUrl": "Supplier URL",
+    "productLink": "Product Link",
+    "description": "Description",
+    "videoUrl": "Video URL",
+    "status": "Status",
+    "noImageSelected": "No image selected",
+    "selectThumbnail": "Select Thumbnail",
+    "addVariant": "Add Variant",
+    "variant": "Variant",
+    "sku": "SKU",
+    "customSku": "Custom SKU",
+    "variantName": "Variant Name",
+    "unit": "Unit",
+    "size": "Size",
+    "color": "Color",
+    "retailPrice": "Retail Price",
+    "wholesalePrice": "Wholesale Price",
+    "purchaseCost": "Purchase Cost",
+    "alertQty": "Alert Quantity",
+    "saveProduct": "Save Product",
+    "validation": {
+      "titleRequired": "Title is required"
+    },
+    "notification": {
+      "saved": "Product saved successfully",
+      "saveError": "Failed to save product"
+    }
+  },
+  "products": "Products"
+}

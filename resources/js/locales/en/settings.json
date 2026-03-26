@@ -1,0 +1,45 @@
+{
+  "title": "Settings",
+  "users": "Users",
+  "roles": "Roles",
+  "permissions": "Permissions",
+  "auditLogs": "Audit Logs",
+  "general": "General",
+  "payments": "Payments",
+  "taxes": "Taxes",
+  "apiKeys": "API Keys",
+  "backup": "Backup",
+  "profile": "Profile",
+  "workingHours": "Working Hours",
+  "workingHoursTitle": "Working Hours Settings",
+  "workingHoursConfig": {
+    "title": "Working Hours",
+    "subtitle": "Configure office working hours and attendance rules",
+    "workStartTime": "Work Start Time",
+    "workStartTimeLabel": "When does the work day start?",
+    "workStartTimeHint": "Employees who clock in after this time + grace period will be marked as late",
+    "workEndTime": "Work End Time",
+    "workEndTimeLabel": "When does the work day end?",
+    "workEndTimeHint": "Standard time for auto-completing incomplete attendance records",
+    "breakDuration": "Break Duration",
+    "breakDurationLabel": "How long is the standard break?",
+    "breakDurationHint": "Standard break duration in minutes (default: 60 minutes = 1 hour)",
+    "gracePeriod": "Grace Period",
+    "gracePeriodLabel": "How many minutes of grace period for late arrival?",
+    "gracePeriodHint": "Employees who arrive within this time after start time won't be marked as late",
+    "minutes": "minutes",
+    "summaryTitle": "Summary",
+    "summary": "Work day: {{start}} - {{end}} | Break: {{breakHours}}h {{breakMinutes}}m | Grace: {{grace}}m",
+    "resetToDefaults": "Reset to Defaults",
+    "success": {
+      "saved": "Settings saved successfully"
+    },
+    "error": {
+      "loadFailed": "Failed to load settings",
+      "saveFailed": "Failed to save settings"
+    },
+    "info": {
+      "resetToDefaults": "Settings reset to default values. Click Save to apply."
+    }
+  }
+}
