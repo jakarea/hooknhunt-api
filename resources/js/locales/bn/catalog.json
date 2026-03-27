@@ -178,6 +178,18 @@
     "enableWarrantyDescription": "এই পণ্যের জন্য ওয়ারেন্টি অফার করুন",
     "warrantyDetails": "ওয়ারেন্টির বিবরণ",
     "warrantyDetailsPlaceholder": "ওয়ারেন্টির বিবরণ লিখুন",
+    "validation": {
+      "descriptionTooShort": "বিবরণ কমপক্ষে ১০ অক্ষরের হতে হবে",
+      "productNameRequired": "পণ্যের নাম প্রয়োজন",
+      "categoryRequired": "অনুগ্রহ করে একটি বিভাগ নির্বাচন করুন",
+      "brandRequired": "অনুগ্রহ করে একটি ব্র্যান্ড নির্বাচন করুন",
+      "descriptionRequired": "পণ্যের বিবরণ প্রয়োজন",
+      "atLeastOneVariant": "অন্তত একটি ভেরিয়েন্ট প্রয়োজন",
+      "variantNameRequired": "ভেরিয়েন্ট নাম প্রয়োজন",
+      "retailPriceRequired": "খুচরা মূল্য প্রয়োজন",
+      "wholesalePriceRequired": "পাইকারি মূল্য প্রয়োজন",
+      "purchaseCostRequired": "ক্রয় মূল্য প্রয়োজন"
+    },
     "notification": {
       "saved": "পণ্য সফলভাবে সংরক্ষণ করা হয়েছে",
       "atLeastOneVariant": "অন্তত একটি ভেরিয়েন্ট প্রয়োজন",

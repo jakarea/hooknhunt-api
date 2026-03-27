@@ -964,14 +964,6 @@ export default function CreateProductPage() {
       console.log('🚫 Validation errors:', newErrors)
       setErrors(newErrors)
 
-      // Show notification with validation errors
-      const errorMessages = Object.values(newErrors).join('\n')
-      notifications.show({
-        title: t('common.validationError') || 'Validation Error',
-        message: errorMessages,
-        color: 'red'
-      })
-
       // Scroll to first error
       const firstField = Object.keys(newErrors)[0]
       const element = document.getElementById(firstField)
@@ -1005,7 +997,7 @@ export default function CreateProductPage() {
         seoTitle,
         seoDescription,
         seoTags,
-        featuredImage: featuredImage?.mediaId,
+        featuredImage: featuredImage?.mediaId ?? null,
         galleryImages: galleryImages.map(img => img.mediaId),
         variants: variants.map(v => ({
           retail_id: v.retail_id || null,
@@ -1049,11 +1041,20 @@ export default function CreateProductPage() {
       if (error.response?.status === 422 && error.response?.data?.errors) {
         const serverErrors = error.response.data.errors
         const formattedErrors: Record<string, string> = {}
-        
+
         Object.keys(serverErrors).forEach(field => {
-          formattedErrors[field] = serverErrors[field]?.[0] || 'Validation error'
+          // Transform backend error keys to match frontend format
+          // Backend sends: variants.0.field (plural)
+          // Frontend expects: variant.0.field (singular)
+          const transformedField = field.replace(/^variants\./, 'variant.')
+
+          // Clean up error message - remove field path prefix like "variants.0."
+          let errorMessage = serverErrors[field]?.[0] || 'Validation error'
+          errorMessage = errorMessage.replace(/^variants\.\d+\./, '').replace(/^variant\.\d+\./, '')
+
+          formattedErrors[transformedField] = errorMessage
         })
-        
+
         setErrors(formattedErrors)
 
         // Scroll to first error
@@ -1155,7 +1156,7 @@ export default function CreateProductPage() {
                       }}
                       onFocus={collapseSidebarIfNeeded}
                       maxLength={255}
-                      required
+                      error={errors.retailName}
                     />
 
                     <TextInput
@@ -1170,7 +1171,7 @@ export default function CreateProductPage() {
                       }}
                       onFocus={collapseSidebarIfNeeded}
                       maxLength={255}
-                      required
+                      error={errors.wholesaleName}
                     />
 
                     <TextInput
@@ -1185,6 +1186,7 @@ export default function CreateProductPage() {
                       }}
                       onFocus={collapseSidebarIfNeeded}
                       maxLength={255}
+                      error={errors.customName}
                     />
 
                     <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -1405,6 +1407,7 @@ export default function CreateProductPage() {
                         onFocus={collapseSidebarIfNeeded}
                         style={{ flex: 1 }}
                         leftSection={<IconVideo size={16} />}
+                        error={errors.videoUrl}
                       />
                       <Select
                         label={t('catalog.productsCreate.status') || 'Status'}
@@ -1417,6 +1420,7 @@ export default function CreateProductPage() {
                         onChange={(value) => setStatus(value || 'draft')}
                         onFocus={collapseSidebarIfNeeded}
                         w={150}
+                        error={errors.status}
                       />
                     </Group>
 
@@ -1634,7 +1638,7 @@ export default function CreateProductPage() {
 
                         {/* Variant Rows */}
                         <Stack gap="xs">
-                          {variants.map((variant) => (
+                          {variants.map((variant, index) => (
                             <Paper key={variant.id} withBorder p="xs">
                               <SimpleGrid cols={10} spacing="md">
                                 {/* Variant Name */}
@@ -1656,6 +1660,7 @@ export default function CreateProductPage() {
                                     onFocus={collapseSidebarIfNeeded}
                                     size="sm"
                                     style={{ flex: 1 }}
+                                    error={errors[`variant.${index}.name`]}
                                   />
                                 </Group>
 
@@ -1667,6 +1672,7 @@ export default function CreateProductPage() {
                                   onFocus={collapseSidebarIfNeeded}
                                   size="sm"
                                   styles={{ input: { minWidth: 100 } }}
+                                  error={errors[`variant.${index}.sellerSku`]}
                                 />
 
                                 {/* Purchase Cost */}
@@ -1678,6 +1684,7 @@ export default function CreateProductPage() {
                                   min={0}
                                   size="sm"
                                   styles={{ input: { minWidth: 80 } }}
+                                  error={errors[`variant.${index}.purchaseCost`]}
                                 />
 
                                 {/* Retail Price */}
@@ -1690,6 +1697,7 @@ export default function CreateProductPage() {
                                     min={0}
                                     size="sm"
                                     styles={{ input: { minWidth: 80 } }}
+                                    error={errors[`variant.${index}.price`]}
                                   />
                                   <Text size="xs" c={variant.price - variant.purchaseCost < 0 ? 'red' : 'green'}>
                                     {variant.price - variant.purchaseCost > 0 ? '+' : ''}{(variant.price - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.price - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
@@ -1706,6 +1714,7 @@ export default function CreateProductPage() {
                                     min={0}
                                     size="sm"
                                     styles={{ input: { minWidth: 80 } }}
+                                    error={errors[`variant.${index}.wholesalePrice`]}
                                   />
                                   <Text size="xs" c={variant.wholesalePrice - variant.purchaseCost < 0 ? 'red' : 'green'}>
                                     {variant.wholesalePrice - variant.purchaseCost > 0 ? '+' : ''}{(variant.wholesalePrice - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.wholesalePrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
@@ -1722,6 +1731,7 @@ export default function CreateProductPage() {
                                     min={0}
                                     size="sm"
                                     styles={{ input: { minWidth: 80 } }}
+                                    error={errors[`variant.${index}.specialPrice`]}
                                   />
                                   {variant.specialPrice !== undefined && variant.specialPrice > 0 && (
                                     <Text size="xs" c={(variant.specialPrice - variant.purchaseCost) < 0 ? 'red' : 'green'}>
@@ -1740,6 +1750,7 @@ export default function CreateProductPage() {
                                     min={0}
                                     size="sm"
                                     styles={{ input: { minWidth: 80 } }}
+                                    error={errors[`variant.${index}.wholesaleOfferPrice`]}
                                   />
                                   {variant.wholesaleOfferPrice !== undefined && variant.wholesaleOfferPrice > 0 && (
                                     <Text size="xs" c={(variant.wholesaleOfferPrice - variant.purchaseCost) < 0 ? 'red' : 'green'}>
@@ -1757,6 +1768,7 @@ export default function CreateProductPage() {
                                   min={0}
                                   size="sm"
                                   styles={{ input: { minWidth: 80 } }}
+                                  error={errors[`variant.${index}.wholesaleMoq`]}
                                 />
 
                                 {/* Weight */}
@@ -1769,6 +1781,7 @@ export default function CreateProductPage() {
                                   size="sm"
                                   styles={{ input: { minWidth: 80 } }}
                                   rightSection={<Text size="xs">g</Text>}
+                                  error={errors[`variant.${index}.weight`]}
                                 />
 
                                 {/* Stock */}
@@ -1780,6 +1793,7 @@ export default function CreateProductPage() {
                                   min={0}
                                   size="sm"
                                   styles={{ input: { minWidth: 80 } }}
+                                  error={errors[`variant.${index}.stock`]}
                                 />
                               </SimpleGrid>
                             </Paper>
@@ -1919,6 +1933,7 @@ export default function CreateProductPage() {
                           onChange={(value) => setExpectedDeliveryDate(typeof value === 'string' ? value : value?.currentTarget?.value || '')}
                           onFocus={collapseSidebarIfNeeded}
                           size="md"
+                          error={errors.expectedDeliveryDate}
                         />
                       )}
                     </SimpleGrid>

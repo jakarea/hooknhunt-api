@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V2;
 
 use App\Http\Controllers\Controller;
+use App\Helpers\SlugHelper;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Traits\ApiResponse;
@@ -208,7 +209,7 @@ class ProductController extends Controller
                 'retail_name' => $validated['retailName'] ?? null,
                 'wholesale_name' => $validated['wholesaleName'] ?? null,
                 'custom_name' => $validated['customName'] ?? null,
-                'slug' => Str::slug($validated['productName']) . '-' . time(),
+                'slug' => SlugHelper::generateUniqueSlug($validated['productName'], 'products', 'slug'),
                 'category_id' => $validated['category'],
                 'brand_id' => $validated['brand'],
                 'status' => $validated['status'],
@@ -235,7 +236,7 @@ class ProductController extends Controller
                 $retailVariant = ProductVariant::create([
                     'product_id' => $product->id,
                     'channel' => 'retail',
-                    'variant_slug' => Str::slug($variant['name'] . '-retail'),
+                    'variant_slug' => SlugHelper::generateVariantSlug($product->slug, $variant['name'], 'retail'),
                     'variant_name' => $variant['name'],
                     'sku' => $baseSku . '-R-' . rand(1000, 9999),
                     'custom_sku' => $variant['sellerSku'],
@@ -256,7 +257,7 @@ class ProductController extends Controller
                 $wholesaleVariant = ProductVariant::create([
                     'product_id' => $product->id,
                     'channel' => 'wholesale',
-                    'variant_slug' => Str::slug($variant['name'] . '-wholesale'),
+                    'variant_slug' => SlugHelper::generateVariantSlug($product->slug, $variant['name'], 'wholesale'),
                     'variant_name' => $variant['name'],
                     'sku' => $baseSku . '-W-' . rand(1000, 9999),
                     'custom_sku' => $variant['sellerSku'],
@@ -403,13 +404,19 @@ class ProductController extends Controller
 
         DB::beginTransaction();
         try {
+            // Generate new slug if product name changed
+            $newSlug = $product->slug;
+            if ($request->productName && $request->productName !== $product->name) {
+                $newSlug = SlugHelper::generateUniqueSlug($request->productName, 'products', 'slug');
+            }
+
             // Update product fields - map camelCase to snake_case
             $product->update([
                 'name' => $request->productName ?? $product->name,
                 'retail_name' => $request->retailName ?? $product->retail_name,
                 'wholesale_name' => $request->wholesaleName ?? $product->wholesale_name,
                 'custom_name' => $request->has('customName') ? $request->customName : $product->custom_name,
-                'slug' => $request->productName ? Str::slug($request->productName) . '-' . time() : $product->slug,
+                'slug' => $newSlug,
                 'category_id' => $request->category ?? $product->category_id,
                 'brand_id' => $request->brand ?? $product->brand_id,
                 'thumbnail_id' => $request->featuredImage ?? $product->thumbnail_id,
@@ -453,7 +460,14 @@ class ProductController extends Controller
                     // Update retail variant
                     $retailVariant = \App\Models\ProductVariant::find($variantData['retail_id']);
                     if ($retailVariant && $retailVariant->product_id == $product->id) {
+                        // Generate new variant slug if name changed
+                        $newRetailVariantSlug = $retailVariant->variant_slug;
+                        if (isset($variantData['name']) && $variantData['name'] !== $retailVariant->variant_name) {
+                            $newRetailVariantSlug = SlugHelper::generateVariantSlug($product->slug, $variantData['name'], 'retail');
+                        }
+
                         $retailVariant->update(array_merge($commonFields, [
+                            'variant_slug' => $newRetailVariantSlug,
                             'sku' => $variantData['sellerSku'] ?? $retailVariant->sku,
                             'price' => $variantData['retailPrice'] ?? 0,
                             'offer_price' => $variantData['retailOfferPrice'] ?? null,
@@ -463,7 +477,14 @@ class ProductController extends Controller
                     // Update wholesale variant
                     $wholesaleVariant = \App\Models\ProductVariant::find($variantData['wholesale_id']);
                     if ($wholesaleVariant && $wholesaleVariant->product_id == $product->id) {
+                        // Generate new variant slug if name changed
+                        $newWholesaleVariantSlug = $wholesaleVariant->variant_slug;
+                        if (isset($variantData['name']) && $variantData['name'] !== $wholesaleVariant->variant_name) {
+                            $newWholesaleVariantSlug = SlugHelper::generateVariantSlug($product->slug, $variantData['name'], 'wholesale');
+                        }
+
                         $wholesaleUpdateData = [
+                            'variant_slug' => $newWholesaleVariantSlug,
                             'price' => $variantData['wholesalePrice'] ?? 0,
                             'offer_price' => $variantData['wholesaleOfferPrice'] ?? null,
                         ];

@@ -11,8 +11,9 @@ return new class extends Migration
         Schema::create('product_variants', function (Blueprint $table) {
             $table->id();
             $table->foreignId('product_id')->constrained('products')->onDelete('cascade');
-            $table->string('variant_slug')->unique();
             $table->enum('channel', ['retail', 'wholesale', 'daraz', 'pos']);
+            $table->string('variant_slug');
+            $table->unique(['variant_slug', 'channel'], 'unique_variant_slug_channel');
             $table->string('sku')->unique();
             $table->string('custom_sku')->nullable();
             $table->string('variant_name')->nullable();
