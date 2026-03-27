@@ -15,9 +15,8 @@ import {
   Box,
   Anchor,
   Breadcrumbs,
-  Skeleton,
   ActionIcon,
-  rem,
+  Skeleton,
 } from '@mantine/core'
 import {
   IconChevronRight,
@@ -28,6 +27,7 @@ import {
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useMediaSelector } from '@/hooks/useMediaSelector'
 import {
   getProcurementProduct,
   updateProcurementProduct,
@@ -35,6 +35,10 @@ import {
   getBrandsDropdown,
   getSuppliers,
 } from '@/utils/api'
+
+// ============================================================================
+// TYPES
+// ============================================================================
 
 interface Supplier {
   id: number
@@ -48,11 +52,210 @@ interface ProcurementProductSupplier {
   productLinks?: string[]
 }
 
+interface FormSupplier {
+  supplierId: number | null
+  supplierName: string
+  productLinks: string[]
+}
+
+// ============================================================================
+// PURE VALIDATION FUNCTIONS
+// ============================================================================
+
+/**
+ * Validates that product name is not empty
+ */
+const validateProductName = (name: string): boolean => {
+  return name.trim().length > 0
+}
+
+/**
+ * Validates that category is selected
+ */
+const validateCategory = (categoryId: number | null): boolean => {
+  return categoryId !== null
+}
+
+/**
+ * Validates that at least one supplier is added
+ */
+const validateSuppliersList = (suppliers: FormSupplier[]): boolean => {
+  return suppliers.length > 0
+}
+
+/**
+ * Validates that all added suppliers have valid IDs
+ */
+const validateAllSuppliersHaveIds = (suppliers: FormSupplier[]): boolean => {
+  return suppliers.every((s) => s.supplierId !== null && s.supplierId !== undefined)
+}
+
+// ============================================================================
+// PURE DATA TRANSFORMATION FUNCTIONS
+// ============================================================================
+
+/**
+ * Transforms categories array to Select options
+ */
+const transformCategoriesToSelectOptions = (
+  categories: any[]
+): { value: string; label: string }[] => {
+  return categories.map((c: any) => ({
+    value: String(c.id),
+    label: c.name,
+  }))
+}
+
+/**
+ * Transforms brands array to Select options
+ */
+const transformBrandsToSelectOptions = (
+  brands: any[]
+): { value: string; label: string }[] => {
+  return brands.map((b: any) => ({
+    value: String(b.id),
+    label: b.name,
+  }))
+}
+
+/**
+ * Transforms suppliers array to Select options
+ */
+const transformSuppliersToSelectOptions = (
+  suppliers: Supplier[]
+): { value: string; label: string }[] => {
+  return suppliers.map((s) => ({
+    value: String(s.id),
+    label: s.name,
+  }))
+}
+
+/**
+ * Transforms API supplier data to form supplier format
+ */
+const transformApiSuppliersToFormSuppliers = (
+  apiSuppliers: any[]
+): FormSupplier[] => {
+  return apiSuppliers.map((s: any) => ({
+    supplierId: s.id,
+    supplierName: s.name,
+    productLinks: s.productLinks || [],
+  }))
+}
+
+/**
+ * Transforms form suppliers to API format
+ */
+const transformSuppliersForAPI = (
+  suppliers: FormSupplier[]
+): ProcurementProductSupplier[] => {
+  return suppliers
+    .filter((s) => s.supplierId !== null)
+    .map((s) => ({
+      supplierId: s.supplierId!,
+      productLinks: s.productLinks.filter((link) => link.trim()) || undefined,
+    }))
+}
+
+/**
+ * Gets list of supplier IDs that are already added
+ */
+const getAddedSupplierIds = (suppliers: FormSupplier[]): number[] => {
+  return suppliers
+    .filter((s) => s.supplierId !== null)
+    .map((s) => s.supplierId!)
+}
+
+/**
+ * Filters out suppliers that are already added
+ */
+const getAvailableSuppliers = (
+  allSuppliers: Supplier[],
+  addedSupplierIds: number[]
+): Supplier[] => {
+  return allSuppliers.filter((s) => !addedSupplierIds.includes(s.id))
+}
+
+/**
+ * Adds a new supplier to the list
+ */
+const addSupplierToList = (
+  currentSuppliers: FormSupplier[],
+  supplierId: number,
+  supplierName: string
+): FormSupplier[] => {
+  return [
+    ...currentSuppliers,
+    {
+      supplierId,
+      supplierName,
+      productLinks: [],
+    },
+  ]
+}
+
+/**
+ * Removes a supplier from the list by ID
+ */
+const removeSupplierFromList = (
+  suppliers: FormSupplier[],
+  supplierIdToRemove: number
+): FormSupplier[] => {
+  return suppliers.filter((s) => s.supplierId !== supplierIdToRemove)
+}
+
+/**
+ * Adds a product link to a specific supplier
+ */
+const addProductLinkToSupplier = (
+  suppliers: FormSupplier[],
+  supplierId: number,
+  linkToAdd: string
+): FormSupplier[] => {
+  if (!linkToAdd || !linkToAdd.trim()) {
+    return suppliers
+  }
+
+  return suppliers.map((s) => {
+    if (s.supplierId === supplierId) {
+      return {
+        ...s,
+        productLinks: [...s.productLinks, linkToAdd.trim()],
+      }
+    }
+    return s
+  })
+}
+
+/**
+ * Removes a product link from a specific supplier
+ */
+const removeProductLinkFromSupplier = (
+  suppliers: FormSupplier[],
+  supplierId: number,
+  linkIndexToRemove: number
+): FormSupplier[] => {
+  return suppliers.map((s) => {
+    if (s.supplierId === supplierId) {
+      return {
+        ...s,
+        productLinks: s.productLinks.filter((_, index) => index !== linkIndexToRemove),
+      }
+    }
+    return s
+  })
+}
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
 export default function EditProcurementProductPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
   const { hasPermission } = usePermissions()
+  const { openSingleSelect } = useMediaSelector()
 
   const [product, setProduct] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -63,7 +266,9 @@ export default function EditProcurementProductPage() {
   const [categoryId, setCategoryId] = useState<number | null>(null)
   const [brandId, setBrandId] = useState<number | null>(null)
   const [status, setStatus] = useState<'draft' | 'published'>('draft')
-  const [suppliers, setSuppliers] = useState<ProcurementProductSupplier[]>([])
+  const [suppliers, setSuppliers] = useState<FormSupplier[]>([])
+  const [thumbnailId, setThumbnailId] = useState<number | null>(null)
+  const [thumbnailUrl, setThumbnailUrl] = useState<string>('')
 
   // Dropdown options
   const [categories, setCategories] = useState<{ value: string; label: string }[]>([])
@@ -71,7 +276,10 @@ export default function EditProcurementProductPage() {
   const [allSuppliers, setAllSuppliers] = useState<Supplier[]>([])
   const [loadingDropdowns, setLoadingDropdowns] = useState(false)
 
-  // New supplier link input
+  // New supplier selection state
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(null)
+
+  // New product link input state
   const [newProductLinks, setNewProductLinks] = useState<{ [key: number]: string }>({})
 
   useEffect(() => {
@@ -97,13 +305,12 @@ export default function EditProcurementProductPage() {
       setCategoryId(fullProduct.categoryId || null)
       setBrandId(fullProduct.brandId || null)
       setStatus(fullProduct.status || 'draft')
+      setThumbnailId(fullProduct.thumbnailId || null)
+      setThumbnailUrl(fullProduct.thumbnail?.url || '')
 
       // Transform suppliers to our format
       if (fullProduct.suppliers && fullProduct.suppliers.length > 0) {
-        const transformedSuppliers = fullProduct.suppliers.map((s: any) => ({
-          supplierId: s.id,
-          productLinks: s.productLinks || [],
-        }))
+        const transformedSuppliers = transformApiSuppliersToFormSuppliers(fullProduct.suppliers)
         setSuppliers(transformedSuppliers)
       }
     } catch (error: any) {
@@ -135,10 +342,8 @@ export default function EditProcurementProductPage() {
       console.log('🔍 Suppliers API response:', suppliersRes)
       console.log('🔍 Suppliers data extracted:', suppliersData)
 
-      setCategories(
-        categoriesData.map((c: any) => ({ value: String(c.id), label: c.name }))
-      )
-      setBrands(brandsData.map((b: any) => ({ value: String(b.id), label: b.name })))
+      setCategories(transformCategoriesToSelectOptions(categoriesData))
+      setBrands(transformBrandsToSelectOptions(brandsData))
       setAllSuppliers(Array.isArray(suppliersData) ? suppliersData : [])
     } catch (error: any) {
       console.error('Failed to load dropdowns:', error)
@@ -147,10 +352,10 @@ export default function EditProcurementProductPage() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
 
-    if (!name.trim()) {
+    if (!validateProductName(name)) {
       notifications.show({
         title: t('common.error') || 'Error',
         message: 'Product name is required',
@@ -159,7 +364,7 @@ export default function EditProcurementProductPage() {
       return
     }
 
-    if (!categoryId) {
+    if (!validateCategory(categoryId)) {
       notifications.show({
         title: t('common.error') || 'Error',
         message: 'Category is required',
@@ -168,10 +373,19 @@ export default function EditProcurementProductPage() {
       return
     }
 
-    if (suppliers.length === 0) {
+    if (!validateSuppliersList(suppliers)) {
       notifications.show({
         title: t('common.error') || 'Error',
         message: 'At least one supplier is required',
+        color: 'red',
+      })
+      return
+    }
+
+    if (!validateAllSuppliersHaveIds(suppliers)) {
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: 'Please select suppliers for all entries',
         color: 'red',
       })
       return
@@ -183,7 +397,8 @@ export default function EditProcurementProductPage() {
         name: name.trim(),
         categoryId,
         brandId,
-        suppliers,
+        thumbnailId: thumbnailId || undefined,
+        suppliers: transformSuppliersForAPI(suppliers),
         status,
       })
 
@@ -206,35 +421,43 @@ export default function EditProcurementProductPage() {
     }
   }
 
-  const addSupplier = () => {
-    // Find suppliers that are not already added
-    const existingSupplierIds = suppliers.map((s) => s.supplierId)
-    const availableSuppliers = Array.isArray(allSuppliers)
-      ? allSuppliers.filter((s) => !existingSupplierIds.includes(s.id))
-      : []
-
-    if (availableSuppliers.length === 0) {
+  /**
+   * Handles adding a selected supplier to the product
+   */
+  const handleAddSupplier = () => {
+    if (!selectedSupplierId) {
       notifications.show({
         title: t('common.warning') || 'Warning',
-        message: 'No more suppliers available to add',
+        message: 'Please select a supplier first',
         color: 'yellow',
       })
       return
     }
 
-    // Add the first available supplier
-    const newSupplier = availableSuppliers[0]
-    setSuppliers([
-      ...suppliers,
-      {
-        supplierId: newSupplier.id,
-        productLinks: [],
-      },
-    ])
+    const supplierId = parseInt(selectedSupplierId)
+    const supplier = allSuppliers.find((s) => s.id === supplierId)
+
+    if (!supplier) {
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: 'Selected supplier not found',
+        color: 'red',
+      })
+      return
+    }
+
+    const updatedSuppliers = addSupplierToList(suppliers, supplierId, supplier.name)
+    setSuppliers(updatedSuppliers)
+    setSelectedSupplierId(null) // Reset selection
   }
 
-  const removeSupplier = (supplierId: number) => {
-    setSuppliers(suppliers.filter((s) => s.supplierId !== supplierId))
+  /**
+   * Handles removing a supplier from the product
+   */
+  const handleRemoveSupplier = (supplierId: number) => {
+    setSuppliers(removeSupplierFromList(suppliers, supplierId))
+
+    // Clean up new product links input for this supplier
     setNewProductLinks((prev) => {
       const updated = { ...prev }
       delete updated[supplierId]
@@ -242,40 +465,47 @@ export default function EditProcurementProductPage() {
     })
   }
 
-  const addProductLink = (supplierId: number) => {
+  /**
+   * Handles adding a product link to a supplier
+   */
+  const handleAddProductLink = (supplierId: number) => {
     const link = newProductLinks[supplierId]
-    if (!link || !link.trim()) return
+    if (!link || !link.trim()) {
+      return
+    }
 
-    setSuppliers(
-      suppliers.map((s) => {
-        if (s.supplierId === supplierId) {
-          return {
-            ...s,
-            productLinks: [...(s.productLinks || []), link.trim()],
-          }
-        }
-        return s
-      })
-    )
+    setSuppliers(addProductLinkToSupplier(suppliers, supplierId, link))
 
+    // Clear the input for this supplier
     setNewProductLinks((prev) => ({
       ...prev,
       [supplierId]: '',
     }))
   }
 
-  const removeProductLink = (supplierId: number, index: number) => {
-    setSuppliers(
-      suppliers.map((s) => {
-        if (s.supplierId === supplierId) {
-          return {
-            ...s,
-            productLinks: s.productLinks?.filter((_, i) => i !== index) || [],
-          }
-        }
-        return s
-      })
-    )
+  /**
+   * Handles removing a product link from a supplier
+   */
+  const handleRemoveProductLink = (supplierId: number, linkIndex: number) => {
+    setSuppliers(removeProductLinkFromSupplier(suppliers, supplierId, linkIndex))
+  }
+
+  /**
+   * Handles opening the media selector to choose a thumbnail
+   */
+  const handleSelectThumbnail = () => {
+    openSingleSelect((mediaFile) => {
+      setThumbnailId(mediaFile.id)
+      setThumbnailUrl(mediaFile.url)
+    }, thumbnailId ? [thumbnailId] : [])
+  }
+
+  /**
+   * Handles removing the selected thumbnail
+   */
+  const handleRemoveThumbnail = () => {
+    setThumbnailId(null)
+    setThumbnailUrl('')
   }
 
   if (loading) {
@@ -297,6 +527,10 @@ export default function EditProcurementProductPage() {
     )
   }
 
+  const addedSupplierIds = getAddedSupplierIds(suppliers)
+  const availableSuppliers = getAvailableSuppliers(allSuppliers, addedSupplierIds)
+  const availableSupplierOptions = transformSuppliersToSelectOptions(availableSuppliers)
+
   const items = [
     { title: t('nav.dashboard'), href: '/dashboard' },
     { title: t('procurement.products'), href: '/procurement/products' },
@@ -307,12 +541,6 @@ export default function EditProcurementProductPage() {
       {item.title}
     </Anchor>
   ))
-
-  // Get available suppliers for dropdown
-  const existingSupplierIds = suppliers.map((s) => s.supplierId)
-  const availableSuppliers = Array.isArray(allSuppliers)
-    ? allSuppliers.filter((s) => !existingSupplierIds.includes(s.id))
-    : []
 
   return (
     <Box p={{ base: 'md', md: 'xl' }}>
@@ -332,7 +560,7 @@ export default function EditProcurementProductPage() {
                   color={status === 'published' ? 'green' : 'gray'}
                   variant="light"
                 >
-                  {t(`common.${status}`) || status}
+                  {t(`procurement.productsPage.statuses.${status}`) || status}
                 </Badge>
               </Group>
               <Text size="sm" c="dimmed">
@@ -401,68 +629,128 @@ export default function EditProcurementProductPage() {
                 />
               </Group>
 
-              {/* Status */}
-              <Select
-                label={t('procurement.productsPage.status') || 'Status'}
-                data={[
-                  { value: 'draft', label: t('procurement.productsPage.statusOptions.draft') || 'Draft' },
-                  { value: 'published', label: t('procurement.productsPage.statusOptions.published') || 'Published' },
-                ]}
-                value={status}
-                onChange={(value) => setStatus(value as 'draft' | 'published')}
-                size="md"
-              />
+              {/* Status & Thumbnail */}
+              <Group grow>
+                <Select
+                  label={t('procurement.productsPage.status') || 'Status'}
+                  data={[
+                    {
+                      value: 'draft',
+                      label: t('procurement.productsPage.statuses.draft') || 'Draft',
+                    },
+                    {
+                      value: 'published',
+                      label: t('procurement.productsPage.statuses.published') || 'Published',
+                    },
+                  ]}
+                  value={status}
+                  onChange={(value) => setStatus(value as 'draft' | 'published')}
+                  size="md"
+                  styles={{ root: { flex: 8 } }}
+                />
+
+                <Stack gap="sm" styles={{ root: { flex: 4 } }}>
+                  <Text size="sm" fw={600}>
+                    {t('procurement.productsPage.thumbnail') || 'Product Image'}
+                  </Text>
+                  {thumbnailUrl ? (
+                    <Group gap="sm">
+                      <img
+                        src={thumbnailUrl}
+                        alt="Product thumbnail"
+                        style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: '8px' }}
+                      />
+                      <Button
+                        variant="light"
+                        color="red"
+                        size="sm"
+                        onClick={handleRemoveThumbnail}
+                      >
+                        {t('common.remove') || 'Remove'}
+                      </Button>
+                    </Group>
+                  ) : (
+                    <Button
+                      variant="light"
+                      size="sm"
+                      leftSection={<IconPhoto size={14} />}
+                      onClick={handleSelectThumbnail}
+                    >
+                      {t('procurement.productsPage.selectThumbnail') || 'Select Image'}
+                    </Button>
+                  )}
+                </Stack>
+              </Group>
             </Stack>
           </Paper>
 
           {/* Suppliers */}
           <Paper withBorder p="md" radius="md">
             <Stack gap="md">
-              <Group justify="space-between" align="center">
-                <Text fw={600} size="lg">
-                  {t('procurement.productsPage.suppliers') || 'Suppliers'}
-                </Text>
-                <Button
-                  leftSection={<IconPlus size={16} />}
-                  onClick={addSupplier}
-                  disabled={availableSuppliers.length === 0}
-                  size="sm"
-                >
-                  {t('common.add') || 'Add'}
-                </Button>
-              </Group>
+              <Text fw={600} size="lg">
+                {t('procurement.productsPage.suppliers') || 'Suppliers'}
+              </Text>
 
+              {/* Add Supplier Section */}
+              <Paper withBorder p="sm" radius="sm" bg="light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8))">
+                <Stack gap="sm">
+                  <Text size="sm" fw={500}>
+                    {t('procurement.productsPage.selectSupplier') || 'Select Supplier to Add'}
+                  </Text>
+                  <Group gap="sm">
+                    <Select
+                      placeholder={t('procurement.productsPage.searchSupplier')}
+                      data={availableSupplierOptions}
+                      value={selectedSupplierId}
+                      onChange={setSelectedSupplierId}
+                      searchable
+                      clearable
+                      style={{ flex: 1 }}
+                      disabled={availableSupplierOptions.length === 0 || loadingDropdowns}
+                      nothingFoundMessage={
+                        loadingDropdowns
+                          ? 'Loading suppliers...'
+                          : availableSupplierOptions.length === 0
+                          ? 'All suppliers have been added'
+                          : 'No suppliers found'
+                      }
+                    />
+                    <Button
+                      leftSection={<IconPlus size={14} />}
+                      onClick={handleAddSupplier}
+                      disabled={!selectedSupplierId || availableSupplierOptions.length === 0}
+                      size="sm"
+                    >
+                      {t('common.add') || 'Add'}
+                    </Button>
+                  </Group>
+                </Stack>
+              </Paper>
+
+              {/* Added Suppliers List */}
               {suppliers.length === 0 ? (
-                <Text size="sm" c="dimmed" italic>
+                <Text size="sm" c="dimmed">
                   {t('procurement.productsPage.noSuppliers') || 'No suppliers added yet'}
                 </Text>
               ) : (
                 <Stack gap="md">
                   {suppliers.map((supplierItem) => {
-                    const supplier = allSuppliers.find(
-                      (s) => s.id === supplierItem.supplierId
-                    )
-                    if (!supplier) return null
+                    if (supplierItem.supplierId === null) return null
 
                     return (
-                      <Paper withBorder p="sm" radius="sm" key={supplier.id}>
+                      <Paper withBorder p="sm" radius="sm" key={supplierItem.supplierId}>
                         <Stack gap="sm">
                           {/* Supplier Header */}
                           <Group justify="space-between" wrap="nowrap">
                             <Stack gap={0}>
                               <Text fw={600} size="md">
-                                {supplier.name}
+                                {supplierItem.supplierName}
                               </Text>
-                              {supplier.email && (
-                                <Text size="sm" c="dimmed">
-                                  {supplier.email}
-                                </Text>
-                              )}
                             </Stack>
                             <ActionIcon
                               color="red"
                               variant="light"
-                              onClick={() => removeSupplier(supplier.id)}
+                              onClick={() => handleRemoveSupplier(supplierItem.supplierId!)}
                             >
                               <IconTrash size={16} />
                             </ActionIcon>
@@ -473,7 +761,9 @@ export default function EditProcurementProductPage() {
                             <Group gap="xs">
                               <IconPhoto size={16} />
                               <Text size="sm" fw={500}>
-                                {t('procurement.productsPage.productUrls') || 'Product URLs'} ({supplierItem.productLinks?.length || 0})
+                                {t('procurement.productsPage.productLinks') ||
+                                  'Product URLs'}{' '}
+                                ({supplierItem.productLinks?.length || 0})
                               </Text>
                             </Group>
 
@@ -501,8 +791,8 @@ export default function EditProcurementProductPage() {
                                             variant="subtle"
                                             size="sm"
                                             onClick={() =>
-                                              removeProductLink(
-                                                supplier.id,
+                                              handleRemoveProductLink(
+                                                supplierItem.supplierId!,
                                                 linkIndex
                                               )
                                             }
@@ -520,13 +810,11 @@ export default function EditProcurementProductPage() {
                             <Group gap="sm">
                               <TextInput
                                 placeholder="https://..."
-                                value={
-                                  newProductLinks[supplier.id] || ''
-                                }
+                                value={newProductLinks[supplierItem.supplierId!] || ''}
                                 onChange={(e) =>
                                   setNewProductLinks((prev) => ({
                                     ...prev,
-                                    [supplier.id]: e.target.value,
+                                    [supplierItem.supplierId!]: e.target.value,
                                   }))
                                 }
                                 style={{ flex: 1 }}
@@ -534,7 +822,7 @@ export default function EditProcurementProductPage() {
                               />
                               <Button
                                 size="sm"
-                                onClick={() => addProductLink(supplier.id)}
+                                onClick={() => handleAddProductLink(supplierItem.supplierId!)}
                               >
                                 {t('common.add') || 'Add'}
                               </Button>

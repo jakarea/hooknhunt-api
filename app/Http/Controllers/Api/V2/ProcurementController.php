@@ -24,7 +24,7 @@ class ProcurementController extends Controller
         }
 
         $query = Product::select('id', 'name', 'slug', 'category_id', 'brand_id', 'thumbnail_id', 'status', 'created_at')
-            ->with(['category:id,name', 'brand:id,name', 'thumbnail:id,file_path', 'suppliers:id,name'])
+            ->with(['category:id,name', 'brand:id,name', 'thumbnail:id,path,url,disk', 'suppliers:id,name'])
             ->with(['suppliers' => function ($q) {
                 $q->withPivot('product_links'); // Load pivot data
             }]);
@@ -120,7 +120,7 @@ class ProcurementController extends Controller
             DB::commit();
 
             // Load relations for response with pivot data
-            $product->load(['category:id,name', 'brand:id,name', 'thumbnail:id,file_path', 'suppliers' => function ($q) {
+            $product->load(['category:id,name', 'brand:id,name', 'thumbnail:id,path,url,disk', 'suppliers' => function ($q) {
                 $q->select('suppliers.id', 'suppliers.name')->withPivot('product_links');
             }]);
             $product->suppliers->transform(function ($supplier) {
@@ -147,7 +147,7 @@ class ProcurementController extends Controller
         }
 
         $product = Product::select('id', 'name', 'slug', 'category_id', 'brand_id', 'thumbnail_id', 'status', 'created_at')
-            ->with(['category:id,name', 'brand:id,name', 'thumbnail:id,file_path'])
+            ->with(['category:id,name', 'brand:id,name', 'thumbnail:id,path,url,disk'])
             ->with(['suppliers']) // Load all supplier columns and pivot (model has withPivot defined)
             ->findOrFail($id);
 
@@ -213,7 +213,7 @@ class ProcurementController extends Controller
             DB::commit();
 
             // Load relations for response with pivot data
-            $product->load(['category:id,name', 'brand:id,name', 'thumbnail:id,file_path', 'suppliers' => function ($q) {
+            $product->load(['category:id,name', 'brand:id,name', 'thumbnail:id,path,url,disk', 'suppliers' => function ($q) {
                 $q->select('suppliers.id', 'suppliers.name')->withPivot('product_links');
             }]);
             $product->suppliers->transform(function ($supplier) {
@@ -285,7 +285,7 @@ class ProcurementController extends Controller
             ->whereHas('suppliers', function ($q) use ($supplierId) {
                 $q->where('suppliers.id', $supplierId);
             })
-            ->with(['category:id,name', 'brand:id,name', 'thumbnail:id,file_path'])
+            ->with(['category:id,name', 'brand:id,name', 'thumbnail:id,path,url,disk'])
             ->with(['suppliers' => function ($q) use ($supplierId) {
                 $q->where('suppliers.id', $supplierId)->withPivot('product_links', 'supplier_sku', 'cost_price');
             }]);

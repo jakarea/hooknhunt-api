@@ -12,12 +12,6 @@
       "brand": "Brand",
       "allStatus": "All Status"
     },
-    "status": {
-      "draft": "Draft",
-      "published": "Published",
-      "archived": "Archived",
-      "changeStatus": "Change Status"
-    },
     "stock": {
       "outOfStock": "Out of Stock",
       "lowStock": "{{count}} left",
@@ -32,6 +26,30 @@
       "status": "Status",
       "actions": "Actions",
       "noProducts": "No products found"
+    },
+    "name": "Name",
+    "category": "Category",
+    "brand": "Brand",
+    "suppliers": "Suppliers",
+    "status": "Status",
+    "basicInfo": "Basic Information",
+    "thumbnail": "Product Image",
+    "editProduct": "Edit Product",
+    "selectCategory": "Select category",
+    "selectBrand": "Select brand",
+    "changeThumbnail": "Change Thumbnail",
+    "selectThumbnail": "Select Thumbnail",
+    "supplier": "Supplier",
+    "selectSupplier": "Select supplier",
+    "searchSupplier": "Search and select supplier...",
+    "productLinks": "Product URLs",
+    "noSuppliers": "No suppliers added yet",
+    "namePlaceholder": "Enter product name",
+    "statuses": {
+      "draft": "Draft",
+      "published": "Published",
+      "archived": "Archived",
+      "changeStatus": "Change Status"
     },
     "menu": {
       "actions": "Actions",

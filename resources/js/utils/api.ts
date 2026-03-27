@@ -2953,7 +2953,7 @@ export type Category = {
   updated_at: string
   parent?: Category
   children?: Category[]
-  products_count?: number
+  productsCount?: number
 }
 
 export type CategoryFilters = {

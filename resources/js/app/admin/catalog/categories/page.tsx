@@ -418,7 +418,7 @@ export default function CategoriesPage() {
                       className="cursor-pointer hover:text-blue-600"
                     >
                       <Text fw={500}>
-                        {category.products_count ?? 0}
+                        {category.productsCount ?? 0}
                       </Text>
                     </Anchor>
                   </Table.Td>
@@ -505,7 +505,7 @@ export default function CategoriesPage() {
                       size="sm"
                       onClick={() => navigate(`/catalog/products?category=${category.id}`)}
                     >
-                      <Text fw={500}>{category.products_count ?? 0}</Text>
+                      <Text fw={500}>{category.productsCount ?? 0}</Text>
                     </Anchor>
                   </Group>
                 </Stack>

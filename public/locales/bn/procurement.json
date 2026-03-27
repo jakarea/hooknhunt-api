@@ -12,12 +12,6 @@
       "brand": "ব্র্যান্ড",
       "allStatus": "সকল অবস্থা"
     },
-    "status": {
-      "draft": "খসড়া",
-      "published": "প্রকাশিত",
-      "archived": "আর্কাইভ",
-      "changeStatus": "অবস্থা পরিবর্তন করুন"
-    },
     "stock": {
       "outOfStock": "স্টক আউট",
       "lowStock": "{{count}} বাকি আছে",
@@ -32,6 +26,30 @@
       "status": "অবস্থা",
       "actions": "কর্ম",
       "noProducts": "কোনো পণ্য়ডাক্ত পাওয়া যায়নি"
+    },
+    "name": "নাম",
+    "category": "বিভাগ",
+    "brand": "ব্র্যান্ড",
+    "suppliers": "সরবরাহকারী",
+    "status": "স্ট্যাটাস",
+    "basicInfo": "মৌলিক তথ্য",
+    "thumbnail": "পণ্যের ছবি",
+    "editProduct": "পণ্য এডিট করুন",
+    "selectCategory": "বিভাগ নির্বাচন করুন",
+    "selectBrand": "ব্র্যান্ড নির্বাচন করুন",
+    "changeThumbnail": "থাম্বনেইল পরিবর্তন করুন",
+    "selectThumbnail": "থাম্বনেইল নির্বাচন করুন",
+    "supplier": "সরবরাহকারী",
+    "selectSupplier": "সরবরাহকারী নির্বাচন করুন",
+    "searchSupplier": "সরবরাহকারী খুঁজুন এবং নির্বাচন করুন...",
+    "productLinks": "পণ্যের URL",
+    "noSuppliers": "এখনো কোনো সরবরাহকারী যোগ করা হয়নি",
+    "namePlaceholder": "পণ্যের নাম লিখুন",
+    "statuses": {
+      "draft": "খসড়া",
+      "published": "প্রকাশিত",
+      "archived": "আর্কাইভ",
+      "changeStatus": "অবস্থা পরিবর্তন করুন"
     },
     "menu": {
       "actions": "কর্ম",

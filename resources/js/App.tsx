@@ -28,9 +28,12 @@ import CreatePO from "@/app/admin/procurement/create/page"
 import PurchaseOrderDetails from "@/app/admin/procurement/orders/[id]/page"
 import EditPO from "@/app/admin/procurement/orders/[id]/edit/page"
 import Suppliers from "@/app/admin/procurement/suppliers/page"
+import CreateSupplier from "@/app/admin/procurement/suppliers/create/page"
+import EditSupplier from "@/app/admin/procurement/suppliers/[id]/edit/page"
 import SupplierDetails from "@/app/admin/procurement/suppliers/[id]/page"
 import PurchaseReturns from "@/app/admin/procurement/returns/page"
 import ProcurementProducts from "@/app/admin/procurement/products/page"
+import CreateProcurementProduct from "@/app/admin/procurement/products/create/page"
 import ProcurementProductDetail from "@/app/admin/procurement/products/[id]/page"
 import EditProcurementProduct from "@/app/admin/procurement/products/[id]/edit/page"
 import Shipments from "@/app/admin/shipments/page"
@@ -191,8 +194,11 @@ function App() {
               <Route path="procurement/orders/:id" element={<PurchaseOrderDetails />} />
               <Route path="procurement/orders/:id/edit" element={<EditPO />} />
               <Route path="procurement/suppliers" element={<Suppliers />} />
+              <Route path="procurement/suppliers/create" element={<CreateSupplier />} />
+              <Route path="procurement/suppliers/:id/edit" element={<EditSupplier />} />
               <Route path="procurement/suppliers/:id" element={<SupplierDetails />} />
               <Route path="procurement/products" element={<ProcurementProducts />} />
+              <Route path="procurement/products/create" element={<CreateProcurementProduct />} />
               <Route path="procurement/products/:id/edit" element={<EditProcurementProduct />} />
               <Route path="procurement/products/:id" element={<ProcurementProductDetail />} />
               <Route path="procurement/returns" element={<PurchaseReturns />} />

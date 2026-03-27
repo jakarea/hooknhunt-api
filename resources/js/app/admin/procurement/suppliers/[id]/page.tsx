@@ -17,6 +17,7 @@ import {
   Image,
   ActionIcon,
   Menu,
+  Anchor,
 } from '@mantine/core'
 import {
   IconArrowLeft,
@@ -32,6 +33,8 @@ import {
   IconCoin,
   IconDots,
   IconPhoto,
+  IconAlertTriangle,
+  IconExternalLink,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { modals } from '@mantine/modals'
@@ -220,16 +223,43 @@ export default function SupplierDetailsPage() {
   return (
     <Stack p="xl" gap="md">
       {/* Header */}
-      <div>
-        <Text className="text-lg md:text-xl lg:text-2xl" fw={700}>
-          {supplier.name}
-        </Text>
-        {supplier.shopName && (
-          <Text className="text-sm md:text-base" c="dimmed">
-            {supplier.shopName}
+      <Group justify="space-between" align="flex-start">
+        <div>
+          <Text className="text-lg md:text-xl lg:text-2xl" fw={700}>
+            {supplier.name}
           </Text>
-        )}
-      </div>
+          {supplier.shopName && (
+            <Text className="text-sm md:text-base" c="dimmed">
+              {supplier.shopName}
+            </Text>
+          )}
+        </div>
+
+        {/* Action Buttons */}
+        <Group gap="sm">
+          <Button
+            variant="light"
+            leftSection={<IconArrowLeft size={16} />}
+            onClick={() => navigate('/procurement/suppliers')}
+          >
+            {t('common.back')}
+          </Button>
+          <Button
+            leftSection={<IconEdit size={16} />}
+            onClick={() => navigate(`/procurement/suppliers/${supplier.id}/edit`)}
+          >
+            {t('common.edit')}
+          </Button>
+          <Button
+            color="red"
+            variant="light"
+            leftSection={<IconTrash size={16} />}
+            onClick={() => handleDelete(supplier)}
+          >
+            {t('common.delete')}
+          </Button>
+        </Group>
+      </Group>
 
       {/* Status Badge */}
       <Group>
@@ -311,7 +341,18 @@ export default function SupplierDetailsPage() {
                 <Text className="text-xs md:text-sm" c="dimmed">{t('procurement.suppliersPage.form.whatsapp')}</Text>
                 <Group gap="xs">
                   <IconBrandWhatsapp size={14} c="dimmed" />
-                  <Text className="text-sm md:text-base">{supplier.whatsapp || '-'}</Text>
+                  {supplier.whatsapp ? (
+                    <Anchor
+                      href={`https://wa.me/${supplier.whatsapp.replace(/[^\d+]/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm md:text-base"
+                    >
+                      {supplier.whatsapp}
+                    </Anchor>
+                  ) : (
+                    <Text className="text-sm md:text-base">-</Text>
+                  )}
                 </Group>
               </Stack>
               <Stack gap="xs">
@@ -492,7 +533,7 @@ export default function SupplierDetailsPage() {
         </Stack>
 
         {/* Right Column - Payment Information */}
-        {(supplier.wechatId || supplier.wechatQrFile || supplier.alipayId || supplier.alipayQrFile) && (
+        {(supplier.wechatId || supplier.wechatQrFile || supplier.wechatQrUrl || supplier.alipayId || supplier.alipayQrFile || supplier.alipayQrUrl) && (
           <Paper withBorder p="md" radius="md">
             <Group gap="sm" mb="md">
               <IconCoin size={20} c="green" />
@@ -502,54 +543,122 @@ export default function SupplierDetailsPage() {
               {/* WeChat Pay and Alipay Side by Side */}
               <SimpleGrid cols={{ base: 1, md: 2 }}>
                 {/* WeChat Pay */}
-                {(supplier.wechatId || supplier.wechatQrFile) && (
-                  <Card withBorder p="sm" radius="sm" bg="gray.0">
+                {(supplier.wechatId || supplier.wechatQrFile || supplier.wechatQrUrl) && (
+                  <Card withBorder p="sm" radius="sm" bg="light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8))">
                     <Text fw={500} className="text-sm md:text-base" mb="xs">{t('procurement.suppliersPage.details.wechatPay')}</Text>
                     {supplier.wechatId && (
                       <Text className="text-xs md:text-sm" c="dimmed" mb="xs">
                         {t('procurement.suppliersPage.details.wechatId')}: {supplier.wechatId}
                       </Text>
                     )}
-                    {supplier.wechatQrFile && (
+                    {(supplier.wechatQrFile || supplier.wechatQrUrl) && (
                       <Box>
                         <Text className="text-xs md:text-sm" c="dimmed" mb="xs">{t('procurement.suppliersPage.details.qrCode')}:</Text>
-                        <Image
-                          src={supplier.wechatQrFile.startsWith('http') ? supplier.wechatQrFile : `${baseUrl}/storage/${supplier.wechatQrFile}`}
-                          alt="WeChat QR Code"
-                          w={200}
-                          h={200}
-                          fit="contain"
-                          radius="md"
-                          withPlaceholder
-                          fallbackSrc={<IconPhoto size={40} c="dimmed" />}
-                        />
+                        {(() => {
+                          // Priority: Uploaded file > URL field
+                          const qrSrc = supplier.wechatQrFile
+                            ? (supplier.wechatQrFile.startsWith('http')
+                                ? supplier.wechatQrFile
+                                : `${baseUrl}/storage/${supplier.wechatQrFile}`)
+                            : (supplier.wechatQrUrl?.startsWith('http')
+                                ? supplier.wechatQrUrl
+                                : supplier.wechatQrUrl
+                                  ? `${baseUrl}/storage/${supplier.wechatQrUrl}`
+                                  : undefined)
+
+                          return qrSrc ? (
+                            <Image
+                              src={qrSrc}
+                              alt="WeChat QR Code"
+                              w={200}
+                              h={200}
+                              fit="contain"
+                              radius="md"
+                              withPlaceholder
+                              style={{ cursor: 'pointer' }}
+                              onClick={() => {
+                                modals.open({
+                                  title: t('procurement.suppliersPage.details.wechatPay'),
+                                  children: (
+                                    <Box style={{ display: 'flex', justifyContent: 'center', padding: 'md' }}>
+                                      <Image
+                                        src={qrSrc}
+                                        alt="WeChat QR Code"
+                                        w={400}
+                                        h={400}
+                                        fit="contain"
+                                      />
+                                    </Box>
+                                  ),
+                                })
+                              }}
+                              onError={(e) => {
+                                console.error('Failed to load WeChat QR code:', qrSrc)
+                              }}
+                            />
+                          ) : null
+                        })()}
                       </Box>
                     )}
                   </Card>
                 )}
 
                 {/* Alipay */}
-                {(supplier.alipayId || supplier.alipayQrFile) && (
-                  <Card withBorder p="sm" radius="sm" bg="blue.0">
+                {(supplier.alipayId || supplier.alipayQrFile || supplier.alipayQrUrl) && (
+                  <Card withBorder p="sm" radius="sm" bg="light-dark(var(--mantine-color-blue-0), var(--mantine-color-dark-8))">
                     <Text fw={500} className="text-sm md:text-base" mb="xs">{t('procurement.suppliersPage.details.alipay')}</Text>
                     {supplier.alipayId && (
                       <Text className="text-xs md:text-sm" c="dimmed" mb="xs">
                         {t('procurement.suppliersPage.details.alipayId')}: {supplier.alipayId}
                       </Text>
                     )}
-                    {supplier.alipayQrFile && (
+                    {(supplier.alipayQrFile || supplier.alipayQrUrl) && (
                       <Box>
                         <Text className="text-xs md:text-sm" c="dimmed" mb="xs">{t('procurement.suppliersPage.details.qrCode')}:</Text>
-                        <Image
-                          src={supplier.alipayQrFile.startsWith('http') ? supplier.alipayQrFile : `${baseUrl}/storage/${supplier.alipayQrFile}`}
-                          alt="Alipay QR Code"
-                          w={200}
-                          h={200}
-                          fit="contain"
-                          radius="md"
-                          withPlaceholder
-                          fallbackSrc={<IconPhoto size={40} c="dimmed" />}
-                        />
+                        {(() => {
+                          // Priority: Uploaded file > URL field
+                          const qrSrc = supplier.alipayQrFile
+                            ? (supplier.alipayQrFile.startsWith('http')
+                                ? supplier.alipayQrFile
+                                : `${baseUrl}/storage/${supplier.alipayQrFile}`)
+                            : (supplier.alipayQrUrl?.startsWith('http')
+                                ? supplier.alipayQrUrl
+                                : supplier.alipayQrUrl
+                                  ? `${baseUrl}/storage/${supplier.alipayQrUrl}`
+                                  : undefined)
+
+                          return qrSrc ? (
+                            <Image
+                              src={qrSrc}
+                              alt="Alipay QR Code"
+                              w={200}
+                              h={200}
+                              fit="contain"
+                              radius="md"
+                              withPlaceholder
+                              style={{ cursor: 'pointer' }}
+                              onClick={() => {
+                                modals.open({
+                                  title: t('procurement.suppliersPage.details.alipay'),
+                                  children: (
+                                    <Box style={{ display: 'flex', justifyContent: 'center', padding: 'md' }}>
+                                      <Image
+                                        src={qrSrc}
+                                        alt="Alipay QR Code"
+                                        w={400}
+                                        h={400}
+                                        fit="contain"
+                                      />
+                                    </Box>
+                                  ),
+                                })
+                              }}
+                              onError={(e) => {
+                                console.error('Failed to load Alipay QR code:', qrSrc)
+                              }}
+                            />
+                          ) : null
+                        })()}
                       </Box>
                     )}
                   </Card>
@@ -599,7 +708,6 @@ export default function SupplierDetailsPage() {
                         h={50}
                         radius="md"
                         fit="cover"
-                        withPlaceholder
                       />
                     )}
                     <Stack gap={0} flex="1">

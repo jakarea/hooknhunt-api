@@ -25,9 +25,11 @@ import {
   IconWorld,
   IconLink,
   IconEdit,
+  IconTrash,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
-import { getProcurementProduct } from '@/utils/api'
+import { modals } from '@mantine/modals'
+import { getProcurementProduct, deleteProcurementProduct } from '@/utils/api'
 
 export default function ProcurementProductDetailPage() {
   const { t } = useTranslation()
@@ -62,6 +64,43 @@ export default function ProcurementProductDetailPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleDelete = () => {
+    modals.openConfirmModal({
+      title: t('procurement.productsPage.notification.deleteTitle') || 'Delete Product',
+      children: (
+        <Text size="sm">
+          {t('procurement.productsPage.notification.deleteConfirm', {
+            name: product.name,
+          }) || `Are you sure you want to delete "${product.name}"? This action cannot be undone.`}
+        </Text>
+      ),
+      labels: {
+        confirm: t('common.delete') || 'Delete',
+        cancel: t('common.cancel') || 'Cancel',
+      },
+      confirmProps: { color: 'red' },
+      onConfirm: async () => {
+        try {
+          await deleteProcurementProduct(Number(id))
+          notifications.show({
+            title: t('procurement.productsPage.notification.deleteSuccess') || 'Product Deleted',
+            message: t('procurement.productsPage.notification.deletedMessage', {
+              name: product.name,
+            }) || `${product.name} has been successfully deleted`,
+            color: 'green',
+          })
+          navigate('/procurement/products')
+        } catch (error: any) {
+          notifications.show({
+            title: t('common.error') || 'Error',
+            message: error.message || 'Failed to delete product',
+            color: 'red',
+          })
+        }
+      },
+    })
   }
 
   if (loading) {
@@ -102,7 +141,7 @@ export default function ProcurementProductDetailPage() {
         <Breadcrumbs separator={<IconChevronRight size={16} />}>{items}</Breadcrumbs>
 
         {/* Header */}
-        <Group justify="space-between" wrap="nowrap">
+        <Group justify="space-between" align="flex-start" wrap="wrap">
           <Stack gap={0}>
             <Group gap="sm" align="center">
               <Text size="xl" fw={600} className="text-lg md:text-xl lg:text-2xl">
@@ -116,17 +155,34 @@ export default function ProcurementProductDetailPage() {
               </Badge>
             </Group>
             <Text size="sm" c="dimmed">
-              {t('procurement.productsPage.productId')}: {product.id} • Created{' '}
+              {t('procurement.productsPage.productId')}: {product.id} • {t('procurement.productsPage.created') || 'Created'}{' '}
               {new Date(product.createdAt).toLocaleDateString()}
             </Text>
           </Stack>
 
-          <Button
-            leftSection={<IconEdit size={16} />}
-            onClick={() => navigate(`/procurement/products/${id}/edit`)}
-          >
-            {t('common.edit') || 'Edit'}
-          </Button>
+          <Group gap="sm">
+            <Button
+              variant="light"
+              leftSection={<IconArrowLeft size={16} />}
+              onClick={() => navigate('/procurement/products')}
+            >
+              {t('common.back') || 'Back'}
+            </Button>
+            <Button
+              leftSection={<IconEdit size={16} />}
+              onClick={() => navigate(`/procurement/products/${id}/edit`)}
+            >
+              {t('common.edit') || 'Edit'}
+            </Button>
+            <Button
+              color="red"
+              variant="light"
+              leftSection={<IconTrash size={16} />}
+              onClick={handleDelete}
+            >
+              {t('common.delete') || 'Delete'}
+            </Button>
+          </Group>
         </Group>
 
         {/* Product Info */}

@@ -1,411 +1,808 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Box, Stack, Group, Title, Text, Paper, Button, TextInput, Textarea, Select, NumberInput, Breadcrumbs, Anchor, Card, SimpleGrid, Divider, ActionIcon, MultiSelect, Modal, Image } from '@mantine/core'
-import { IconPhoto, IconX, IconPackages, IconTrash, IconDeviceFloppy, IconPlus, IconUsers, IconUpload, IconFolder } from '@tabler/icons-react'
+import {
+  Stack,
+  Text,
+  Group,
+  Button,
+  Paper,
+  Select,
+  TextInput,
+  Badge,
+  Box,
+  Anchor,
+  Breadcrumbs,
+  ActionIcon,
+} from '@mantine/core'
+import {
+  IconChevronRight,
+  IconArrowLeft,
+  IconPlus,
+  IconTrash,
+  IconPhoto,
+} from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
-import { getSuppliers, type Supplier } from '@/utils/api'
+import { usePermissions } from '@/hooks/usePermissions'
 import { useMediaSelector } from '@/hooks/useMediaSelector'
-import type { MediaFile } from '@/utils/api'
+import {
+  createProcurementProduct,
+  getCategoriesDropdown,
+  getBrandsDropdown,
+  getSuppliers,
+} from '@/utils/api'
 
-export default function CreateProductPage() {
-  const { t } = useTranslation()
-  const { openSingleSelect } = useMediaSelector()
+// ============================================================================
+// TYPES
+// ============================================================================
 
-  const [productName, setProductName] = useState('')
-  const [category, setCategory] = useState<string | null>(null)
-  const [brand, setBrand] = useState<string | null>(null)
-  const [status, setStatus] = useState<string>('draft')
-  const [description, setDescription] = useState('')
-  const [videoUrl, setVideoUrl] = useState('')
-  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null)
-  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([])
-  const [supplierUrl, setSupplierUrl] = useState('')
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
-  const [suppliersLoading, setSuppliersLoading] = useState(true)
+interface Supplier {
+  id: number
+  name: string
+  email?: string
+  phone?: string
+}
 
-  // Media library state
-  const [selectedThumbnailMediaId, setSelectedThumbnailMediaId] = useState<number | null>(null)
+interface ProcurementProductSupplier {
+  supplierId: number
+  productLinks?: string[]
+}
 
-  const [variants, setVariants] = useState([
-    { id: '1', sku: '', customSku: '', variantName: '', size: '', color: '', unit: '', retailPrice: 0, wholesalePrice: 0, purchaseCost: 0, alertQty: 5 }
-  ])
+interface FormSupplier {
+  supplierId: number | null
+  supplierName: string
+  productLinks: string[]
+}
 
-  // Fetch suppliers on component mount
-  useEffect(() => {
-    const fetchSuppliers = async () => {
-      try {
-        setSuppliersLoading(true)
-        const response = await getSuppliers({ is_active: true, per_page: 100 })
-        const suppliersData = Array.isArray(response) ? response : (response?.data || [])
-        setSuppliers(suppliersData)
-      } catch (error) {
-        console.error('Failed to fetch suppliers:', error)
-        notifications.show({
-          title: t('common.error') || 'Error',
-          message: 'Failed to load suppliers',
-          color: 'red'
-        })
-      } finally {
-        setSuppliersLoading(false)
+// ============================================================================
+// PURE VALIDATION FUNCTIONS
+// ============================================================================
+
+/**
+ * Validates that product name is not empty
+ */
+const validateProductName = (name: string): boolean => {
+  return name.trim().length > 0
+}
+
+/**
+ * Validates that category is selected
+ */
+const validateCategory = (categoryId: number | null): boolean => {
+  return categoryId !== null
+}
+
+/**
+ * Validates that at least one supplier is added
+ */
+const validateSuppliersList = (suppliers: FormSupplier[]): boolean => {
+  return suppliers.length > 0
+}
+
+/**
+ * Validates that all added suppliers have valid IDs
+ */
+const validateAllSuppliersHaveIds = (suppliers: FormSupplier[]): boolean => {
+  return suppliers.every((s) => s.supplierId !== null && s.supplierId !== undefined)
+}
+
+// ============================================================================
+// PURE DATA TRANSFORMATION FUNCTIONS
+// ============================================================================
+
+/**
+ * Transforms categories array to Select options
+ */
+const transformCategoriesToSelectOptions = (
+  categories: any[]
+): { value: string; label: string }[] => {
+  return categories.map((c: any) => ({
+    value: String(c.id),
+    label: c.name,
+  }))
+}
+
+/**
+ * Transforms brands array to Select options
+ */
+const transformBrandsToSelectOptions = (
+  brands: any[]
+): { value: string; label: string }[] => {
+  return brands.map((b: any) => ({
+    value: String(b.id),
+    label: b.name,
+  }))
+}
+
+/**
+ * Transforms suppliers array to Select options
+ */
+const transformSuppliersToSelectOptions = (
+  suppliers: Supplier[]
+): { value: string; label: string }[] => {
+  return suppliers.map((s) => ({
+    value: String(s.id),
+    label: s.name,
+  }))
+}
+
+/**
+ * Transforms form suppliers to API format
+ */
+const transformSuppliersForAPI = (
+  suppliers: FormSupplier[]
+): ProcurementProductSupplier[] => {
+  return suppliers
+    .filter((s) => s.supplierId !== null)
+    .map((s) => ({
+      supplierId: s.supplierId!,
+      productLinks: s.productLinks.filter((link) => link.trim()) || undefined,
+    }))
+}
+
+/**
+ * Gets list of supplier IDs that are already added
+ */
+const getAddedSupplierIds = (suppliers: FormSupplier[]): number[] => {
+  return suppliers
+    .filter((s) => s.supplierId !== null)
+    .map((s) => s.supplierId!)
+}
+
+/**
+ * Filters out suppliers that are already added
+ */
+const getAvailableSuppliers = (
+  allSuppliers: Supplier[],
+  addedSupplierIds: number[]
+): Supplier[] => {
+  return allSuppliers.filter((s) => !addedSupplierIds.includes(s.id))
+}
+
+/**
+ * Adds a new supplier to the list
+ */
+const addSupplierToList = (
+  currentSuppliers: FormSupplier[],
+  supplierId: number,
+  supplierName: string
+): FormSupplier[] => {
+  return [
+    ...currentSuppliers,
+    {
+      supplierId,
+      supplierName,
+      productLinks: [],
+    },
+  ]
+}
+
+/**
+ * Removes a supplier from the list by ID
+ */
+const removeSupplierFromList = (
+  suppliers: FormSupplier[],
+  supplierIdToRemove: number
+): FormSupplier[] => {
+  return suppliers.filter((s) => s.supplierId !== supplierIdToRemove)
+}
+
+/**
+ * Adds a product link to a specific supplier
+ */
+const addProductLinkToSupplier = (
+  suppliers: FormSupplier[],
+  supplierId: number,
+  linkToAdd: string
+): FormSupplier[] => {
+  if (!linkToAdd || !linkToAdd.trim()) {
+    return suppliers
+  }
+
+  return suppliers.map((s) => {
+    if (s.supplierId === supplierId) {
+      return {
+        ...s,
+        productLinks: [...s.productLinks, linkToAdd.trim()],
       }
     }
-    fetchSuppliers()
+    return s
+  })
+}
+
+/**
+ * Removes a product link from a specific supplier
+ */
+const removeProductLinkFromSupplier = (
+  suppliers: FormSupplier[],
+  supplierId: number,
+  linkIndexToRemove: number
+): FormSupplier[] => {
+  return suppliers.map((s) => {
+    if (s.supplierId === supplierId) {
+      return {
+        ...s,
+        productLinks: s.productLinks.filter((_, index) => index !== linkIndexToRemove),
+      }
+    }
+    return s
+  })
+}
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
+export default function CreateProcurementProductPage() {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const { hasPermission } = usePermissions()
+  const { openSingleSelect } = useMediaSelector()
+
+  // Form state
+  const [name, setName] = useState<string>('')
+  const [categoryId, setCategoryId] = useState<number | null>(null)
+  const [brandId, setBrandId] = useState<number | null>(null)
+  const [status, setStatus] = useState<'draft' | 'published'>('draft')
+  const [suppliers, setSuppliers] = useState<FormSupplier[]>([])
+  const [thumbnailId, setThumbnailId] = useState<number | null>(null)
+  const [thumbnailUrl, setThumbnailUrl] = useState<string>('')
+
+  // Dropdown options state
+  const [categories, setCategories] = useState<{ value: string; label: string }[]>([])
+  const [brands, setBrands] = useState<{ value: string; label: string }[]>([])
+  const [allSuppliers, setAllSuppliers] = useState<Supplier[]>([])
+
+  // UI state
+  const [saving, setSaving] = useState<boolean>(false)
+  const [loadingDropdowns, setLoadingDropdowns] = useState<boolean>(false)
+
+  // New supplier selection state
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(null)
+
+  // New product link input state (temp storage before adding)
+  const [newProductLinks, setNewProductLinks] = useState<{ [key: number]: string }>({})
+
+  // ============================================================================
+  // EFFECTS
+  // ============================================================================
+
+  useEffect(() => {
+    if (!hasPermission('procurement.products.create')) {
+      navigate('/dashboard')
+      return
+    }
+
+    fetchDropdowns()
   }, [])
 
-  // Media library handlers
-  const handle_open_thumbnail_media_selector = () => {
+  // ============================================================================
+  // API CALLS
+  // ============================================================================
+
+  const fetchDropdowns = async () => {
+    try {
+      setLoadingDropdowns(true)
+
+      const [categoriesRes, brandsRes, suppliersRes]: any[] = await Promise.all([
+        getCategoriesDropdown(),
+        getBrandsDropdown(),
+        getSuppliers({ per_page: 100 }),
+      ])
+
+      const categoriesData = categoriesRes?.data || categoriesRes || []
+      const brandsData = brandsRes?.data || brandsRes || []
+      const suppliersData = suppliersRes?.data?.data || suppliersRes?.data || suppliersRes || []
+
+      setCategories(transformCategoriesToSelectOptions(categoriesData))
+      setBrands(transformBrandsToSelectOptions(brandsData))
+      setAllSuppliers(Array.isArray(suppliersData) ? suppliersData : [])
+    } catch (error: any) {
+      console.error('Failed to load dropdowns:', error)
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: 'Failed to load form options',
+        color: 'red',
+      })
+    } finally {
+      setLoadingDropdowns(false)
+    }
+  }
+
+  // ============================================================================
+  // FORM HANDLERS
+  // ============================================================================
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+
+    if (!validateProductName(name)) {
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: 'Product name is required',
+        color: 'red',
+      })
+      return
+    }
+
+    if (!validateCategory(categoryId)) {
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: 'Category is required',
+        color: 'red',
+      })
+      return
+    }
+
+    if (!validateSuppliersList(suppliers)) {
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: 'At least one supplier is required',
+        color: 'red',
+      })
+      return
+    }
+
+    if (!validateAllSuppliersHaveIds(suppliers)) {
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: 'Please select suppliers for all entries',
+        color: 'red',
+      })
+      return
+    }
+
+    try {
+      setSaving(true)
+
+      const payload = {
+        name: name.trim(),
+        categoryId: categoryId as number,
+        brandId: brandId || undefined,
+        thumbnailId: thumbnailId || undefined,
+        suppliers: transformSuppliersForAPI(suppliers),
+        status,
+      }
+
+      const response: any = await createProcurementProduct(payload)
+      const newProduct = response?.data || response
+
+      notifications.show({
+        title: t('common.success') || 'Success',
+        message: 'Product created successfully',
+        color: 'green',
+      })
+
+      const productId = newProduct?.id
+      if (productId) {
+        navigate(`/procurement/products/${productId}`)
+      } else {
+        navigate('/procurement/products')
+      }
+    } catch (error: any) {
+      console.error('Failed to create product:', error)
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: error.response?.data?.message || error.message || 'Failed to create product',
+        color: 'red',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /**
+   * Handles adding a selected supplier to the product
+   */
+  const handleAddSupplier = () => {
+    if (!selectedSupplierId) {
+      notifications.show({
+        title: t('common.warning') || 'Warning',
+        message: 'Please select a supplier first',
+        color: 'yellow',
+      })
+      return
+    }
+
+    const supplierId = parseInt(selectedSupplierId)
+    const supplier = allSuppliers.find((s) => s.id === supplierId)
+
+    if (!supplier) {
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: 'Selected supplier not found',
+        color: 'red',
+      })
+      return
+    }
+
+    const updatedSuppliers = addSupplierToList(suppliers, supplierId, supplier.name)
+    setSuppliers(updatedSuppliers)
+    setSelectedSupplierId(null) // Reset selection
+  }
+
+  /**
+   * Handles removing a supplier from the product
+   */
+  const handleRemoveSupplier = (supplierId: number) => {
+    setSuppliers(removeSupplierFromList(suppliers, supplierId))
+
+    // Clean up new product links input for this supplier
+    setNewProductLinks((prev) => {
+      const updated = { ...prev }
+      delete updated[supplierId]
+      return updated
+    })
+  }
+
+  /**
+   * Handles adding a product link to a supplier
+   */
+  const handleAddProductLink = (supplierId: number) => {
+    const link = newProductLinks[supplierId]
+    if (!link || !link.trim()) {
+      return
+    }
+
+    setSuppliers(addProductLinkToSupplier(suppliers, supplierId, link))
+
+    // Clear the input for this supplier
+    setNewProductLinks((prev) => ({
+      ...prev,
+      [supplierId]: '',
+    }))
+  }
+
+  /**
+   * Handles removing a product link from a supplier
+   */
+  const handleRemoveProductLink = (supplierId: number, linkIndex: number) => {
+    setSuppliers(removeProductLinkFromSupplier(suppliers, supplierId, linkIndex))
+  }
+
+  /**
+   * Handles opening the media selector to choose a thumbnail
+   */
+  const handleSelectThumbnail = () => {
     openSingleSelect((mediaFile) => {
-      setSelectedThumbnailMediaId(mediaFile.id)
-      setThumbnailPreview(mediaFile.url)
-    }, selectedThumbnailMediaId ? [selectedThumbnailMediaId] : [])
+      setThumbnailId(mediaFile.id)
+      setThumbnailUrl(mediaFile.url)
+    }, thumbnailId ? [thumbnailId] : [])
   }
 
-  const handleRemoveImage = () => {
-    setThumbnailPreview(null)
-    setSelectedThumbnailMediaId(null)
+  /**
+   * Handles removing the selected thumbnail
+   */
+  const handleRemoveThumbnail = () => {
+    setThumbnailId(null)
+    setThumbnailUrl('')
   }
 
-  const handleAddVariant = () => {
-    setVariants([...variants, { id: Date.now().toString(), sku: '', customSku: '', variantName: '', size: '', color: '', unit: '', retailPrice: 0, wholesalePrice: 0, purchaseCost: 0, alertQty: 5 }])
-  }
+  // ============================================================================
+  // RENDER HELPERS
+  // ============================================================================
 
-  const handleRemoveVariant = (id: string) => {
-    if (variants.length > 1) setVariants(variants.filter((v) => v.id !== id))
-    else notifications.show({ title: t('common.warning') || 'Warning', message: 'At least one variant is required', color: 'yellow' })
-  }
+  const addedSupplierIds = getAddedSupplierIds(suppliers)
+  const availableSuppliers = getAvailableSuppliers(allSuppliers, addedSupplierIds)
+  const availableSupplierOptions = transformSuppliersToSelectOptions(availableSuppliers)
 
-  const handleVariantChange = (id: string, field: string, value: any) => {
-    setVariants(variants.map((v) => (v.id === id ? { ...v, [field]: value } : v)))
-  }
+  const breadcrumbItems = [
+    { title: t('nav.dashboard'), href: '/dashboard' },
+    { title: t('procurement.products'), href: '/procurement/products' },
+    { title: t('procurement.productsPage.addProduct') || 'Add Product' },
+  ].map((item, index) => (
+    <Anchor href={item.href} key={index}>
+      {item.title}
+    </Anchor>
+  ))
 
-  const handleSubmit = (event: React.FormEvent) => {
-    event.preventDefault()
-    notifications.show({ title: t('common.success') || 'Success', message: 'Product saved successfully', color: 'green' })
-  }
-
-  // Transform suppliers for MultiSelect
-  const supplierOptions = Array.isArray(suppliers) ? suppliers.map((supplier) => ({
-    value: supplier.id.toString(),
-    label: supplier.name
-  })) : []
+  // ============================================================================
+  // MAIN RENDER
+  // ============================================================================
 
   return (
-    <Box p="md">
-      <Stack gap="md">
-        <Breadcrumbs>
-          <Anchor href="/admin/procurement/products">{t('procurement.products') || 'Products'}</Anchor>
-          <Text>{t('procurement.productsCreate.title') || 'Add Product'}</Text>
-        </Breadcrumbs>
+    <Box p={{ base: 'md', md: 'xl' }}>
+      <form onSubmit={handleSubmit}>
+        <Stack gap="lg">
+          {/* Breadcrumbs */}
+          <Breadcrumbs separator={<IconChevronRight size={16} />}>
+            {breadcrumbItems}
+          </Breadcrumbs>
 
-        <Group justify="space-between">
-          <Group>
-            <IconPackages size={32} className="text-blue-600" />
-            <Title order={1}>{t('procurement.productsCreate.title') || 'Add New Product'}</Title>
-          </Group>
-        </Group>
+          {/* Header */}
+          <Group justify="space-between" wrap="nowrap">
+            <Stack gap={0}>
+              <Group gap="sm" align="center">
+                <Text size="xl" fw={600} className="text-lg md:text-xl lg:text-2xl">
+                  {t('procurement.productsPage.addProduct') || 'Add Product'}
+                </Text>
+                <Badge
+                  color={status === 'published' ? 'green' : 'gray'}
+                  variant="light"
+                >
+                  {t(`procurement.productsPage.statuses.${status}`) || status}
+                </Badge>
+              </Group>
+              <Text size="sm" c="dimmed">
+                {t('procurement.productsPage.subtitle') ||
+                  'Create a new product for purchase from suppliers'}
+              </Text>
+            </Stack>
 
-        <form onSubmit={handleSubmit}>
-          <Stack gap="md">
-            <Card withBorder p="md" shadow="sm">
-              <Stack gap="md">
-                <Group>
-                  <IconPackages size={20} className="text-blue-600" />
-                  <Text className="text-base md:text-lg" fw={600}>
-                    {t('procurement.productsCreate.basicInfo') || 'Basic Information'}
-                  </Text>
-                </Group>
-                <Divider />
-
-                <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-                  <TextInput
-                    label={t('procurement.productsCreate.productName') || 'Product Name'}
-                    placeholder="Enter product name"
-                    value={productName}
-                    onChange={(e) => setProductName(e.currentTarget.value)}
-                    required
-                  />
-                  <Select
-                    label={t('procurement.productsCreate.category') || 'Category'}
-                    placeholder="Select category"
-                    data={[{ value: '1', label: 'Electronics' }, { value: '2', label: 'Clothing' }]}
-                    value={category}
-                    onChange={setCategory}
-                    required
-                    searchable
-                  />
-                  <Select
-                    label={t('procurement.productsCreate.brand') || 'Brand'}
-                    placeholder="Select brand"
-                    data={[{ value: '1', label: 'Apple' }, { value: '2', label: 'Samsung' }]}
-                    value={brand}
-                    onChange={setBrand}
-                    searchable
-                  />
-                </SimpleGrid>
-
-                <Textarea
-                  label={t('procurement.productsCreate.description') || 'Description'}
-                  placeholder="Enter product description"
-                  value={description}
-                  onChange={(e) => setDescription(e.currentTarget.value)}
-                  minRows={3}
-                />
-
-                <SimpleGrid cols={{ base: 1, md: 2 }}>
-                  <TextInput
-                    label={t('procurement.productsCreate.videoUrl') || 'Video URL'}
-                    placeholder="https://youtube.com/watch?v=..."
-                    value={videoUrl}
-                    onChange={(e) => setVideoUrl(e.currentTarget.value)}
-                  />
-                  <Select
-                    label={t('procurement.productsCreate.status') || 'Status'}
-                    data={[
-                      { value: 'draft', label: t('procurement.productsPage.status.draft') || 'Draft' },
-                      { value: 'published', label: t('procurement.productsPage.status.published') || 'Published' },
-                      { value: 'archived', label: t('procurement.productsPage.status.archived') || 'Archived' },
-                    ]}
-                    value={status}
-                    onChange={(value) => setStatus(value || 'draft')}
-                  />
-                </SimpleGrid>
-              </Stack>
-            </Card>
-
-            <Card withBorder p="md" shadow="sm">
-              <Stack gap="md">
-                <Group>
-                  <IconUsers size={20} className="text-blue-600" />
-                  <Text className="text-base md:text-lg" fw={600}>
-                    {t('procurement.productsCreate.supplierInfo') || 'Supplier Information'}
-                  </Text>
-                </Group>
-                <Divider />
-
-                <SimpleGrid cols={{ base: 1, md: 2 }}>
-                  <MultiSelect
-                    label={t('procurement.productsCreate.suppliers') || 'Suppliers'}
-                    placeholder="Select suppliers"
-                    description="Select multiple suppliers for this product"
-                    data={supplierOptions}
-                    value={selectedSuppliers}
-                    onChange={setSelectedSuppliers}
-                    searchable
-                    nothingFoundMessage="No suppliers found"
-                    disabled={suppliersLoading}
-                  />
-                  <TextInput
-                    label={t('procurement.productsCreate.supplierUrl') || 'Supplier URL'}
-                    placeholder="https://supplier.com/product/..."
-                    description="Product URL from supplier"
-                    value={supplierUrl}
-                    onChange={(e) => setSupplierUrl(e.currentTarget.value)}
-                  />
-                </SimpleGrid>
-              </Stack>
-            </Card>
-
-            <Card withBorder p="md" shadow="sm">
-              <Stack gap="md">
-                <Group>
-                  <IconPhoto size={20} className="text-blue-600" />
-                  <Text className="text-base md:text-lg" fw={600}>
-                    {t('procurement.productsCreate.productImage') || 'Product Image'}
-                  </Text>
-                </Group>
-                <Divider />
-
-                <Stack gap="sm">
-                  <Button
-                    size="xs"
-                    variant="light"
-                    leftSection={<IconUpload size={14} />}
-                    onClick={handle_open_thumbnail_media_selector}
-                  >
-                    Upload Thumbnail
-                  </Button>
-
-                  {!thumbnailPreview ? (
-                    <Paper
-                      withBorder
-                      p="xl"
-                      className="border-dashed"
-                      h={200}
-                      display="flex"
-                      style={{ alignItems: 'center', justifyContent: 'center' }}
-                    >
-                      <Stack align="center" gap="sm">
-                        <IconPhoto size={48} className="text-gray-400" />
-                        <Text c="dimmed">{t('procurement.productsCreate.noImageSelected') || 'No image selected'}</Text>
-                        <Text size="xs" c="dimmed">Upload an image or select from media library</Text>
-                      </Stack>
-                    </Paper>
-                  ) : (
-                    <Box pos="relative" className="inline-block">
-                      <Paper shadow="sm" p="xs">
-                        <img src={thumbnailPreview} alt="Preview" className="w-48 h-48 object-cover rounded-md" />
-                      </Paper>
-                      <ActionIcon
-                        pos="absolute"
-                        top={-8}
-                        right={-8}
-                        color="red"
-                        variant="filled"
-                        size="sm"
-                        onClick={handleRemoveImage}
-                      >
-                        <IconX size={16} />
-                      </ActionIcon>
-                    </Box>
-                  )}
-                </Stack>
-              </Stack>
-            </Card>
-
-            <Card withBorder p="md" shadow="sm">
-              <Stack gap="md">
-                <Group justify="space-between">
-                  <Group>
-                    <IconPackages size={20} className="text-blue-600" />
-                    <Text className="text-base md:text-lg" fw={600}>
-                      {t('procurement.productsCreate.variants') || 'Product Variants'}
-                    </Text>
-                  </Group>
-                  <Button
-                    leftSection={<IconPlus size={14} />}
-                    size="xs"
-                    variant="light"
-                    onClick={handleAddVariant}
-                  >
-                    {t('procurement.productsCreate.addVariant') || 'Add Variant'}
-                  </Button>
-                </Group>
-                <Divider />
-
-                <Stack gap="sm">
-                  {variants.map((variant, index) => (
-                    <Paper key={variant.id} withBorder p="sm" radius="md">
-                      <Stack gap="sm">
-                        <Group justify="space-between">
-                          <Text className="text-sm md:text-base" fw={600}>
-                            {t('procurement.productsCreate.variant')} {index + 1}
-                          </Text>
-                          {variants.length > 1 && (
-                            <ActionIcon
-                              color="red"
-                              variant="light"
-                              size="sm"
-                              onClick={() => handleRemoveVariant(variant.id)}
-                            >
-                              <IconTrash size={14} />
-                            </ActionIcon>
-                          )}
-                        </Group>
-
-                        <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
-                          <TextInput
-                            label="SKU"
-                            placeholder="PROD-001"
-                            value={variant.sku}
-                            onChange={(e) => handleVariantChange(variant.id, 'sku', e.currentTarget.value)}
-                            required
-                          />
-                          <TextInput
-                            label={t('procurement.productsCreate.customSku') || 'Custom SKU'}
-                            placeholder="Owner code"
-                            value={variant.customSku}
-                            onChange={(e) => handleVariantChange(variant.id, 'customSku', e.currentTarget.value)}
-                          />
-                          <TextInput
-                            label={t('procurement.productsCreate.variantName') || 'Variant Name'}
-                            placeholder="Red - XL"
-                            value={variant.variantName}
-                            onChange={(e) => handleVariantChange(variant.id, 'variantName', e.currentTarget.value)}
-                          />
-                          <Select
-                            label={t('procurement.productsCreate.unit') || 'Unit'}
-                            placeholder="Select unit"
-                            data={[{ value: 'pcs', label: 'Pieces' }, { value: 'kg', label: 'Kilogram' }]}
-                            value={variant.unit}
-                            onChange={(value) => handleVariantChange(variant.id, 'unit', value)}
-                          />
-                        </SimpleGrid>
-
-                        <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
-                          <TextInput
-                            label={t('procurement.productsCreate.size') || 'Size'}
-                            placeholder="XL"
-                            value={variant.size}
-                            onChange={(e) => handleVariantChange(variant.id, 'size', e.currentTarget.value)}
-                          />
-                          <TextInput
-                            label={t('procurement.productsCreate.color') || 'Color'}
-                            placeholder="Red"
-                            value={variant.color}
-                            onChange={(e) => handleVariantChange(variant.id, 'color', e.currentTarget.value)}
-                          />
-                          <NumberInput
-                            label={t('procurement.productsCreate.retailPrice') || 'Retail Price'}
-                            placeholder="0.00"
-                            min={0}
-                            decimalScale={2}
-                            value={variant.retailPrice}
-                            onChange={(value) => handleVariantChange(variant.id, 'retailPrice', value)}
-                            required
-                          />
-                          <NumberInput
-                            label={t('procurement.productsCreate.wholesalePrice') || 'Wholesale Price'}
-                            placeholder="0.00"
-                            min={0}
-                            decimalScale={2}
-                            value={variant.wholesalePrice}
-                            onChange={(value) => handleVariantChange(variant.id, 'wholesalePrice', value)}
-                          />
-                        </SimpleGrid>
-
-                        <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-                          <NumberInput
-                            label={t('procurement.productsCreate.purchaseCost') || 'Purchase Cost'}
-                            placeholder="0.00"
-                            min={0}
-                            decimalScale={2}
-                            value={variant.purchaseCost}
-                            onChange={(value) => handleVariantChange(variant.id, 'purchaseCost', value)}
-                          />
-                          <NumberInput
-                            label={t('procurement.productsCreate.alertQty') || 'Alert Quantity'}
-                            placeholder="5"
-                            min={0}
-                            value={variant.alertQty}
-                            onChange={(value) => handleVariantChange(variant.id, 'alertQty', value)}
-                          />
-                        </SimpleGrid>
-                      </Stack>
-                    </Paper>
-                  ))}
-                </Stack>
-              </Stack>
-            </Card>
-
-            <Group justify="flex-end" gap="sm">
+            <Group gap="sm">
               <Button
+                type="button"
                 variant="light"
-                onClick={() => { window.location.href = '/admin/procurement/products' }}
+                leftSection={<IconArrowLeft size={16} />}
+                onClick={() => navigate('/procurement/products')}
               >
-                {t('common.cancel') || 'Cancel'}
+                {t('common.back') || 'Back'}
               </Button>
               <Button
                 type="submit"
-                leftSection={<IconDeviceFloppy size={16} />}
+                loading={saving}
+                disabled={loadingDropdowns}
               >
-                {t('procurement.productsCreate.saveProduct') || 'Save Product'}
+                {t('common.create') || 'Create'}
               </Button>
             </Group>
-          </Stack>
-        </form>
-      </Stack>
+          </Group>
+
+          {/* Basic Information */}
+          <Paper withBorder p="md" radius="md">
+            <Stack gap="md">
+              <Text fw={600} size="lg">
+                {t('procurement.productsPage.basicInfo') || 'Basic Information'}
+              </Text>
+
+              {/* Product Name */}
+              <TextInput
+                label={t('procurement.productsPage.name') || 'Product Name'}
+                placeholder={t('procurement.productsPage.namePlaceholder') || 'Enter product name'}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                size="md"
+              />
+
+              {/* Category & Brand */}
+              <Group grow>
+                <Select
+                  label={t('procurement.productsPage.category') || 'Category'}
+                  placeholder={t('procurement.productsPage.selectCategory') || 'Select category'}
+                  data={categories}
+                  value={categoryId ? String(categoryId) : null}
+                  onChange={(value) => setCategoryId(value ? Number(value) : null)}
+                  required
+                  searchable
+                  size="md"
+                  disabled={loadingDropdowns}
+                />
+
+                <Select
+                  label={t('procurement.productsPage.brand') || 'Brand'}
+                  placeholder={t('procurement.productsPage.selectBrand') || 'Select brand'}
+                  data={brands}
+                  value={brandId ? String(brandId) : null}
+                  onChange={(value) => setBrandId(value ? Number(value) : null)}
+                  searchable
+                  clearable
+                  size="md"
+                  disabled={loadingDropdowns}
+                />
+              </Group>
+
+              {/* Status & Thumbnail */}
+              <Group grow>
+                <Select
+                  label={t('procurement.productsPage.status') || 'Status'}
+                  data={[
+                    {
+                      value: 'draft',
+                      label: t('procurement.productsPage.statuses.draft') || 'Draft',
+                    },
+                    {
+                      value: 'published',
+                      label: t('procurement.productsPage.statuses.published') || 'Published',
+                    },
+                  ]}
+                  value={status}
+                  onChange={(value) => setStatus(value as 'draft' | 'published')}
+                  size="md"
+                  styles={{ root: { flex: 8 } }}
+                />
+
+                <Stack gap="sm" styles={{ root: { flex: 4 } }}>
+                  <Text size="sm" fw={600}>
+                    {t('procurement.productsPage.thumbnail') || 'Product Image'}
+                  </Text>
+                  {thumbnailUrl ? (
+                    <Group gap="sm">
+                      <img
+                        src={thumbnailUrl}
+                        alt="Product thumbnail"
+                        style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: '8px' }}
+                      />
+                      <Button
+                        variant="light"
+                        color="red"
+                        size="sm"
+                        onClick={handleRemoveThumbnail}
+                      >
+                        {t('common.remove') || 'Remove'}
+                      </Button>
+                    </Group>
+                  ) : (
+                    <Button
+                      variant="light"
+                      size="sm"
+                      leftSection={<IconPhoto size={14} />}
+                      onClick={handleSelectThumbnail}
+                    >
+                      {t('procurement.productsPage.selectThumbnail') || 'Select Image'}
+                    </Button>
+                  )}
+                </Stack>
+              </Group>
+            </Stack>
+          </Paper>
+
+          {/* Suppliers */}
+          <Paper withBorder p="md" radius="md">
+            <Stack gap="md">
+              <Text fw={600} size="lg">
+                {t('procurement.productsPage.suppliers') || 'Suppliers'}
+              </Text>
+
+              {/* Add Supplier Section */}
+              <Paper withBorder p="sm" radius="sm" bg="light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8))">
+                <Stack gap="sm">
+                  <Text size="sm" fw={500}>
+                    {t('procurement.productsPage.selectSupplier') || 'Select Supplier to Add'}
+                  </Text>
+                  <Group gap="sm">
+                    <Select
+                      placeholder={t('procurement.productsPage.searchSupplier')}
+                      data={availableSupplierOptions}
+                      value={selectedSupplierId}
+                      onChange={setSelectedSupplierId}
+                      searchable
+                      clearable
+                      style={{ flex: 1 }}
+                      disabled={availableSupplierOptions.length === 0 || loadingDropdowns}
+                      nothingFoundMessage={
+                        loadingDropdowns
+                          ? 'Loading suppliers...'
+                          : availableSupplierOptions.length === 0
+                          ? 'All suppliers have been added'
+                          : 'No suppliers found'
+                      }
+                    />
+                    <Button
+                      leftSection={<IconPlus size={14} />}
+                      onClick={handleAddSupplier}
+                      disabled={!selectedSupplierId || availableSupplierOptions.length === 0}
+                      size="sm"
+                    >
+                      {t('common.add') || 'Add'}
+                    </Button>
+                  </Group>
+                </Stack>
+              </Paper>
+
+              {/* Added Suppliers List */}
+              {suppliers.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  {t('procurement.productsPage.noSuppliers') || 'No suppliers added yet'}
+                </Text>
+              ) : (
+                <Stack gap="md">
+                  {suppliers.map((supplierItem) => {
+                    if (supplierItem.supplierId === null) return null
+
+                    return (
+                      <Paper withBorder p="sm" radius="sm" key={supplierItem.supplierId}>
+                        <Stack gap="sm">
+                          {/* Supplier Header */}
+                          <Group justify="space-between" wrap="nowrap">
+                            <Stack gap={0}>
+                              <Text fw={600} size="md">
+                                {supplierItem.supplierName}
+                              </Text>
+                            </Stack>
+                            <ActionIcon
+                              color="red"
+                              variant="light"
+                              onClick={() => handleRemoveSupplier(supplierItem.supplierId!)}
+                            >
+                              <IconTrash size={16} />
+                            </ActionIcon>
+                          </Group>
+
+                          {/* Product Links */}
+                          <Stack gap="xs" mt="xs">
+                            <Group gap="xs">
+                              <IconPhoto size={16} />
+                              <Text size="sm" fw={500}>
+                                {t('procurement.productsPage.productLinks') ||
+                                  'Product URLs'}{' '}
+                                ({supplierItem.productLinks?.length || 0})
+                              </Text>
+                            </Group>
+
+                            {/* Existing Links */}
+                            {supplierItem.productLinks &&
+                              supplierItem.productLinks.length > 0 && (
+                                <Stack gap="xs">
+                                  {supplierItem.productLinks.map(
+                                    (link: string, linkIndex: number) => (
+                                      <Paper
+                                        withBorder
+                                        p="xs"
+                                        radius="sm"
+                                        key={linkIndex}
+                                      >
+                                        <Group justify="space-between" gap="sm">
+                                          <Text
+                                            size="sm"
+                                            className="flex-1 break-all"
+                                          >
+                                            {link}
+                                          </Text>
+                                          <ActionIcon
+                                            color="red"
+                                            variant="subtle"
+                                            size="sm"
+                                            onClick={() =>
+                                              handleRemoveProductLink(
+                                                supplierItem.supplierId!,
+                                                linkIndex
+                                              )
+                                            }
+                                          >
+                                            <IconTrash size={14} />
+                                          </ActionIcon>
+                                        </Group>
+                                      </Paper>
+                                    )
+                                  )}
+                                </Stack>
+                              )}
+
+                            {/* Add New Link */}
+                            <Group gap="sm">
+                              <TextInput
+                                placeholder="https://..."
+                                value={newProductLinks[supplierItem.supplierId!] || ''}
+                                onChange={(e) =>
+                                  setNewProductLinks((prev) => ({
+                                    ...prev,
+                                    [supplierItem.supplierId!]: e.target.value,
+                                  }))
+                                }
+                                style={{ flex: 1 }}
+                                size="sm"
+                              />
+                              <Button
+                                size="sm"
+                                onClick={() => handleAddProductLink(supplierItem.supplierId!)}
+                              >
+                                {t('common.add') || 'Add'}
+                              </Button>
+                            </Group>
+                          </Stack>
+                        </Stack>
+                      </Paper>
+                    )
+                  })}
+                </Stack>
+              )}
+            </Stack>
+          </Paper>
+        </Stack>
+      </form>
     </Box>
   )
 }

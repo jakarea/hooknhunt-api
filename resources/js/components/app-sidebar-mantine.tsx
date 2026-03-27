@@ -67,11 +67,10 @@ export function AppSidebarMantine({
   const { permissions, permissionObjects, isSuperAdmin } = usePermissions()
 
   const toggleSection = (label: string) => {
-    setOpened((prev) => {
-      // Accordion behavior: only one section open at a time
-      // Always close all and open the clicked one
-      return { [label]: !prev[label] }
-    })
+    setOpened((prev) => ({
+      ...prev,              // Keep all existing menu states
+      [label]: !prev[label] // Toggle only the clicked menu
+    }))
   }
 
   const data = React.useMemo(() => ({
@@ -133,7 +132,6 @@ export function AppSidebarMantine({
               { title: t("procurement.createPO"), url: "/procurement/create" },
               { title: t("procurement.suppliers"), url: "/procurement/suppliers" },
               { title: t("procurement.products"), url: "/procurement/products" },
-              { title: t("procurement.returns"), url: "/procurement/returns" },
             ],
           },
       //     {
