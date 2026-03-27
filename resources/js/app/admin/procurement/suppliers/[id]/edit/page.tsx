@@ -27,6 +27,9 @@ import {
 import { notifications } from '@mantine/notifications'
 import { usePermissions } from '@/hooks/usePermissions'
 import { getSuppliers, updateSupplier } from '@/utils/api'
+import { validateSupplierForm, showValidationErrors, handleApiValidationErrors, transformToApiFormat, type SupplierFormData } from '@/utils/supplierValidation'
+import { useSuppliersStore } from '@/stores/suppliersStore'
+import type { Supplier } from '@/types/supplier'
 
 // ============================================================================
 // TYPES
@@ -74,38 +77,6 @@ interface Supplier {
 }
 
 // ============================================================================
-// PURE VALIDATION FUNCTIONS
-// ============================================================================
-
-/**
- * Validates supplier name
- */
-const validateName = (name: string): boolean => {
-  return name.trim().length > 0
-}
-
-/**
- * Validates email format
- */
-const validateEmail = (email: string): boolean => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  return emailRegex.test(email)
-}
-
-/**
- * Validates URL format
- */
-const validateUrl = (url: string): boolean => {
-  if (!url) return true
-  try {
-    new URL(url)
-    return true
-  } catch {
-    return false
-  }
-}
-
-// ============================================================================
 // PURE DATA TRANSFORMATION FUNCTIONS
 // ============================================================================
 
@@ -132,54 +103,6 @@ const transformSupplierToFormData = (supplier: Supplier): FormData => ({
   isActive: supplier.isActive ?? true,
 })
 
-/**
- * Converts form data to API payload with snake_case field names
- */
-const transformFormDataToPayload = (data: FormData): FormData => {
-  const payload = new FormData() as any
-
-  // Field mapping: camelCase -> snake_case
-  const fieldMapping: Record<string, string> = {
-    name: 'name',
-    email: 'email',
-    phone: 'phone',
-    whatsapp: 'whatsapp',
-    shopName: 'shop_name',
-    shopUrl: 'shop_url',
-    contactPerson: 'contact_person',
-    wechatId: 'wechat_id',
-    wechatQrUrl: 'wechat_qr_url',
-    alipayId: 'alipay_id',
-    alipayQrUrl: 'alipay_qr_url',
-    address: 'address',
-    isActive: 'is_active',
-  }
-
-  // Add all text fields with correct field names
-  Object.keys(fieldMapping).forEach(camelKey => {
-    const snakeKey = fieldMapping[camelKey]
-    const value = data[camelKey as keyof FormData]
-
-    if (value !== null && value !== undefined && value !== '') {
-      if (typeof value === 'boolean') {
-        payload.append(snakeKey, value ? '1' : '0')
-      } else {
-        payload.append(snakeKey, String(value))
-      }
-    }
-  })
-
-  // Add files if present
-  if (data.wechatQrFile) {
-    payload.append('wechat_qr_file', data.wechatQrFile)
-  }
-  if (data.alipayQrFile) {
-    payload.append('alipay_qr_file', data.alipayQrFile)
-  }
-
-  return payload
-}
-
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
@@ -189,6 +112,8 @@ export default function EditSupplierPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { hasPermission } = usePermissions()
+  const optimisticUpdate = useSuppliersStore((state) => state.optimisticUpdate)
+  const rollbackUpdate = useSuppliersStore((state) => state.rollbackUpdate)
 
   const [supplier, setSupplier] = useState<Supplier | null>(null)
   const [loading, setLoading] = useState(true)
@@ -212,6 +137,7 @@ export default function EditSupplierPage() {
     isActive: true,
   })
   const [submitting, setSubmitting] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   // QR code preview states
   const [wechatQrPreview, setWechatQrPreview] = useState<string | null>(null)
@@ -260,54 +186,100 @@ export default function EditSupplierPage() {
     }
   }
 
+  // Helper to clear field error when user starts typing
+  const clearFieldError = (fieldName: string) => {
+    if (fieldErrors[fieldName]) {
+      setFieldErrors((prev) => {
+        const newErrors = { ...prev }
+        delete newErrors[fieldName]
+        return newErrors
+      })
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
 
-    // Validation
-    const errors: Record<string, string> = {}
+    // Clear previous errors
+    setFieldErrors({})
 
-    if (!validateName(formData.name)) {
-      errors.name = t('procurement.suppliersPage.form.validation.nameRequired') || 'Supplier name is required'
-    }
+    // ✅ ZOD VALIDATION: Validate form with Zod schema (update mode)
+    const validation = validateSupplierForm(formData, true)
 
-    if (!validateEmail(formData.email)) {
-      errors.email = t('procurement.suppliersPage.form.validation.emailInvalid') || 'Please enter a valid email address'
-    }
-
-    if (formData.shopUrl && !validateUrl(formData.shopUrl)) {
-      errors.shopUrl = t('procurement.suppliersPage.form.validation.urlInvalid') || 'Please enter a valid URL'
-    }
-
-    if (Object.keys(errors).length > 0) {
-      Object.entries(errors).forEach(([field, message]) => {
-        notifications.show({
-          title: t('common.error') || 'Error',
-          message,
-          color: 'red',
-        })
-      })
+    if (!validation.isValid) {
+      // Set field errors for display under fields
+      setFieldErrors(validation.errors)
+      // Also show toast notification
+      showValidationErrors(validation.errors)
       return
+    }
+
+    if (!supplier) return
+
+    // Store previous data for rollback
+    const previousData: Partial<Supplier> = {
+      name: supplier.name,
+      email: supplier.email,
+      phone: supplier.phone,
+      whatsapp: supplier.whatsapp,
+      shopName: supplier.shopName,
+      shopUrl: supplier.shopUrl,
+      contactPerson: supplier.contactPerson,
+      wechatId: supplier.wechatId,
+      wechatQrUrl: supplier.wechatQrUrl,
+      alipayId: supplier.alipayId,
+      alipayQrUrl: supplier.alipayQrUrl,
+      address: supplier.address,
+      isActive: supplier.isActive,
     }
 
     try {
       setSubmitting(true)
-      const payload = transformFormDataToPayload(formData)
-      await updateSupplier(Number(id), payload)
 
-      notifications.show({
-        title: t('common.success') || 'Success',
-        message: t('procurement.suppliersPage.notifications.updatedMessage', { name: formData.name }) || 'Supplier updated successfully',
-        color: 'green',
-      })
+      // ✅ OPTIMISTIC UI: Update supplier in store immediately
+      const optimisticUpdates: Partial<Supplier> = {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone || null,
+        whatsapp: formData.whatsapp || null,
+        shopName: formData.shopName || null,
+        shopUrl: formData.shopUrl || null,
+        contactPerson: formData.contactPerson || null,
+        wechatId: formData.wechatId || null,
+        wechatQrUrl: formData.wechatQrUrl || null,
+        alipayId: formData.alipayId || null,
+        alipayQrUrl: formData.alipayQrUrl || null,
+        address: formData.address || null,
+        isActive: formData.isActive ?? true,
+      }
 
-      navigate('/procurement/suppliers')
-    } catch (error: any) {
-      console.error('Failed to update supplier:', error)
-      notifications.show({
-        title: t('common.error') || 'Error',
-        message: error.response?.data?.message || error.message || 'Failed to update supplier',
-        color: 'red',
-      })
+      optimisticUpdate(Number(id), optimisticUpdates)
+
+      try {
+        // ✅ Transform to backend format (snake_case)
+        const payload = transformToApiFormat(formData as SupplierFormData)
+        await updateSupplier(Number(id), payload)
+
+        // ✅ API succeeded - show success and navigate
+        notifications.show({
+          title: t('common.success') || 'Success',
+          message: t('procurement.suppliersPage.notifications.updatedMessage', { name: formData.name }) || 'Supplier updated successfully',
+          color: 'green',
+        })
+        navigate('/procurement/suppliers')
+      } catch (apiError: any) {
+        // API failed - rollback optimistic update
+        rollbackUpdate(Number(id), previousData)
+
+        // ✅ Handle backend validation errors - show inline
+        const apiErrors = handleApiValidationErrors(apiError)
+
+        // Set field errors state for inline display
+        setFieldErrors(apiErrors)
+
+        // Also show toast notification (optional - can be removed)
+        // showValidationErrors(apiErrors)
+      }
     } finally {
       setSubmitting(false)
     }
@@ -405,7 +377,11 @@ export default function EditSupplierPage() {
                 label={t('procurement.suppliersPage.form.name') || 'Supplier Name'}
                 placeholder={t('procurement.suppliersPage.form.namePlaceholder') || 'Enter supplier name'}
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value })
+                  clearFieldError('name')
+                }}
+                error={fieldErrors.name || fieldErrors['name']}
                 required
                 size="md"
               />
@@ -414,7 +390,11 @@ export default function EditSupplierPage() {
                 label={t('procurement.suppliersPage.form.email') || 'Email'}
                 placeholder={t('procurement.suppliersPage.form.emailPlaceholder') || 'email@example.com'}
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, email: e.target.value })
+                  clearFieldError('email')
+                }}
+                error={fieldErrors.email || fieldErrors['email']}
                 required
                 size="md"
               />
@@ -457,6 +437,7 @@ export default function EditSupplierPage() {
                 placeholder={t('procurement.suppliersPage.form.shopUrlPlaceholder') || 'https://example.com'}
                 value={formData.shopUrl}
                 onChange={(e) => setFormData({ ...formData, shopUrl: e.target.value })}
+                error={fieldErrors.shopUrl || fieldErrors['shopUrl']}
                 size="md"
               />
 
@@ -482,6 +463,7 @@ export default function EditSupplierPage() {
                 description={t('procurement.suppliersPage.form.isActiveDescription') || 'Enable this supplier for orders'}
                 checked={formData.isActive}
                 onChange={(e) => setFormData({ ...formData, isActive: e.currentTarget.checked })}
+                error={fieldErrors.isActive || fieldErrors['isActive']}
                 size="md"
               />
             </Stack>
@@ -506,17 +488,16 @@ export default function EditSupplierPage() {
                   size="md"
                 />
 
-                <TextInput
-                  label={t('procurement.suppliersPage.form.wechatQrUrl') || 'WeChat QR Code URL'}
-                  placeholder={t('procurement.suppliersPage.form.wechatQrUrlPlaceholder') || 'https://example.com/qr.jpg'}
-                  value={formData.wechatQrUrl}
-                  onChange={(e) => setFormData({ ...formData, wechatQrUrl: e.target.value })}
-                  size="md"
-                />
-
                 {formData.wechatQrFileCurrent && (
                   <Group gap="sm">
-                    <Text size="sm" c="dimmed">Current: {formData.wechatQrFileCurrent}</Text>
+                    <Text size="sm" c="green">✓ WeChat QR code uploaded</Text>
+                    <Anchor
+                      size="sm"
+                      href={`/storage/${formData.wechatQrFileCurrent}`}
+                      target="_blank"
+                    >
+                      View file
+                    </Anchor>
                   </Group>
                 )}
 
@@ -600,17 +581,16 @@ export default function EditSupplierPage() {
                   size="md"
                 />
 
-                <TextInput
-                  label={t('procurement.suppliersPage.form.alipayQrUrl') || 'Alipay QR Code URL'}
-                  placeholder={t('procurement.suppliersPage.form.alipayQrUrlPlaceholder') || 'https://example.com/qr.jpg'}
-                  value={formData.alipayQrUrl}
-                  onChange={(e) => setFormData({ ...formData, alipayQrUrl: e.target.value })}
-                  size="md"
-                />
-
                 {formData.alipayQrFileCurrent && (
                   <Group gap="sm">
-                    <Text size="sm" c="dimmed">Current: {formData.alipayQrFileCurrent}</Text>
+                    <Text size="sm" c="green">✓ Alipay QR code uploaded</Text>
+                    <Anchor
+                      size="sm"
+                      href={`/storage/${formData.alipayQrFileCurrent}`}
+                      target="_blank"
+                    >
+                      View file
+                    </Anchor>
                   </Group>
                 )}
 

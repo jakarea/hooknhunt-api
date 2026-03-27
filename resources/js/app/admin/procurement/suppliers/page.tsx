@@ -33,7 +33,9 @@ import { modals } from '@mantine/modals'
 import { notifications } from '@mantine/notifications'
 import { useDebouncedValue } from '@mantine/hooks'
 import { usePermissions } from '@/hooks/usePermissions'
-import { getSuppliers, deleteSupplier, type Supplier } from '@/utils/api'
+import { deleteSupplier as deleteSupplierApi, type Supplier } from '@/utils/api'
+import { useSuppliers, useSupplierMutations } from '@/hooks/useSuppliersSwr'
+import { filterSuppliersBySearch, filterSuppliersByStatus, getSupplierStatusLabel, getSupplierStatusColor, formatWalletBalance } from '@/utils/supplierHelpers'
 
 // ============================================================================
 // MAIN COMPONENT
@@ -44,80 +46,21 @@ export default function SuppliersPage() {
   const navigate = useNavigate()
   const { hasPermission } = usePermissions()
 
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  // ✅ SWR: Automatic data fetching with caching
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch] = useDebouncedValue(searchQuery, 500)
   const [statusFilter, setStatusFilter] = useState<string | null>('all')
 
-  // ============================================================================
-  // DATA FETCHING
-  // ============================================================================
+  // Fetch suppliers with SWR
+  const { suppliers, isLoading, isError, error, isValidating, refresh } = useSuppliers({
+    page: 1,
+    perPage: 50,
+    search: debouncedSearch,
+    isActive: statusFilter === 'all' ? null : statusFilter === 'active',
+  })
 
-  const fetchSuppliers = useCallback(async (showLoading = true) => {
-    try {
-      if (showLoading) {
-        setLoading(true)
-      } else {
-        setRefreshing(true)
-      }
-
-      const params: Parameters<typeof getSuppliers>[0] = {
-        search: debouncedSearch || undefined,
-        page: 1,
-        per_page: 50,
-      }
-
-      if (statusFilter && statusFilter !== 'all') {
-        params.is_active = statusFilter === 'active'
-      }
-
-      const response = await getSuppliers(params)
-
-      // Handle multiple possible response structures
-      let suppliers: Supplier[] = []
-
-      // Case 1: Response has status field (API wrapper)
-      if (response && typeof response === 'object' && 'status' in response) {
-        if (response.status && response.data) {
-          const data = response.data
-          // Case 1a: { status: true, data: { data: [...], ... } }
-          if (typeof data === 'object' && 'data' in data && Array.isArray(data.data)) {
-            suppliers = data.data
-          }
-          // Case 1b: { status: true, data: [...] }
-          else if (Array.isArray(data)) {
-            suppliers = data
-          }
-        }
-      }
-      // Case 2: Direct array response
-      else if (Array.isArray(response)) {
-        suppliers = response
-      }
-      // Case 3: Paginated response without status wrapper { data: [...], ... }
-      else if (response && typeof response === 'object' && 'data' in response && Array.isArray(response.data)) {
-        suppliers = response.data
-      }
-
-      setSuppliers(suppliers)
-    } catch (error) {
-      notifications.show({
-        title: t('procurement.suppliersPage.notifications.errorLoading'),
-        message: error instanceof Error ? error.message : t('common.somethingWentWrong'),
-        color: 'red',
-      })
-      setSuppliers([])
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }, [debouncedSearch, statusFilter, t])
-
-  useEffect(() => {
-    fetchSuppliers(true)
-  }, [fetchSuppliers])
+  // Mutation hooks with optimistic updates
+  const { deleteSupplier: deleteSupplierMutation } = useSupplierMutations()
 
   // ============================================================================
   // EVENT HANDLERS
@@ -138,26 +81,18 @@ export default function SuppliersPage() {
       confirmProps: { color: 'red' },
       onConfirm: async () => {
         try {
-          await deleteSupplier(supplier.id)
-          notifications.show({
-            title: t('procurement.suppliersPage.notifications.deleted'),
-            message: t('procurement.suppliersPage.notifications.deletedMessage', { name: supplier.name }),
-            color: 'green',
-          })
-          await fetchSuppliers(false)
+          // ✅ SWR OPTIMISTIC UI: Delete with automatic rollback on error
+          await deleteSupplierMutation(supplier, () => deleteSupplierApi(supplier.id))
         } catch (error) {
-          notifications.show({
-            title: t('procurement.suppliersPage.notifications.errorDeleting'),
-            message: error instanceof Error ? error.message : t('common.somethingWentWrong'),
-            color: 'red',
-          })
+          // Error is already handled by the mutation hook
+          console.error('Delete failed:', error)
         }
       },
     })
   }
 
   const handleRefresh = () => {
-    fetchSuppliers(false)
+    refresh()
     notifications.show({
       title: t('procurement.suppliersPage.notifications.refreshed'),
       message: t('procurement.suppliersPage.notifications.refreshedMessage'),
@@ -169,7 +104,7 @@ export default function SuppliersPage() {
   // LOADING STATE
   // ============================================================================
 
-  if (loading) {
+  if (isLoading) {
     return (
       <Stack p="xl" gap="md">
         <Skeleton height={40} width="100%" />
@@ -234,7 +169,7 @@ export default function SuppliersPage() {
 
           <Button
             onClick={handleRefresh}
-            loading={refreshing}
+            loading={isValidating}
             variant="light"
             className="text-sm md:text-base"
             leftSection={<IconRefresh size={16} />}
