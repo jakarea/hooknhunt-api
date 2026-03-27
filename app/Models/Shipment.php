@@ -4,12 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Shipment extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
-    // We use guarded ID to allow mass assignment of all other fields 
+    // We use guarded ID to allow mass assignment of all other fields
     // including the new ones (total_extra_cost, total_extra_weight, etc.)
     protected $guarded = ['id'];
 

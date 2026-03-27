@@ -123,26 +123,11 @@ export default function SupplierDetailsPage() {
   const fetchSupplier = async (supplierId: string) => {
     try {
       setLoading(true)
-      const response = await getSuppliers({ per_page: 1 })
-      let supplierData: Supplier[] = []
+      const response: any = await getSuppliers({ per_page: 100 })
+      const suppliersData = response?.data?.data || response?.data || []
+      const suppliersList = Array.isArray(suppliersData) ? suppliersData : []
 
-      // Handle response structure
-      if (response && typeof response === 'object' && 'status' in response) {
-        if (response.status && response.data) {
-          const data = response.data
-          if (typeof data === 'object' && 'data' in data && Array.isArray(data.data)) {
-            supplierData = data.data
-          } else if (Array.isArray(data)) {
-            supplierData = data
-          }
-        }
-      } else if (Array.isArray(response)) {
-        supplierData = response
-      } else if (response && typeof response === 'object' && 'data' in response && Array.isArray(response.data)) {
-        supplierData = response.data
-      }
-
-      const found = supplierData.find((s) => s.id === parseInt(supplierId))
+      const found = suppliersList.find((s: Supplier) => s.id === parseInt(supplierId))
       if (found) {
         setSupplier(found)
       } else {

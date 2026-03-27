@@ -28,6 +28,9 @@ import { notifications } from '@mantine/notifications'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useMediaSelector } from '@/hooks/useMediaSelector'
 import { createSupplier } from '@/utils/api'
+import { validateSupplierForm, showValidationErrors, handleApiValidationErrors, transformToApiFormat } from '@/utils/supplierValidation'
+import { useSuppliersStore } from '@/stores/suppliersStore'
+import type { Supplier } from '@/types/supplier'
 
 // ============================================================================
 // TYPES
@@ -172,9 +175,12 @@ export default function CreateSupplierPage() {
   const navigate = useNavigate()
   const { hasPermission } = usePermissions()
   const { openSingleSelect } = useMediaSelector()
+  const optimisticAdd = useSuppliersStore((state) => state.optimisticAdd)
+  const rollbackAdd = useSuppliersStore((state) => state.rollbackAdd)
 
   const [formData, setFormData] = useState<FormData>(createInitialFormData())
   const [submitting, setSubmitting] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   // QR code preview states
   const [wechatQrPreview, setWechatQrPreview] = useState<string | null>(null)
@@ -187,54 +193,94 @@ export default function CreateSupplierPage() {
     }
   }, [])
 
+  const clearFieldError = (fieldName: string) => {
+    if (fieldErrors[fieldName]) {
+      setFieldErrors((prev) => {
+        const newErrors = { ...prev }
+        delete newErrors[fieldName]
+        return newErrors
+      })
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
 
-    // Validation
-    const errors: Record<string, string> = {}
+    // Clear previous errors
+    setFieldErrors({})
 
-    if (!validateName(formData.name)) {
-      errors.name = t('procurement.suppliersPage.form.validation.nameRequired') || 'Supplier name is required'
-    }
+    // ✅ ZOD VALIDATION: Validate form with Zod schema
+    const validation = validateSupplierForm(formData, false)
 
-    if (!validateEmail(formData.email)) {
-      errors.email = t('procurement.suppliersPage.form.validation.emailInvalid') || 'Please enter a valid email address'
-    }
-
-    if (!validateUrl(formData.shopUrl || '')) {
-      errors.shopUrl = t('procurement.suppliersPage.form.validation.urlInvalid') || 'Please enter a valid URL'
-    }
-
-    if (Object.keys(errors).length > 0) {
-      Object.entries(errors).forEach(([field, message]) => {
-        notifications.show({
-          title: t('common.error') || 'Error',
-          message,
-          color: 'red',
-        })
-      })
+    if (!validation.isValid) {
+      // Set field errors for display under fields
+      setFieldErrors(validation.errors)
+      // Also show toast notification
+      showValidationErrors(validation.errors)
       return
     }
 
     try {
       setSubmitting(true)
-      const payload = transformFormDataToPayload(formData)
-      await createSupplier(payload)
 
-      notifications.show({
-        title: t('common.success') || 'Success',
-        message: t('procurement.suppliersPage.notifications.createdMessage', { name: formData.name }) || 'Supplier created successfully',
-        color: 'green',
-      })
+      // ✅ OPTIMISTIC UI: Create temporary supplier with negative ID
+      const tempId = Date.now() // Use timestamp as temporary ID
+      const tempSupplier: Supplier = {
+        id: tempId,
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone || null,
+        whatsapp: formData.whatsapp || null,
+        shopName: formData.shopName || null,
+        shopUrl: formData.shopUrl || null,
+        contactPerson: formData.contactPerson || null,
+        wechatId: formData.wechatId || null,
+        wechatQrUrl: formData.wechatQrUrl || null,
+        wechatQrFile: null,
+        alipayId: formData.alipayId || null,
+        alipayQrUrl: formData.alipayQrUrl || null,
+        alipayQrFile: null,
+        address: formData.address || null,
+        isActive: formData.isActive ?? true,
+        walletBalance: 0,
+        creditLimit: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
 
-      navigate('/procurement/suppliers')
+      // Add to store optimistically
+      optimisticAdd(tempSupplier)
+
+      try {
+        // ✅ Transform to backend format (snake_case)
+        const payload = transformToApiFormat(formData)
+        const response = await createSupplier(payload)
+
+        // ✅ API succeeded - show success and navigate
+        notifications.show({
+          title: t('common.success') || 'Success',
+          message: t('procurement.suppliersPage.notifications.createdMessage', { name: formData.name }) || 'Supplier created successfully',
+          color: 'green',
+        })
+        navigate('/procurement/suppliers')
+      } catch (apiError: any) {
+        // API failed - rollback optimistic update
+        rollbackAdd(tempId)
+
+        // Re-throw to be caught by outer catch block
+        throw apiError
+      }
     } catch (error: any) {
       console.error('Failed to create supplier:', error)
-      notifications.show({
-        title: t('common.error') || 'Error',
-        message: error.response?.data?.message || error.message || 'Failed to create supplier',
-        color: 'red',
-      })
+
+      // ✅ Handle backend validation errors - show inline
+      const apiErrors = handleApiValidationErrors(error)
+
+      // Set field errors state for inline display
+      setFieldErrors(apiErrors)
+
+      // Also show toast notification (optional - can be removed)
+      // showValidationErrors(apiErrors)
     } finally {
       setSubmitting(false)
     }
@@ -296,7 +342,11 @@ export default function CreateSupplierPage() {
                 label={t('procurement.suppliersPage.form.name') || 'Supplier Name'}
                 placeholder={t('procurement.suppliersPage.form.namePlaceholder') || 'Enter supplier name'}
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value })
+                  clearFieldError('name')
+                }}
+                error={fieldErrors.name || fieldErrors['name']}
                 required
                 size="md"
               />
@@ -305,7 +355,11 @@ export default function CreateSupplierPage() {
                 label={t('procurement.suppliersPage.form.email') || 'Email'}
                 placeholder={t('procurement.suppliersPage.form.emailPlaceholder') || 'email@example.com'}
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, email: e.target.value })
+                  clearFieldError('email')
+                }}
+                error={fieldErrors.email || fieldErrors['email']}
                 required
                 size="md"
               />
@@ -347,7 +401,11 @@ export default function CreateSupplierPage() {
                 label={t('procurement.suppliersPage.form.shopUrl') || 'Shop URL'}
                 placeholder={t('procurement.suppliersPage.form.shopUrlPlaceholder') || 'https://example.com'}
                 value={formData.shopUrl}
-                onChange={(e) => setFormData({ ...formData, shopUrl: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, shopUrl: e.target.value })
+                  clearFieldError('shopUrl')
+                }}
+                error={fieldErrors.shopUrl || fieldErrors['shopUrl']}
                 size="md"
               />
 
@@ -394,14 +452,6 @@ export default function CreateSupplierPage() {
                   placeholder={t('procurement.suppliersPage.form.wechatIdPlaceholder') || 'Enter WeChat ID'}
                   value={formData.wechatId}
                   onChange={(e) => setFormData({ ...formData, wechatId: e.target.value })}
-                  size="md"
-                />
-
-                <TextInput
-                  label={t('procurement.suppliersPage.form.wechatQrUrl') || 'WeChat QR Code URL'}
-                  placeholder={t('procurement.suppliersPage.form.wechatQrUrlPlaceholder') || 'https://example.com/qr.jpg'}
-                  value={formData.wechatQrUrl}
-                  onChange={(e) => setFormData({ ...formData, wechatQrUrl: e.target.value })}
                   size="md"
                 />
 
@@ -475,14 +525,6 @@ export default function CreateSupplierPage() {
                   placeholder={t('procurement.suppliersPage.form.alipayIdPlaceholder') || 'Enter Alipay ID'}
                   value={formData.alipayId}
                   onChange={(e) => setFormData({ ...formData, alipayId: e.target.value })}
-                  size="md"
-                />
-
-                <TextInput
-                  label={t('procurement.suppliersPage.form.alipayQrUrl') || 'Alipay QR Code URL'}
-                  placeholder={t('procurement.suppliersPage.form.alipayQrUrlPlaceholder') || 'https://example.com/qr.jpg'}
-                  value={formData.alipayQrUrl}
-                  onChange={(e) => setFormData({ ...formData, alipayQrUrl: e.target.value })}
                   size="md"
                 />
 

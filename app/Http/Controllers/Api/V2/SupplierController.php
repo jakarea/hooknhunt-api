@@ -4,7 +4,12 @@ namespace App\Http\Controllers\Api\V2;
 
 use App\Http\Controllers\Controller;
 use App\Models\Supplier;
-use App\Models\Shipment;
+use App\Services\SupplierService;
+use App\DTOs\CreateSupplierDTO;
+use App\DTOs\UpdateSupplierDTO;
+use App\DTOs\SupplierSearchDTO;
+use App\Http\Requests\StoreSupplierRequest;
+use App\Http\Requests\UpdateSupplierRequest;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 
@@ -12,140 +17,161 @@ class SupplierController extends Controller
 {
     use ApiResponse;
 
+    public function __construct(
+        private SupplierService $supplierService
+    ) {}
+
+    /**
+     * List suppliers with optional search and filtering.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function index(Request $request)
     {
-        $query = Supplier::latest();
+        // ✅ TOP 1%: Use DTO for predictable data flow
+        $searchDTO = SupplierSearchDTO::fromRequest($request->all());
 
-        if ($request->search) {
-            $query->where('name', 'like', "%{$request->search}%")
-                  ->orWhere('shop_name', 'like', "%{$request->search}%");
+        // ✅ TOP 1%: Delegate to service layer
+        $result = $this->supplierService->searchSuppliers($searchDTO);
+
+        if ($result->isFailure()) {
+            return $this->sendError($result->getError());
         }
 
-        return $this->sendSuccess($query->paginate(15));
+        return $this->sendSuccess($result->getValue());
     }
 
-    // Dropdown List (ID & Name Only)
+    /**
+     * Dropdown List (ID & Name Only) for active suppliers.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function dropdown()
     {
-        return $this->sendSuccess(Supplier::where('is_active', true)->select('id', 'name', 'shop_name')->get());
+        $result = $this->supplierService->getDropdownList();
+
+        if ($result->isFailure()) {
+            return $this->sendError($result->getError());
+        }
+
+        return $this->sendSuccess($result->getValue());
     }
 
-    public function store(Request $request)
+    /**
+     * Store a newly created supplier in storage.
+     *
+     * @param StoreSupplierRequest $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function store(StoreSupplierRequest $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string',
-            'email' => 'required|email',
-            'whatsapp' => 'nullable|string',
-            'shop_url' => 'nullable|url',
-            'shop_name' => 'nullable|string',
-            'contact_person' => 'nullable|string',
-            'phone' => 'nullable|string',
-            'wechat_id' => 'nullable|string',
-            'wechat_qr_file' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
-            'wechat_qr_url' => 'nullable|url',
-            'alipay_id' => 'nullable|string',
-            'alipay_qr_file' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
-            'alipay_qr_url' => 'nullable|url',
-            'address' => 'nullable|string',
-            'is_active' => 'nullable|boolean',
-        ]);
+        // ✅ TOP 1%: Use DTO for type safety
+        $dto = CreateSupplierDTO::fromArray($request->validated());
 
-        // Handle file uploads
-        $data = $validated;
-        if ($request->hasFile('wechat_qr_file')) {
-            $path = $request->file('wechat_qr_file')->store('wechat_qr_codes', 'public');
-            $data['wechat_qr_file'] = $path;
-        }
-        if ($request->hasFile('alipay_qr_file')) {
-            $path = $request->file('alipay_qr_file')->store('alipay_qr_codes', 'public');
-            $data['alipay_qr_file'] = $path;
+        // ✅ TOP 1%: Delegate to service layer with Result pattern
+        $result = $this->supplierService->createSupplier($dto, $request->files->all());
+
+        if ($result->isFailure()) {
+            return $this->sendError($result->getError());
         }
 
-        $supplier = Supplier::create($data);
-        return $this->sendSuccess($supplier, 'Supplier created successfully', 201);
+        return $this->sendSuccess($result->getValue(), 'Supplier created successfully', 201);
     }
 
+    /**
+     * Display the specified supplier.
+     *
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function show($id)
     {
         return $this->sendSuccess(Supplier::findOrFail($id));
     }
 
-    public function update(Request $request, $id)
+    /**
+     * Update the specified supplier in storage.
+     *
+     * @param UpdateSupplierRequest $request
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function update(UpdateSupplierRequest $request, $id)
     {
-        $validated = $request->validate([
-            'name' => 'sometimes|required|string',
-            'email' => 'sometimes|required|email',
-            'whatsapp' => 'nullable|string',
-            'shop_url' => 'nullable|url',
-            'shop_name' => 'nullable|string',
-            'contact_person' => 'nullable|string',
-            'phone' => 'nullable|string',
-            'wechat_id' => 'nullable|string',
-            'wechat_qr_file' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
-            'wechat_qr_url' => 'nullable|url',
-            'alipay_id' => 'nullable|string',
-            'alipay_qr_file' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
-            'alipay_qr_url' => 'nullable|url',
-            'address' => 'nullable|string',
-            'is_active' => 'nullable|boolean',
-        ]);
+        // ✅ TOP 1%: Use DTO for type safety
+        $dto = UpdateSupplierDTO::fromArray($request->validated());
 
         $supplier = Supplier::findOrFail($id);
 
-        // Handle file uploads
-        $data = $validated;
-        if ($request->hasFile('wechat_qr_file')) {
-            $path = $request->file('wechat_qr_file')->store('wechat_qr_codes', 'public');
-            $data['wechat_qr_file'] = $path;
-        }
-        if ($request->hasFile('alipay_qr_file')) {
-            $path = $request->file('alipay_qr_file')->store('alipay_qr_codes', 'public');
-            $data['alipay_qr_file'] = $path;
+        // ✅ TOP 1%: Delegate to service layer with Result pattern
+        $result = $this->supplierService->updateSupplier($supplier, $dto, $request->files->all());
+
+        if ($result->isFailure()) {
+            return $this->sendError($result->getError());
         }
 
-        $supplier->update($data);
-        return $this->sendSuccess($supplier, 'Supplier updated successfully');
+        return $this->sendSuccess($result->getValue(), 'Supplier updated successfully');
     }
 
+    /**
+     * Remove the specified supplier from storage.
+     *
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function destroy($id)
     {
         $supplier = Supplier::findOrFail($id);
-        $supplier->delete();
+
+        // ✅ TOP 1%: Delegate to service layer with Result pattern
+        $result = $this->supplierService->deleteSupplier($supplier);
+
+        if ($result->isFailure()) {
+            return $this->sendError($result->getError());
+        }
+
         return $this->sendSuccess(null, 'Supplier deleted successfully');
     }
 
     /**
      * Supplier Ledger (Transaction History)
      * Shipment এবং Payment এর লজিক বসলে এটি পূর্ণাঙ্গ হবে।
+     *
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
      */
     public function ledger($id)
     {
-        // For now, we return empty structure. 
-        // We will implement this fully in Batch 9 (Accounting)
-        return $this->sendSuccess([
-            'total_purchase' => 0,
-            'total_paid' => 0,
-            'due_amount' => 0,
-            'transactions' => []
-        ]);
+        $supplier = Supplier::findOrFail($id);
+
+        // ✅ TOP 1%: Delegate to service layer
+        $result = $this->supplierService->getLedger($supplier);
+
+        if ($result->isFailure()) {
+            return $this->sendError($result->getError());
+        }
+
+        return $this->sendSuccess($result->getValue());
     }
 
     /**
-     * Get Purchase History (Shipments) for a Supplier
+     * Get Purchase History (Shipments) for a Supplier.
+     *
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
      */
     public function purchaseHistory($id)
     {
         $supplier = Supplier::findOrFail($id);
-        
-        // সাপ্লায়ারের সব শিপমেন্ট নিয়ে আসা
-        $shipments = Shipment::where('supplier_id', $id)
-                        ->withCount('items') // কতগুলো আইটেম ছিল
-                        ->latest()
-                        ->paginate(20);
 
-        return $this->sendSuccess([
-            'supplier' => $supplier->name,
-            'history' => $shipments
-        ]);
+        // ✅ TOP 1%: Delegate to service layer
+        $result = $this->supplierService->getPurchaseHistory($supplier);
+
+        if ($result->isFailure()) {
+            return $this->sendError($result->getError());
+        }
+
+        return $this->sendSuccess($result->getValue());
     }
 }

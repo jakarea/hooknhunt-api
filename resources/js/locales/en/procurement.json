@@ -109,6 +109,7 @@
       "deleteConfirm": "Delete Supplier?",
       "deleteConfirmMessage": "Are you sure you want to delete {{name}}? This action cannot be undone."
     },
+    "editSupplier": "Edit Supplier",
     "viewSupplier": "View Details",
     "products": "Products",
     "details": {
