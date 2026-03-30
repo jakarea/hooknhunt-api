@@ -1,8 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\V2\CategoryController;
-use App\Http\Controllers\Api\V2\ProductController;
 use App\Http\Controllers\Api\V2\AuthController;
+use App\Http\Controllers\Api\V2\Website\ProductController;
 use App\Http\Controllers\Api\V2\Website\AccountController;
 use App\Http\Controllers\Api\V2\Website\OrderController;
 use Illuminate\Http\Request;
@@ -21,7 +21,7 @@ Route::prefix('api')->group(function () {
     // Public Auth Routes (Registration, Login, OTP)
     Route::post('/auth/register', [AuthController::class, 'register']);
     Route::post('/auth/login', [AuthController::class, 'login']);
-    Route::post('/auth/send-otp', [AuthController::class, 'sendOtp']);
+    Route::post('/auth/send-otp', [AuthController::class, 'resendOtp']);
     Route::post('/auth/verify-otp', [AuthController::class, 'verifyOtp']);
     Route::post('/auth/send-reset-otp', [AuthController::class, 'sendResetOtp']); // Send OTP for password reset
     Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']); // Reset password with OTP
@@ -34,6 +34,7 @@ Route::prefix('api')->group(function () {
 
     // Public Product Routes
     Route::get('/products', [ProductController::class, 'index']);
+    Route::get('/products/hot-deals', [ProductController::class, 'hotDeals']);
     Route::get('/products/featured', [ProductController::class, 'featured']);
     Route::get('/products/{slug}', [ProductController::class, 'show']);
     Route::get('/products/{slug}/related', [ProductController::class, 'related']);
@@ -50,7 +51,7 @@ Route::prefix('api')->group(function () {
     // AUTHENTICATED CUSTOMER ROUTES
     // ===============================================
 
-    Route::middleware('auth:sanctum')->prefix('account')->group(function () {
+    Route::middleware(['auth', \Illuminate\Routing\Middleware\SubstituteBindings::class])->prefix('account')->group(function () {
 
         // Customer Account Management
         Route::get('/me', [AccountController::class, 'me']);
@@ -65,7 +66,8 @@ Route::prefix('api')->group(function () {
 
         // Customer Orders
         Route::get('/orders', [OrderController::class, 'myOrders']);
-        Route::get('/orders/{order}', [OrderController::class, 'show']);
+        Route::get('/orders/summary', [OrderController::class, 'orderSummary']);
+        Route::get('/orders/{invoice_no}', [OrderController::class, 'show']);
 
         // We will add '/wishlist' here in a future step
         // We will add '/reviews' here in a future step

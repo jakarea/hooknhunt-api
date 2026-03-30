@@ -13,10 +13,22 @@ import procurementEn from '../locales/en/procurement.json';
 import procurementBn from '../locales/bn/procurement.json';
 import catalogEn from '../locales/en/catalog.json';
 import catalogBn from '../locales/bn/catalog.json';
+import financeEn from '../locales/en/finance.json';
+import financeBn from '../locales/bn/finance.json';
+import hrmEn from '../locales/en/hrm.json';
+import hrmBn from '../locales/bn/hrm.json';
+import dashboardEn from '../locales/en/dashboard.json';
+import dashboardBn from '../locales/bn/dashboard.json';
+import settingsEn from '../locales/en/settings.json';
+import settingsBn from '../locales/bn/settings.json';
+import cmsEn from '../locales/en/cms.json';
+import cmsBn from '../locales/bn/cms.json';
 import commonEn from '../locales/en/common.json';
 import commonBn from '../locales/bn/common.json';
 import navEn from '../locales/en/nav.json';
 import navBn from '../locales/bn/nav.json';
+import crmEn from '../locales/en/crm.json';
+import crmBn from '../locales/bn/crm.json';
 
 // মডিউল মার্জ করা
 const enTranslation = {
@@ -25,7 +37,13 @@ const enTranslation = {
   ...navEn,
   products: productsEn,
   procurement: procurementEn,
-  catalog: catalogEn
+  catalog: catalogEn,
+  finance: financeEn,
+  hrm: hrmEn,
+  dashboard: dashboardEn,
+  settings: settingsEn,
+  cms: cmsEn,
+  crm: crmEn
 };
 
 const bnTranslation = {
@@ -34,7 +52,13 @@ const bnTranslation = {
   ...navBn,
   products: productsBn,
   procurement: procurementBn,
-  catalog: catalogBn
+  catalog: catalogBn,
+  finance: financeBn,
+  hrm: hrmBn,
+  dashboard: dashboardBn,
+  settings: settingsBn,
+  cms: cmsBn,
+  crm: crmBn
 };
 
 i18n

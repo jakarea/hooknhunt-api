@@ -3,6 +3,179 @@
   "products": "পণ্য",
   "categories": "ক্যাটাগরি",
   "brands": "ব্র্যান্ড",
+  "brandsPage": {
+    "title": "ব্র্যান্ড",
+    "subtitle": "পণ্যের ব্র্যান্ড ম্যানেজ করুন",
+    "addBrand": "ব্র্যান্ড যোগ করুন",
+    "searchPlaceholder": "নাম দিয়ে ব্র্যান্ড খুঁজুন...",
+    "noBrandsFound": "কোনো ব্র্যান্ড পাওয়া যায়নি",
+    "active": "সক্রিয়",
+    "inactive": "নিষ্ক্রিয়",
+    "tableHeaders": {
+      "name": "নাম",
+      "slug": "স্লাগ",
+      "website": "ওয়েবসাইট",
+      "logo": "লোগো",
+      "productsCount": "পণ্য",
+      "actions": "পদক্ষেপ"
+    },
+    "actions": {
+      "edit": "সম্পাদনা",
+      "delete": "মুছুন"
+    },
+    "form": {
+      "create": "ব্র্যান্ড তৈরি করুন",
+      "update": "ব্র্যান্ড আপডেট করুন",
+      "cancel": "বাতিল",
+      "name": "ব্র্যান্ডের নাম",
+      "namePlaceholder": "যেমন, Apple, Samsung, Nike",
+      "nameDescription": "অফিসিয়াল ব্র্যান্ডের নাম",
+      "slug": "স্লাগ",
+      "slugPlaceholder": "যেমন, apple-samsung-nike",
+      "slugDescription": "URL-বান্ধব শনাক্তকারী",
+      "website": "ওয়েবসাইট",
+      "websitePlaceholder": "https://example.com",
+      "websiteDescription": "অফিসিয়াল ব্র্যান্ড ওয়েবসাইট",
+      "logoId": "লোগো",
+      "logoIdDescription": "মিডিয়া লাইব্রেরি থেকে ব্র্যান্ড লোগো নির্বাচন করুন",
+      "validation": {
+        "nameRequired": "ব্র্যান্ডের নাম প্রয়োজন",
+        "nameUnique": "ব্র্যান্ডের নাম ইতিমধ্যে বিদ্যমান",
+        "urlInvalid": "অনুগ্রহ করে একটি বৈধ URL লিখুন"
+      }
+    },
+    "notifications": {
+      "loading": "ব্র্যান্ড লোড হচ্ছে...",
+      "refreshed": "রিফ্রেশ করা হয়েছে",
+      "refreshedMessage": "ব্র্যান্ড তালিকা রিফ্রেশ করা হয়েছে",
+      "created": "ব্র্যান্ড তৈরি হয়েছে",
+      "createdMessage": "{{name}} সফলভাবে তৈরি করা হয়েছে",
+      "updated": "ব্র্যান্ড আপডেট হয়েছে",
+      "updatedMessage": "{{name}} সফলভাবে আপডেট করা হয়েছে",
+      "deleted": "ব্র্যান্ড মুছে ফেলা হয়েছে",
+      "deletedMessage": "{{name}} সফলভাবে মুছে ফেলা হয়েছে",
+      "errorLoading": "ব্র্যান্ড লোড করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+      "errorCreating": "ব্র্যান্ড তৈরি করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+      "errorUpdating": "ব্র্যান্ড আপডেট করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+      "errorDeleting": "ব্র্যান্ড মুছতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+      "deleteConfirm": "ব্র্যান্ড মুছে ফেলবেন?",
+      "deleteConfirmMessage": "আপনি কি নিশ্চিত যে {{name}} মুছে ফেলতে চান? এটি ফিরিয়ে আনা যাবে না।"
+    }
+  },
+  "categoriesPage": {
+    "title": "ক্যাটাগরি",
+    "subtitle": "পণ্য ক্যাটাগরি ম্যানেজ করুন (শ্রেণিবিন্যাস)",
+    "addCategory": "ক্যাটাগরি যোগ করুন",
+    "searchPlaceholder": "নাম দিয়ে ক্যাটাগরি খুঁজুন...",
+    "noCategoriesFound": "কোনো ক্যাটাগরি পাওয়া যায়নি",
+    "active": "সক্রিয়",
+    "inactive": "নিষ্ক্রিয়",
+    "parent": "প্যারেন্ট",
+    "noParent": "কোনো প্যারেন্ট নেই (রুট)",
+    "tableHeaders": {
+      "name": "নাম",
+      "slug": "স্লাগ",
+      "parent": "প্যারেন্ট",
+      "products": "পণ্য",
+      "actions": "পদক্ষেপ"
+    },
+    "actions": {
+      "edit": "সম্পাদনা",
+      "delete": "মুছুন"
+    },
+    "form": {
+      "create": "ক্যাটাগরি তৈরি করুন",
+      "update": "ক্যাটাগরি আপডেট করুন",
+      "cancel": "বাতিল",
+      "name": "ক্যাটাগরির নাম",
+      "namePlaceholder": "যেমন, ইলেকট্রনিক্স, পোশাক, খেলাধুলা",
+      "nameDescription": "অফিসিয়াল ক্যাটাগরির নাম",
+      "parent": "প্যারেন্ট ক্যাটাগরি",
+      "parentPlaceholder": "প্যারেন্ট ক্যাটাগরি নির্বাচন করুন (ঐচ্ছিক)",
+      "parentDescription": "রুট-লেভেল ক্যাটাগরির জন্য খালি রাখুন",
+      "imageId": "ক্যাটাগরি ছবি",
+      "imageIdDescription": "মিডিয়া লাইব্রেরি থেকে ছবি নির্বাচন করুন",
+      "isActive": "সক্রিয়",
+      "isActiveDescription": "পণ্যের জন্য এই ক্যাটাগরি সক্রিয় করুন",
+      "validation": {
+        "nameRequired": "ক্যাটাগরির নাম প্রয়োজন",
+        "nameUnique": "ক্যাটাগরির নাম ইতিমধ্যে বিদ্যমান"
+      }
+    },
+    "notifications": {
+      "loading": "ক্যাটাগরি লোড হচ্ছে...",
+      "refreshed": "রিফ্রেশ করা হয়েছে",
+      "refreshedMessage": "ক্যাটাগরি তালিকা রিফ্রেশ করা হয়েছে",
+      "created": "ক্যাটাগরি তৈরি হয়েছে",
+      "createdMessage": "{{name}} সফলভাবে তৈরি করা হয়েছে",
+      "updated": "ক্যাটাগরি আপডেট হয়েছে",
+      "updatedMessage": "{{name}} সফলভাবে আপডেট করা হয়েছে",
+      "deleted": "ক্যাটাগরি মুছে ফেলা হয়েছে",
+      "deletedMessage": "{{name}} সফলভাবে মুছে ফেলা হয়েছে",
+      "errorLoading": "ক্যাটাগরি লোড করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+      "errorCreating": "ক্যাটাগরি তৈরি করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+      "errorUpdating": "ক্যাটাগরি আপডেট করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+      "errorDeleting": "ক্যাটাগরি মুছতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+      "deleteConfirm": "ক্যাটাগরি মুছে ফেলবেন?",
+      "deleteConfirmMessage": "আপনি কি নিশ্চিত যে {{name}} মুছে ফেলতে চান? এটি ফিরিয়ে আনা যাবে না।",
+      "hasProductsError": "পণ্য সম্বলিত ক্যাটাগরি মুছে ফেলা যাবে না।"
+    },
+    "childrenCategories": "সাব-ক্যাটাগরি"
+  },
+  "unitsPage": {
+    "title": "একক",
+    "subtitle": "পরিমাপের একক ম্যানেজ করুন (কেজি, পিস, বাক্স ইত্যাদি)",
+    "addUnit": "একক যোগ করুন",
+    "searchPlaceholder": "নাম বা প্রতীক দিয়ে একক খুঁজুন...",
+    "noUnitsFound": "কোনো একক পাওয়া যায়নি",
+    "tableHeaders": {
+      "name": "নাম",
+      "symbol": "প্রতীক",
+      "allowDecimal": "দশমিক অনুমোদন",
+      "actions": "পদক্ষেপ"
+    },
+    "actions": {
+      "edit": "সম্পাদনা",
+      "delete": "মুছুন"
+    },
+    "form": {
+      "create": "একক তৈরি করুন",
+      "update": "একক আপডেট করুন",
+      "cancel": "বাতিল",
+      "name": "এককের নাম",
+      "namePlaceholder": "যেমন, কিলোগ্রাম, পিস, বাক্স",
+      "nameDescription": "পরিমাপের এককের পূর্ণ নাম",
+      "symbol": "প্রতীক",
+      "symbolPlaceholder": "যেমন, কেজি, পিস, বাক্স",
+      "symbolDescription": "সংক্ষিপ্ত সংকেত বা প্রতীক",
+      "allowDecimal": "দশমিক অনুমোদন",
+      "allowDecimalDescription": "দশমিক মান অনুমোদন (যেমন, ১.৫ কেজি) অথবা শুধুমাত্র পূর্ণসংখ্যা (যেমন, ৫ পিস)",
+      "yes": "হ্যাঁ",
+      "no": "না",
+      "validation": {
+        "nameRequired": "এককের নাম প্রয়োজন",
+        "nameUnique": "এককের নাম ইতিমধ্যে বিদ্যমান",
+        "symbolRequired": "প্রতীক প্রয়োজন"
+      }
+    },
+    "notifications": {
+      "loading": "একক লোড হচ্ছে...",
+      "refreshed": "রিফ্রেশ করা হয়েছে",
+      "refreshedMessage": "একক তালিকা রিফ্রেশ করা হয়েছে",
+      "created": "একক তৈরি হয়েছে",
+      "createdMessage": "{{name}} সফলভাবে তৈরি করা হয়েছে",
+      "updated": "একক আপডেট হয়েছে",
+      "updatedMessage": "{{name}} সফলভাবে আপডেট করা হয়েছে",
+      "deleted": "একক মুছে ফেলা হয়েছে",
+      "deletedMessage": "{{name}} সফলভাবে মুছে ফেলা হয়েছে",
+      "errorLoading": "একক লোড করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+      "errorCreating": "একক তৈরি করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+      "errorUpdating": "একক আপডেট করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+      "errorDeleting": "একক মুছতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+      "deleteConfirm": "একক মুছে ফেলবেন?",
+      "deleteConfirmMessage": "আপনি কি নিশ্চিত যে {{name}} মুছে ফেলতে চান? এটি ফিরিয়ে আনা যাবে না।"
+    }
+  },
   "productsPage": {
     "title": "সব পণ্য",
     "subtitle": "আপনার পণ্য ক্যাটালগ ম্যানেজ করুন",
@@ -88,8 +261,8 @@
     "selectBrand": "ব্র্যান্ড নির্বাচন করুন",
     "enablePreorder": "প্রি-অর্ডার সক্রিয় করুন",
     "enablePreorderDescription": "স্টকে না থাকা অবস্থায় এই পণ্য অর্ডার করতে গ্রাহকদের অনুমতি দিন",
-    "expectedDeliveryDate": "প্রত্যাশিষিত ডেলিভারি তারিখ",
-    "expectedDeliveryDatePlaceholder": "প্রত্যাশিষিত ডেলিভারি তারিখ নির্বাচন করুন",
+    "expectedDeliveryDate": "প্রত্যাশিত ডেলিভারি তারিখ",
+    "expectedDeliveryDatePlaceholder": "প্রত্যাশিত ডেলিভারি তারিখ নির্বাচন করুন",
     "videoUrl": "ইউটিউব URL",
     "videoUrlPlaceholder": "https://youtube.com/watch?v=...",
     "status": "স্ট্যাটাস",
@@ -181,7 +354,7 @@
     "validation": {
       "descriptionTooShort": "বিবরণ কমপক্ষে ১০ অক্ষরের হতে হবে",
       "productNameRequired": "পণ্যের নাম প্রয়োজন",
-      "categoryRequired": "অনুগ্রহ করে একটি বিভাগ নির্বাচন করুন",
+      "categoryRequired": "অনুগ্রহ করে একটি ক্যাটাগরি নির্বাচন করুন",
       "brandRequired": "অনুগ্রহ করে একটি ব্র্যান্ড নির্বাচন করুন",
       "descriptionRequired": "পণ্যের বিবরণ প্রয়োজন",
       "atLeastOneVariant": "অন্তত একটি ভেরিয়েন্ট প্রয়োজন",
@@ -211,11 +384,11 @@
     "basicInfo": "মৌলিক তথ্য",
     "productName": "পণ্যের নাম",
     "productNamePlaceholder": "পণ্যের নাম লিখুন",
-    "category": "বিভাগ",
-    "selectCategory": "বিভাগ নির্বাচন করুন",
+    "category": "ক্যাটাগরি",
+    "selectCategory": "ক্যাটাগরি নির্বাচন করুন",
     "brand": "ব্র্যান্ড",
     "selectBrand": "ব্র্যান্ড নির্বাচন করুন",
-    "status": "অবস্থা",
+    "status": "স্ট্যাটাস",
     "media": "মিডিয়া",
     "featuredImage": "প্রধান ছবি",
     "selectFeaturedImage": "প্রধান ছবি নির্বাচন করুন",
@@ -239,12 +412,12 @@
     "saveChanges": "পরিবর্তন সংরক্ষণ করুন",
     "validation": {
       "productNameRequired": "পণ্যের নাম প্রয়োজন",
-      "categoryRequired": "অনুগ্রহ করে একটি বিভাগ নির্বাচন করুন",
+      "categoryRequired": "অনুগ্রহ করে একটি ক্যাটাগরি নির্বাচন করুন",
       "brandRequired": "অনুগ্রহ করে একটি ব্র্যান্ড নির্বাচন করুন",
       "descriptionTooShort": "বিবরণ কমপক্ষে ১০ অক্ষরের হতে হবে",
       "atLeastOneVariant": "অন্তত একটি ভেরিয়েন্ট প্রয়োজন",
       "variantNameRequired": "ভেরিয়েন্ট {{index}} এর নাম প্রয়োজন",
-      "duplicateVariantNames": "ভেরিয়েন্ট নাম অবশ্যই হতে হবে। ডুপ্লিকেট: {{names}}"
+      "duplicateVariantNames": "ভেরিয়েন্ট নাম অবশ্যই অনন্য হতে হবে। ডুপ্লিকেট: {{names}}"
     },
     "notification": {
       "cannotRemoveLastVariant": "সরানো যাবে না",
@@ -252,6 +425,83 @@
       "defaultValuesApplied": "ডিফল্ট মান প্রয়োগ করা হয়েছে",
       "defaultValuesAppliedMessage": "{{count}}টি ভেরিয়েন্টে প্রয়োগ করা হয়েছে",
       "productUpdated": "পণ্য সফলভাবে আপডেট করা হয়েছে"
+    }
+  },
+  "attributesPage": {
+    "title": "বৈশিষ্ট্য",
+    "subtitle": "পণ্যের বৈশিষ্ট্য ম্যানেজ করুন (ওয়ারেন্টি, উৎপত্তি, মাত্রা ইত্যাদি)",
+    "addAttribute": "বৈশিষ্ট্য যোগ করুন",
+    "searchPlaceholder": "নাম দিয়ে বৈশিষ্ট্য খুঁজুন...",
+    "noAttributesFound": "কোনো বৈশিষ্ট্য পাওয়া যায়নি",
+    "tableHeaders": {
+      "name": "নাম",
+      "displayName": "প্রদর্শন নাম",
+      "type": "ধরন",
+      "options": "অপশন",
+      "isRequired": "আবশ্যক",
+      "isVisible": "দৃশ্যমান",
+      "sortOrder": "সর্ট",
+      "actions": "পদক্ষেপ"
+    },
+    "actions": {
+      "edit": "সম্পাদনা",
+      "delete": "মুছুন"
+    },
+    "form": {
+      "create": "বৈশিষ্ট্য তৈরি করুন",
+      "update": "বৈশিষ্ট্য আপডেট করুন",
+      "cancel": "বাতিল",
+      "name": "বৈশিষ্ট্যের নাম",
+      "namePlaceholder": "যেমন, warranty, origin, certification",
+      "nameDescription": "এই বৈশিষ্ট্যের জন্য অনন্য শনাক্তকারী (ছোট হাতের অক্ষর, স্পেস ছাড়া)",
+      "displayName": "প্রদর্শন নাম",
+      "displayNamePlaceholder": "যেমন, ওয়ারেন্টি সময়কাল, উৎপত্তি দেশ",
+      "displayNameDescription": "ফর্ম এবং স্টোরফ্রন্টে প্রদর্শিত ব্যবহারকারী-বান্ধব নাম",
+      "type": "বৈশিষ্ট্যের ধরন",
+      "typeDescription": "এই বৈশিষ্ট্যের জন্য ইনপুটের ধরন",
+      "typeText": "টেক্সট",
+      "typeNumber": "সংখ্যা",
+      "typeSelect": "সিলেক্ট (ড্রপডাউন)",
+      "typeMultiselect": "মাল্টি সিলেক্ট",
+      "typeColor": "রঙ (সোয়াচ সহ)",
+      "typeDate": "তারিখ",
+      "typeBoolean": "বুলিয়ান (হ্যাঁ/না)",
+      "isRequired": "আবশ্যক",
+      "isRequiredDescription": "এই বৈশিষ্ট্যের মান থাকা আবশ্যক কিনা",
+      "isVisible": "স্টোরফ্রন্টে দৃশ্যমান",
+      "isVisibleDescription": "গ্রাহকদের কাছে এই বৈশিষ্ট্য দেখান",
+      "sortOrder": "সর্ট ক্রম",
+      "sortOrderDescription": "কম সংখ্যা প্রথমে আসবে",
+      "options": "বৈশিষ্ট্য অপশন",
+      "optionsDescription": "সিলেক্ট/মাল্টিসিলেক্ট/রঙ ধরনের জন্য অপশন যোগ করুন",
+      "addOption": "অপশন যোগ করুন",
+      "optionValue": "মান",
+      "optionLabel": "লেবেল",
+      "optionSwatch": "সোয়াচ (হেক্স রঙ)",
+      "validation": {
+        "nameRequired": "বৈশিষ্ট্যের নাম প্রয়োজন",
+        "nameUnique": "বৈশিষ্ট্যের নাম ইতিমধ্যে বিদ্যমান",
+        "displayNameRequired": "প্রদর্শন নাম প্রয়োজন",
+        "typeRequired": "বৈশিষ্ট্যের ধরন প্রয়োজন",
+        "optionValueRequired": "অপশনের মান প্রয়োজন"
+      }
+    },
+    "notifications": {
+      "loading": "বৈশিষ্ট্য লোড হচ্ছে...",
+      "refreshed": "রিফ্রেশ করা হয়েছে",
+      "refreshedMessage": "বৈশিষ্ট্য তালিকা রিফ্রেশ করা হয়েছে",
+      "created": "বৈশিষ্ট্য তৈরি হয়েছে",
+      "createdMessage": "{{name}} সফলভাবে তৈরি করা হয়েছে",
+      "updated": "বৈশিষ্ট্য আপডেট হয়েছে",
+      "updatedMessage": "{{name}} সফলভাবে আপডেট করা হয়েছে",
+      "deleted": "বৈশিষ্ট্য মুছে ফেলা হয়েছে",
+      "deletedMessage": "{{name}} সফলভাবে মুছে ফেলা হয়েছে",
+      "errorLoading": "বৈশিষ্ট্য লোড করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+      "errorCreating": "বৈশিষ্ট্য তৈরি করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+      "errorUpdating": "বৈশিষ্ট্য আপডেট করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+      "errorDeleting": "বৈশিষ্ট্য মুছতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+      "deleteConfirm": "বৈশিষ্ট্য মুছে ফেলবেন?",
+      "deleteConfirmMessage": "আপনি কি নিশ্চিত যে {{name}} মুছে ফেলতে চান? এটি ফিরিয়ে আনা যাবে না।"
     }
   }
 }

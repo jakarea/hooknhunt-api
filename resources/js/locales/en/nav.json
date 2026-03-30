@@ -1,1 +1,10 @@
-{}
+{
+  "main": "Main",
+  "dashboard": "Dashboard",
+  "hrm": "Catalog & Operations",
+  "procurement": "Procurement",
+  "crm": "CRM",
+  "finance": "Finance",
+  "cms": "CMS",
+  "settings": "Settings"
+}

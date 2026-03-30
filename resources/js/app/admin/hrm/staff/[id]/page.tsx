@@ -18,7 +18,9 @@ import {
   LoadingOverlay,
   Modal,
   Alert,
+  Image,
 } from '@mantine/core'
+import { useTranslation } from 'react-i18next'
 import { notifications } from '@mantine/notifications'
 import {
   IconChevronRight,
@@ -37,9 +39,24 @@ import {
   IconCheck,
   IconX,
   IconHistory,
+  IconDownload,
+  IconFile,
+  IconPhoto,
+  IconArrowLeft,
+  IconTrash,
 } from '@tabler/icons-react'
+import { modals } from '@mantine/modals'
 import api from '@/lib/api'
 import { usePermissions } from '@/hooks/usePermissions'
+
+interface MediaFile {
+  id: number
+  file_name: string
+  file_path: string
+  file_type: string
+  file_size: number
+  url: string
+}
 
 interface User {
   id: number
@@ -75,6 +92,12 @@ interface User {
     whatsapp_number?: string
     office_email?: string
     office_email_password?: string
+    profile_photo_id?: number
+    national_id?: number
+    resume?: number
+    photo?: MediaFile
+    nationalId?: MediaFile
+    resumeMedia?: MediaFile
     department?: {
       id: number
       name: string
@@ -160,6 +183,7 @@ const mockLoginHistory = [
 
 
 export default function StaffProfilePage() {
+  const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
   const { canViewProfile, hasPermission } = usePermissions()
@@ -185,7 +209,48 @@ export default function StaffProfilePage() {
   const [showAllPermissions, setShowAllPermissions] = useState(false)
   const [blockConfirmOpened, setBlockConfirmOpened] = useState(false)
   const [verifyConfirmOpened, setVerifyConfirmOpened] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const MAX_VISIBLE_PERMISSIONS = 6
+
+  // Handle delete staff
+  const openDeleteModal = () => {
+    if (!user) return
+
+    modals.openConfirmModal({
+      title: t('hrm.staff.delete'),
+      centered: true,
+      children: (
+        <Text className="text-sm md:text-base">
+          {t('hrm.staff.deleteConfirm', { name: user.name })}
+        </Text>
+      ),
+      labels: {
+        confirm: t('common.delete'),
+        cancel: t('common.cancel'),
+      },
+      confirmProps: { color: 'red' },
+      onConfirm: async () => {
+        try {
+          setDeleting(true)
+          await api.delete(`/hrm/staff/${user.id}`)
+          notifications.show({
+            title: t('hrm.staff.deleted'),
+            message: t('hrm.staff.deletedMessage', { name: user.name }),
+            color: 'green',
+          })
+          navigate('/hrm/staff')
+        } catch {
+          notifications.show({
+            title: t('common.error'),
+            message: t('hrm.staff.errorDeleting'),
+            color: 'red',
+          })
+        } finally {
+          setDeleting(false)
+        }
+      },
+    })
+  }
 
   // Fetch user data
   useEffect(() => {
@@ -227,6 +292,12 @@ export default function StaffProfilePage() {
           office_email: profileData.officeEmail || profileData.office_email,
           office_email_password: profileData.officeEmailPassword || profileData.office_email_password,
           whatsapp_number: profileData.whatsappNumber || profileData.whatsapp_number,
+          profile_photo_id: profileData.profilePhotoId || profileData.profile_photo_id,
+          national_id: profileData.nationalId || profileData.national_id,
+          resume: profileData.resume,
+          photo: profileData.photo,
+          nationalId: profileData.nationalId,
+          resumeMedia: profileData.resumeMedia,
         } : null
 
         const normalizedUser = {
@@ -332,7 +403,7 @@ export default function StaffProfilePage() {
 
   // Format date helper
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'N/A'
+    if (!dateString) return t('common.notAvailable')
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -341,7 +412,7 @@ export default function StaffProfilePage() {
   }
 
   const formatDateTime = (dateString: string | null) => {
-    if (!dateString) return 'Never'
+    if (!dateString) return t('hrm.staff.validation.never')
     return new Date(dateString).toLocaleString('en-US', {
       year: 'numeric',
       month: 'short',
@@ -360,7 +431,7 @@ export default function StaffProfilePage() {
         <Group justify="space-between" align="flex-start">
           <Group >
             <Avatar
-              src={null}
+              src={user.staffProfile?.photo?.url || null}
               alt={user.name || 'User'}
               radius="xl"
               className="text-xl md:text-2xl lg:text-3xl"
@@ -370,13 +441,13 @@ export default function StaffProfilePage() {
             </Avatar>
             <Box>
               <Group  mb="xs">
-                <Title order={2}>{user.name || 'N/A'}</Title>
+                <Title order={2}>{user.name || t('common.notAvailable')}</Title>
                 <Badge
                   color={user.is_active ? 'green' : 'gray'}
                   variant="light"
                   className="text-lg md:text-xl lg:text-2xl"
                 >
-                  {user.is_active ? 'Active' : 'Inactive'}
+                  {user.is_active ? t('hrm.staff.active') : t('hrm.staff.inactive')}
                 </Badge>
               </Group>
               <Text className="text-lg md:text-xl lg:text-2xl" c="dimmed" mb="xs">{user.staffProfile?.designation || 'N/A'}</Text>
@@ -394,20 +465,41 @@ export default function StaffProfilePage() {
               </Group>
             </Box>
           </Group>
-          {hasPermission('hrm.staff.edit') && (
+          <Group >
             <Button
               component={Link}
-              to={`/hrm/staff/${user.id}/edit`}
-              leftSection={<IconEdit size={16} />}
+              to="/hrm/staff"
+              leftSection={<IconArrowLeft size={16} />}
               variant="light"
             >
-              Edit Profile
+              {t('common.back')}
             </Button>
-          )}
+            {hasPermission('hrm.staff.edit') && (
+              <Button
+                component={Link}
+                to={`/hrm/staff/${user.id}/edit`}
+                leftSection={<IconEdit size={16} />}
+                variant="light"
+              >
+                {t('hrm.staff.edit')}
+              </Button>
+            )}
+            {hasPermission('hrm.staff.delete') && (
+              <Button
+                leftSection={<IconTrash size={16} />}
+                variant="light"
+                color="red"
+                loading={deleting}
+                onClick={openDeleteModal}
+              >
+                {t('common.delete')}
+              </Button>
+            )}
+          </Group>
         </Group>
       </Paper>
     )
-  }, [user])
+  }, [user, deleting, hasPermission])
 
   // Personal Information Section
   const personalInfo = useMemo(() => {
@@ -421,7 +513,7 @@ export default function StaffProfilePage() {
         className={hasPermission('hrm.staff.edit') ? "transition-all duration-200 cursor-pointer hover:border-red-9" : ""}
       >
         <Group justify="space-between" mb="md">
-          <Title order={4} className="text-base md:text-lg lg:text-xl">Personal Information</Title>
+          <Title order={4} className="text-base md:text-lg lg:text-xl">{t('hrm.staff.personalInfo')}</Title>
           {hasPermission('hrm.staff.edit') && (
             <ActionIcon variant="subtle" color="blue" className="text-sm md:text-base">
               <IconEdit size={16} />
@@ -432,49 +524,49 @@ export default function StaffProfilePage() {
             <Group >
               <IconUser size={18} style={{ color: 'var(--mantine-color-red-filled)' }} />
               <Box>
-                <Text className="text-xs md:text-sm" c="dimmed">Full Name</Text>
+                <Text className="text-xs md:text-sm" c="dimmed">{t('hrm.staff.fullName')}</Text>
                 <Text fw={500}>{user.name}</Text>
               </Box>
             </Group>
             <Group >
               <IconId size={18} style={{ color: 'var(--mantine-color-red-filled)' }} />
               <Box>
-                <Text className="text-xs md:text-sm" c="dimmed">Staff ID</Text>
+                <Text className="text-xs md:text-sm" c="dimmed">{t('hrm.staff.staffId')}</Text>
                 <Text fw={500}>#{user.id}</Text>
               </Box>
             </Group>
             <Group >
               <IconPhone size={18} style={{ color: 'var(--mantine-color-red-filled)' }} />
               <Box>
-                <Text className="text-xs md:text-sm" c="dimmed">Phone</Text>
+                <Text className="text-xs md:text-sm" c="dimmed">{t('hrm.staff.phone')}</Text>
                 <Text fw={500}>{user.phone}</Text>
               </Box>
             </Group>
             <Group >
               <IconMail size={18} style={{ color: 'var(--mantine-color-red-filled)' }} />
               <Box>
-                <Text className="text-xs md:text-sm" c="dimmed">Email</Text>
-                <Text fw={500}>{user.email || 'N/A'}</Text>
+                <Text className="text-xs md:text-sm" c="dimmed">{t('hrm.staff.email')}</Text>
+                <Text fw={500}>{user.email || t('common.notAvailable')}</Text>
               </Box>
             </Group>
             <Group >
               <IconCalendar size={18} style={{ color: 'var(--mantine-color-red-filled)' }} />
               <Box>
-                <Text className="text-xs md:text-sm" c="dimmed">Date of Birth</Text>
+                <Text className="text-xs md:text-sm" c="dimmed">{t('hrm.staff.dateOfBirth')}</Text>
                 <Text fw={500}>{formatDate(user.staffProfile?.dob || null)}</Text>
               </Box>
             </Group>
             <Group >
               <IconId size={18} style={{ color: 'var(--mantine-color-red-filled)' }} />
               <Box>
-                <Text className="text-xs md:text-sm" c="dimmed">Gender</Text>
-                <Text fw={500}>{user.staffProfile?.gender ? user.staffProfile.gender.charAt(0).toUpperCase() + user.staffProfile.gender.slice(1) : 'N/A'}</Text>
+                <Text className="text-xs md:text-sm" c="dimmed">{t('hrm.staff.gender')}</Text>
+                <Text fw={500}>{user.staffProfile?.gender ? user.staffProfile.gender.charAt(0).toUpperCase() + user.staffProfile.gender.slice(1) : t('common.notAvailable')}</Text>
               </Box>
             </Group>
             <Group  style={{ gridColumn: '1 / -1' }}>
               <IconMapPin size={18} style={{ color: 'var(--mantine-color-red-filled)' }} />
               <Box>
-                <Text className="text-xs md:text-sm" c="dimmed">Address</Text>
+                <Text className="text-xs md:text-sm" c="dimmed">{t('hrm.staff.address')}</Text>
                 <Text fw={500}>
                   {user.staffProfile?.address ? `${user.staffProfile.address}${user.staffProfile.division ? `, ${user.staffProfile.division}` : ''}${user.staffProfile.district ? `, ${user.staffProfile.district}` : ''}${user.staffProfile.thana ? `, ${user.staffProfile.thana}` : ''}`.trim() : 'N/A'}
                 </Text>
@@ -507,7 +599,7 @@ export default function StaffProfilePage() {
         className={hasPermission('hrm.staff.edit') ? "transition-all duration-200 cursor-pointer hover:border-red-9" : ""}
       >
         <Group justify="space-between" mb="md">
-          <Title order={4} className="text-base md:text-lg lg:text-xl">Professional Information</Title>
+          <Title order={4} className="text-base md:text-lg lg:text-xl">{t('hrm.staff.professionalInfo')}</Title>
           {hasPermission('hrm.staff.edit') && (
             <ActionIcon variant="subtle" color="blue" className="text-sm md:text-base">
               <IconEdit size={16} />
@@ -600,7 +692,7 @@ export default function StaffProfilePage() {
 
     return (
       <Paper withBorder p={{ base: 'md', md: 'xl' }} radius="lg">
-        <Title order={4} mb="md">Account Security</Title>
+        <Title order={4} mb="md">{t('hrm.staff.accountSecurity')}</Title>
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
           <Group >
             <IconShield size={18} style={{ color: user.is_active ? 'green' : 'gray' }} />
@@ -659,6 +751,117 @@ export default function StaffProfilePage() {
     )
   }, [user])
 
+  // Documents Section
+  const documentsSection = useMemo(() => {
+    if (!user) return null
+
+    return (
+      <Paper withBorder p={{ base: 'md', md: 'xl' }} radius="lg">
+        <Group justify="space-between" mb="md">
+          <Title order={4} className="text-base md:text-lg lg:text-xl">Documents</Title>
+        </Group>
+
+        <SimpleGrid cols={{ base: 1, md: 3 }}>
+          {/* Profile Photo */}
+          <Box>
+            <Group gap="xs" mb="xs">
+              <IconPhoto size={18} style={{ color: 'var(--mantine-color-red-filled)' }} />
+              <Text className="text-sm md:text-base" fw={500}>Profile Photo</Text>
+            </Group>
+            {user.staffProfile?.photo ? (
+              <Box>
+                <Image
+                  src={user.staffProfile.photo.url}
+                  alt="Profile Photo"
+                  height={200}
+                  radius="md"
+                  fit="cover"
+                />
+                <Text className="text-xs md:text-sm" c="dimmed" mt="xs" lineClamp={1}>
+                  {user.staffProfile.photo.file_name}
+                </Text>
+              </Box>
+            ) : (
+              <Paper withBorder p="md" radius="md" style={{ minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Text c="dimmed">No profile photo uploaded</Text>
+              </Paper>
+            )}
+          </Box>
+
+          {/* National ID */}
+          <Box>
+            <Group gap="xs" mb="xs">
+              <IconId size={18} style={{ color: 'var(--mantine-color-red-filled)' }} />
+              <Text className="text-sm md:text-base" fw={500}>National ID</Text>
+            </Group>
+            {user.staffProfile?.nationalId ? (
+              <Box>
+                <Image
+                  src={user.staffProfile.nationalId.url}
+                  alt="National ID"
+                  height={200}
+                  radius="md"
+                  fit="cover"
+                />
+                <Text className="text-xs md:text-sm" c="dimmed" mt="xs" lineClamp={1}>
+                  {user.staffProfile.nationalId.file_name}
+                </Text>
+              </Box>
+            ) : (
+              <Paper withBorder p="md" radius="md" style={{ minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Text c="dimmed">No national ID uploaded</Text>
+              </Paper>
+            )}
+          </Box>
+
+          {/* Resume */}
+          <Box>
+            <Group gap="xs" mb="xs">
+              <IconFile size={18} style={{ color: 'var(--mantine-color-red-filled)' }} />
+              <Text className="text-sm md:text-base" fw={500}>Resume (PDF)</Text>
+            </Group>
+            {user.staffProfile?.resumeMedia ? (
+              <Box>
+                <Paper
+                  withBorder
+                  p="lg"
+                  radius="md"
+                  style={{
+                    minHeight: 200,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 'md',
+                  }}
+                >
+                  <IconFile size={48} c="dimmed" />
+                  <Text className="text-sm md:text-base" ta="center" fw={500}>
+                    {user.staffProfile.resumeMedia.file_name}
+                  </Text>
+                  <Button
+                    component="a"
+                    href={user.staffProfile.resumeMedia.url}
+                    download
+                    leftSection={<IconDownload size={16} />}
+                    variant="light"
+                    size="sm"
+                  >
+                    Download
+                  </Button>
+                </Paper>
+              </Box>
+            ) : (
+              <Paper withBorder p="md" radius="md" style={{ minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Text c="dimmed">No resume uploaded</Text>
+              </Paper>
+            )}
+          </Box>
+        </SimpleGrid>
+      </Paper>
+    )
+  }, [user])
+
   // Permissions Section
   const permissionsSection = useMemo(() => {
     const displayedPermissions = showAllPermissions
@@ -669,8 +872,8 @@ export default function StaffProfilePage() {
     return (
       <Paper withBorder p={{ base: 'md', md: 'xl' }} radius="lg">
         <Group justify="space-between" mb="md">
-          <Title order={4} className="text-base md:text-lg lg:text-xl">Permissions & Access</Title>
-          <Badge className="text-lg md:text-xl lg:text-2xl">{permissions.length} permissions</Badge>
+          <Title order={4} className="text-base md:text-lg lg:text-xl">{t('hrm.staff.permissions')}</Title>
+          <Badge className="text-lg md:text-xl lg:text-2xl">{t('hrm.staff.permissionsCount', { count: permissions.length })}</Badge>
         </Group>
 
         {permissions.length > 0 ? (
@@ -712,12 +915,12 @@ export default function StaffProfilePage() {
     return (
       <Paper withBorder p={{ base: 'md', md: 'xl' }} radius="lg">
         <Group justify="space-between" mb="md">
-          <Title order={4} className="text-base md:text-lg lg:text-xl">Leave History</Title>
-          <Badge className="text-lg md:text-xl lg:text-2xl">{leaves.length} records</Badge>
+          <Title order={4} className="text-base md:text-lg lg:text-xl">{t('hrm.staff.leaveHistory')}</Title>
+          <Badge className="text-lg md:text-xl lg:text-2xl">{leaves.length} {t('hrm.staff.records')}</Badge>
         </Group>
 
         {leaves.length === 0 ? (
-          <Text c="dimmed">No leave records found</Text>
+          <Text c="dimmed">{t('hrm.staff.noLeaveHistory')}</Text>
         ) : (
           <Table striped highlightOnHover>
             <Table.Thead>
@@ -796,12 +999,12 @@ export default function StaffProfilePage() {
     return (
       <Paper withBorder p={{ base: 'md', md: 'xl' }} radius="lg">
         <Group justify="space-between" mb="md">
-          <Title order={4} className="text-base md:text-lg lg:text-xl">Attendance History</Title>
-          <Badge className="text-lg md:text-xl lg:text-2xl">{attendance.length} records</Badge>
+          <Title order={4} className="text-base md:text-lg lg:text-xl">{t('hrm.staff.attendanceHistory')}</Title>
+          <Badge className="text-lg md:text-xl lg:text-2xl">{attendance.length} {t('hrm.staff.records')}</Badge>
         </Group>
 
         {attendance.length === 0 ? (
-          <Text c="dimmed">No attendance records found</Text>
+          <Text c="dimmed">{t('hrm.staff.noAttendanceHistory')}</Text>
         ) : (
           <Table striped highlightOnHover>
             <Table.Thead>
@@ -873,12 +1076,12 @@ export default function StaffProfilePage() {
     return (
       <Paper withBorder p={{ base: 'md', md: 'xl' }} radius="lg">
         <Group justify="space-between" mb="md">
-          <Title order={4} className="text-base md:text-lg lg:text-xl">Payroll History</Title>
-          <Badge className="text-lg md:text-xl lg:text-2xl">{payroll.length} records</Badge>
+          <Title order={4} className="text-base md:text-lg lg:text-xl">{t('hrm.staff.payrollHistory')}</Title>
+          <Badge className="text-lg md:text-xl lg:text-2xl">{payroll.length} {t('hrm.staff.records')}</Badge>
         </Group>
 
         {payroll.length === 0 ? (
-          <Text c="dimmed">No payroll records found</Text>
+          <Text c="dimmed">{t('hrm.staff.noPayrollHistory')}</Text>
         ) : (
           <Table striped highlightOnHover>
             <Table.Thead>
@@ -972,10 +1175,10 @@ export default function StaffProfilePage() {
       {payrollHistorySection}
       <Paper withBorder p={{ base: 'md', md: 'xl' }} radius="lg">
         <Group justify="space-between" mb="md">
-          <Title order={4} className="text-base md:text-lg lg:text-xl">Login History</Title>
-          <Badge className="text-lg md:text-xl lg:text-2xl">{mockLoginHistory.length} records</Badge>
+          <Title order={4} className="text-base md:text-lg lg:text-xl">{t('hrm.staff.loginHistory')}</Title>
+          <Badge className="text-lg md:text-xl lg:text-2xl">{mockLoginHistory.length} {t('hrm.staff.records')}</Badge>
         </Group>
-        <Text c="dimmed">Mock data - API integration pending</Text>
+        <Text c="dimmed">{t('hrm.staff.noLoginHistory')}</Text>
       </Paper>
     </Stack>
   ), [user, leaveHistorySection, attendanceHistorySection, payrollHistorySection])
@@ -999,8 +1202,8 @@ export default function StaffProfilePage() {
 
           {/* Header */}
           <Box>
-            <Title order={1} className="text-lg md:text-xl lg:text-2xl">Staff Profile</Title>
-            <Text c="dimmed">View and manage staff information</Text>
+            <Title order={1} className="text-lg md:text-xl lg:text-2xl">{t('hrm.staff.profileTitle')}</Title>
+            <Text c="dimmed">{t('hrm.staff.profileSubtitle')}</Text>
           </Box>
 
           {/* Profile Header */}
@@ -1018,12 +1221,15 @@ export default function StaffProfilePage() {
             {permissionsSection}
           </SimpleGrid>
 
+          {/* Documents Section */}
+          {documentsSection}
+
           {/* Activity & History Section */}
           <Box>
             <Title order={2} className="text-base md:text-lg lg:text-xl" mb="md">
               <Group >
                 <IconHistory size={24} />
-                Activity & History
+                {t('hrm.staff.activityHistory')}
               </Group>
             </Title>
             {historySections}

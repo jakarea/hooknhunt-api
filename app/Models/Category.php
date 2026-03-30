@@ -20,6 +20,12 @@ class Category extends Model
         return $this->hasMany(Category::class, 'parent_id');
     }
 
+    // Relation: Image (Media File)
+    public function image()
+    {
+        return $this->belongsTo(MediaFile::class, 'image_id');
+    }
+
     // Relation: Products
     public function products()
     {

@@ -194,6 +194,7 @@
     "transactionsPage": {
       "title": "সব লেনদেন",
       "subtitle": "সব অ্যাকাউন্টের সম্পূর্ণ লেনদেনের ইতিহাস",
+      "accessDenied": "আপনার লেনদেন দেখার অনুমতি নেই।",
       "export": "এক্সপোর্ট",
       "totalInflow": "মোট আগমন",
       "totalOutflow": "মোট বহির্গমন",
@@ -233,7 +234,9 @@
         "refreshedMessage": "লেনদেনের তালিকা রিফ্রেশ করা হয়েছে",
         "exportSuccess": "এক্সপোর্ট সফল হয়েছে",
         "exportSuccessMessage": "লেনদেন CSV তে এক্সপোর্ট করা হয়েছে"
-      }
+      },
+      "accountLabel": "হিসাব:",
+      "referenceLabel": "রেফ:"
     },
     "expensesPage": {
       "title": "খরচ",

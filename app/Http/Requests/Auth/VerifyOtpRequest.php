@@ -10,7 +10,7 @@ class VerifyOtpRequest extends ApiRequest
     {
         return [
             'phone' => 'required|string|exists:users,phone',
-            'otp' => 'required|string|digits:4', // 4 Digit Code
+            'otp' => 'required|string|digits:5', // 5 Digit Code
         ];
     }
 }

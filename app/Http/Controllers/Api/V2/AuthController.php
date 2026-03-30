@@ -8,6 +8,7 @@ use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\VerifyOtpRequest;
 use App\Models\User;
 use App\Models\Otp;
+use App\Models\Customer;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -23,22 +24,53 @@ class AuthController extends Controller
      */
     public function register(RegisterRequest $request)
     {
+        // Check if phone already exists (manual check to return phone_verified flag)
+        $existingUser = User::where('phone', $request->phone)->first();
+
+        if ($existingUser) {
+            $isVerified = !is_null($existingUser->phone_verified_at);
+
+            // Phone registered but NOT verified → resend OTP, redirect to OTP page
+            if (!$isVerified) {
+                $this->sendOtp($existingUser->phone, $existingUser->id);
+            }
+
+            return response()->json([
+                'status' => false,
+                'message' => $isVerified
+                    ? 'This phone number is already registered.'
+                    : 'Phone registered but not verified.',
+                'data' => ['phone_verified' => $isVerified],
+                'errors' => [
+                    'phone' => [$isVerified
+                        ? 'This phone number is already registered and verified.'
+                        : 'This phone number is registered but not verified.'],
+                ],
+            ], 422);
+        }
+
         DB::beginTransaction();
         try {
-            // ডিফল্ট রোল সেট করা (Retail Customer - Fixed role_id = 10)
             $user = User::create([
                 'name' => $request->name,
                 'phone' => $request->phone,
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
                 'role_id' => 10, // Retail Customer (fixed role_id)
-                'is_active' => false, // OTP ভেরিফাই না করা পর্যন্ত ইনঅ্যাক্টিভ
+                'is_active' => false, // Inactive until OTP verified
             ]);
 
-            // প্রোফাইল তৈরি (User Observer দিয়েও করা যায়, তবে এখানে সেফ)
             $user->profile()->create();
 
-            // OTP পাঠানো
+            // Create Customer record for storefront orders
+            Customer::create([
+                'user_id' => $user->id,
+                'name' => $user->name,
+                'phone' => $user->phone,
+                'type' => 'retail',
+            ]);
+
+            // Send OTP
             $this->sendOtp($user->phone, $user->id);
 
             DB::commit();
@@ -212,10 +244,14 @@ class AuthController extends Controller
         if (!$user->phone_verified_at) {
             $this->sendOtp($user->phone, $user->id);
 
-            return $this->sendError("Phone not verified for user: {$user->phone}", [
-                'action' => 'verify_otp',
-                'phone' => $user->phone,
-                'user_id' => $user->id,
+            return response()->json([
+                'status' => false,
+                'message' => 'Phone number not verified. OTP has been sent.',
+                'data' => null,
+                'errors' => [
+                    'error_code' => 'phone_not_verified',
+                    'phone' => $user->phone,
+                ],
             ], 403);
         }
 
@@ -255,22 +291,22 @@ class AuthController extends Controller
     }
 
     /**
-     * Private Helper: Send SMS
+     * Send OTP (public - reusable from other controllers)
      */
-    private function sendOtp($phone, $userId)
+    public function sendOtp($phone, $userId)
     {
         // 1. Delete old OTPs for this phone
         Otp::where('identifier', $phone)->delete();
 
-        // 2. Generate 4 Digit Code
-        $code = rand(1000, 9999);
+        // 2. Generate 5 Digit Code
+        $code = rand(10000, 99999);
 
         // 3. Store in DB (Added user_id)
         Otp::create([
             'user_id' => $userId, // <--- NEW ADDITION
             'identifier' => $phone,
             'token' => $code,
-            'expires_at' => Carbon::now()->addMinutes(5)
+            'expires_at' => Carbon::now()->addSeconds(120) // 2 minutes expiry
         ]);
 
         // 4. Send SMS Log

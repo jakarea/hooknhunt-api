@@ -31,6 +31,7 @@
   "remove": "সরান",
   "active": "সক্রিয়",
   "inactive": "নিষ্ক্রিয়",
+  "notAvailable": "প্রযোজ্য নয়",
   "date": "তারিখ",
   "notes": "নোট",
   "attachment": "সংযুক্তি",
@@ -39,5 +40,18 @@
   "updated": "আপডেট হয়েছে",
   "yes": "হ্যাঁ",
   "no": "না",
-  "actions": "পদক্ষেপ"
+  "actions": "পদক্ষেপ",
+  "refresh": "রিফ্রেশ",
+  "somethingWentWrong": "কিছু একটা সমস্যা হয়েছে",
+  "errorLoading": "ডাটা লোড করতে ব্যর্থ হয়েছে",
+  "deleted": "সফলভাবে মুছে ফেলা হয়েছে",
+  "errorDeleting": "মুছতে ব্যর্থ হয়েছে",
+  "deleteConfirm": "আপনি কি নিশ্চিত?",
+  "deleteConfirmMessage": "এটি ফিরিয়ে আনা যাবে না।",
+  "loading": "লোড হচ্ছে...",
+  "error": "ত্রুটি",
+  "success": "সফল",
+  "status": "স্ট্যাটাস",
+  "name": "নাম",
+  "description": "বিবরণ"
 }

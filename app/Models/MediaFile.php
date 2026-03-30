@@ -24,7 +24,8 @@ class MediaFile extends Model
         'size',               // In Bytes (Migration calls it 'size')
         'disk',               // local, s3, public
         'uploaded_by_user_id',
-        
+        'is_staff_document',  // Staff document flag
+
         // Metadata (Optional - if columns exist)
         'width',
         'height',
@@ -37,6 +38,7 @@ class MediaFile extends Model
         'width' => 'integer',
         'height' => 'integer',
         'variants' => 'array',
+        'is_staff_document' => 'boolean',
     ];
 
     // অটোমেটিক JSON রেসপন্সে যুক্ত হবে

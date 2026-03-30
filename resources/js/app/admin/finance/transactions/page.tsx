@@ -49,8 +49,8 @@ export default function TransactionsPage() {
     return (
       <Stack p="xl">
         <Card withBorder p="xl" shadow="sm" ta="center">
-          <Title order={3}>Access Denied</Title>
-          <Text c="dimmed">You don't have permission to view Transactions.</Text>
+          <Title order={3}>{t('common.accessDenied')}</Title>
+          <Text c="dimmed">{t('finance.banksPage.transactionsPage.accessDenied')}</Text>
         </Card>
       </Stack>
     )
@@ -382,7 +382,7 @@ export default function TransactionsPage() {
                 {t('finance.banksPage.transactionsPage.title')}
               </Title>
               <Text c="dimmed" className="text-sm md:text-base">
-                All financial transactions including bank transactions and expenses
+                {t('finance.banksPage.transactionsPage.subtitle')}
               </Text>
             </Box>
             <Group>
@@ -401,7 +401,7 @@ export default function TransactionsPage() {
           <Card withBorder p="md" radius="md">
             <Group mb="xs">
               <IconArrowUp size={20} style={{ color: 'var(--mantine-color-green-6)' }} />
-              <Text className="text-xs md:text-sm" c="dimmed">Total Inflow</Text>
+              <Text className="text-xs md:text-sm" c="dimmed">{t('finance.banksPage.transactionsPage.totalInflow')}</Text>
             </Group>
             <Text className="text-xl md:text-2xl lg:text-3xl" fw={700}>
               <NumberFormatter value={statistics?.total_inflow || 0} prefix="৳" thousandSeparator />
@@ -411,7 +411,7 @@ export default function TransactionsPage() {
           <Card withBorder p="md" radius="md">
             <Group mb="xs">
               <IconArrowDown size={20} style={{ color: 'var(--mantine-color-red-6)' }} />
-              <Text className="text-xs md:text-sm" c="dimmed">Total Outflow</Text>
+              <Text className="text-xs md:text-sm" c="dimmed">{t('finance.banksPage.transactionsPage.totalOutflow')}</Text>
             </Group>
             <Text className="text-xl md:text-2xl lg:text-3xl" fw={700}>
               <NumberFormatter value={statistics?.total_outflow || 0} prefix="৳" thousandSeparator />
@@ -421,7 +421,7 @@ export default function TransactionsPage() {
           <Card withBorder p="md" radius="md">
             <Group mb="xs">
               <IconArrowsExchange size={20} style={{ color: 'var(--mantine-color-blue-6)' }} />
-              <Text className="text-xs md:text-sm" c="dimmed">Net Flow</Text>
+              <Text className="text-xs md:text-sm" c="dimmed">{t('finance.banksPage.transactionsPage.netFlow')}</Text>
             </Group>
             <Text
               className="text-xl md:text-2xl lg:text-3xl"
@@ -435,7 +435,7 @@ export default function TransactionsPage() {
           <Card withBorder p="md" radius="md">
             <Group mb="xs">
               <IconRefresh size={20} style={{ color: 'var(--mantine-color-purple-6)' }} />
-              <Text className="text-xs md:text-sm" c="dimmed">Transactions</Text>
+              <Text className="text-xs md:text-sm" c="dimmed">{t('finance.banksPage.transactionsPage.transactionsCount')}</Text>
             </Group>
             <Text className="text-xl md:text-2xl lg:text-3xl" fw={700}>{totalItems || statistics?.transaction_count || 0}</Text>
           </Card>
@@ -521,7 +521,7 @@ export default function TransactionsPage() {
                         <Table.Td>
                           <Text className="text-sm md:text-base">{transaction.description || '-'}</Text>
                           {transaction.expenseData?.account && (
-                            <Text size="xs" c="dimmed">Account: {transaction.expenseData.account.name}</Text>
+                            <Text size="xs" c="dimmed">{t('finance.banksPage.transactionsPage.accountLabel')} {transaction.expenseData.account.name}</Text>
                           )}
                         </Table.Td>
                         <Table.Td>
@@ -582,13 +582,13 @@ export default function TransactionsPage() {
 
                   {transaction.referenceNumber && (
                     <Text size="xs" c="dimmed">
-                      Ref: {transaction.referenceNumber}
+                      {t('finance.banksPage.transactionsPage.referenceLabel')} {transaction.referenceNumber}
                     </Text>
                   )}
 
                   {transaction.expenseData?.account && (
                     <Text size="xs" c="dimmed">
-                      Account: {transaction.expenseData.account.name}
+                      {t('finance.banksPage.transactionsPage.accountLabel')} {transaction.expenseData.account.name}
                     </Text>
                   )}
                 </Card>

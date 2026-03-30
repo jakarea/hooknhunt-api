@@ -29,6 +29,10 @@ class MediaController extends Controller
         $folders = MediaFolder::withCount('mediaFiles')
             ->get()
             ->filter(function ($folder) use ($user) {
+                // Hide Staff Documents folder from non-admin users
+                if ($folder->slug === 'staff-documents' && !$user->isSuperAdmin()) {
+                    return false;
+                }
                 return $folder->canBeViewedBy($user);
             });
 
@@ -109,13 +113,26 @@ class MediaController extends Controller
             return $this->sendError('You do not have permission to view media files.', null, 403);
         }
 
+        $user = auth()->user();
         $query = MediaFile::latest();
+
+        // Hide staff documents from non-admin users
+        if (!$user->isSuperAdmin()) {
+            $query->where('is_staff_document', false);
+        }
 
         // Filter by Folder
         if ($request->has('folder_id') && $request->folder_id !== null) {
             $query->where('folder_id', $request->folder_id);
         } elseif ($request->missing('folder_id')) {
             // When no folder_id is specified, only show files not in any folder
+            // But also exclude staff documents folder for non-admin users
+            if (!$user->isSuperAdmin()) {
+                $staffFolder = \App\Models\MediaFolder::where('slug', 'staff-documents')->first();
+                if ($staffFolder) {
+                    $query->where('folder_id', '!=', $staffFolder->id);
+                }
+            }
             $query->whereNull('folder_id');
         }
 
@@ -202,7 +219,17 @@ class MediaController extends Controller
 
         $request->validate(['ids' => 'required|array']);
 
+        $user = auth()->user();
         $files = MediaFile::whereIn('id', $request->ids)->get();
+
+        // Check for staff documents
+        $staffDocuments = $files->filter(function ($file) {
+            return $file->is_staff_document;
+        });
+
+        if ($staffDocuments->count() > 0 && !$user->isSuperAdmin()) {
+            return $this->sendError('You do not have permission to delete staff documents. Only administrators can delete these files.', null, 403);
+        }
 
         foreach ($files as $file) {
             // Delete from storage
@@ -234,6 +261,12 @@ class MediaController extends Controller
         // Check if user has permission to add files to the target folder
         if ($request->folder_id) {
             $targetFolder = MediaFolder::find($request->folder_id);
+
+            // Prevent non-admin users from moving files to Staff Documents folder
+            if ($targetFolder && $targetFolder->slug === 'staff-documents' && !auth()->user()->isSuperAdmin()) {
+                return $this->sendError('Unauthorized', ['message' => 'You do not have permission to move files to the Staff Documents folder'], 403);
+            }
+
             if ($targetFolder && !$targetFolder->canBeEditedBy(auth()->user())) {
                 return $this->sendError('Unauthorized', ['message' => 'You do not have permission to move files to this folder'], 403);
             }

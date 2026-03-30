@@ -21,6 +21,7 @@ import {
   Menu,
   MultiSelect,
   Select,
+  Box,
 } from '@mantine/core'
 import {
   IconSearch,
@@ -36,6 +37,10 @@ import {
   IconDots,
   IconEdit,
   IconArrowMoveRight,
+  IconEye,
+  IconDownload,
+  IconCopy,
+  IconCheck,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { useDebouncedValue } from '@mantine/hooks'
@@ -428,6 +433,91 @@ export default function MediaLibraryPage() {
     setPreviewOpened(true)
   }
 
+  // Handle delete single file
+  const handleDeleteFile = (file: MediaFile) => {
+    modals.openConfirmModal({
+      title: t('cms.mediaPage.deleteFile'),
+      children: (
+        <Text className="text-sm md:text-base">
+          {t('cms.mediaPage.deleteFileConfirm', { name: file.originalFilename })}
+        </Text>
+      ),
+      labels: { confirm: t('cms.mediaPage.delete'), cancel: t('common.cancel') },
+      confirmProps: { color: 'red' },
+      onConfirm: async () => {
+        try {
+          await bulkDeleteMediaFiles([file.id])
+
+          notifications.show({
+            title: t('cms.mediaPage.fileDeleted'),
+            message: t('cms.mediaPage.fileDeletedMessage'),
+            color: 'green',
+          })
+
+          await fetchFiles(false)
+        } catch (error) {
+          notifications.show({
+            title: t('common.error'),
+            message: t('cms.mediaPage.errorDeleting'),
+            color: 'red',
+          })
+        }
+      },
+    })
+  }
+
+  // Handle copy URL to clipboard
+  const handleCopyUrl = (file: MediaFile) => {
+    navigator.clipboard.writeText(file.url).then(() => {
+      notifications.show({
+        title: t('cms.mediaPage.urlCopied'),
+        message: t('cms.mediaPage.urlCopiedMessage'),
+        color: 'green',
+      })
+    }).catch(() => {
+      notifications.show({
+        title: t('common.error'),
+        message: t('cms.mediaPage.errorCopyingUrl'),
+        color: 'red',
+      })
+    })
+  }
+
+  // Handle download single file
+  const handleDownloadFile = (file: MediaFile) => {
+    const link = document.createElement('a')
+    link.href = file.url
+    link.download = file.originalFilename
+    link.style.display = 'none'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    notifications.show({
+      title: t('cms.mediaPage.downloadStarted'),
+      message: t('cms.mediaPage.downloadStartedMessage'),
+      color: 'green',
+    })
+  }
+
+  // Handle bulk download selected files
+  const handleBulkDownload = () => {
+    if (selectedFiles.size === 0) return
+
+    const selectedFilesData = files.filter(f => selectedFiles.has(f.id))
+    selectedFilesData.forEach((file, index) => {
+      setTimeout(() => {
+        handleDownloadFile(file)
+      }, index * 500) // Stagger downloads by 500ms
+    })
+
+    notifications.show({
+      title: t('cms.mediaPage.downloadStarted'),
+      message: t('cms.mediaPage.bulkDownloadMessage', { count: selectedFiles.size }),
+      color: 'green',
+    })
+  }
+
   // Handle folder delete
   const handleDeleteFolder = (folder: MediaFolder) => {
     modals.openConfirmModal({
@@ -582,6 +672,15 @@ export default function MediaLibraryPage() {
                 onClick={clearSelection}
               >
                 {t('cms.mediaPage.clearSelection')} ({selectedFiles.size})
+              </Button>
+              <Button
+                variant="light"
+                color="blue"
+                size="sm"
+                leftSection={<IconDownload size={16} />}
+                onClick={handleBulkDownload}
+              >
+                {t('cms.mediaPage.download')} ({selectedFiles.size})
               </Button>
               {hasPermission('cms.media.files.move') && (
                 <Button
@@ -836,26 +935,97 @@ export default function MediaLibraryPage() {
                   <Paper
                     key={file.id}
                     withBorder
-                    p="xs"
+                    p={0}
                     radius="md"
                     pos="relative"
                     style={{ cursor: 'pointer' }}
                   >
-                    <Checkbox
-                      checked={selectedFiles.has(file.id)}
-                      onChange={() => toggleFileSelection(file.id)}
-                      style={{ position: 'absolute', top: 8, left: 8, zIndex: 10 }}
-                      onClick={(e) => e.stopPropagation()}
-                    />
+                    <Menu position="bottom-end" withinPortal>
+                      <Menu.Target>
+                        <ActionIcon
+                          pos="absolute"
+                          top={8}
+                          right={8}
+                          size="sm"
+                          variant="light"
+                          color="gray"
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ zIndex: 10 }}
+                        >
+                          <IconDots size={16} />
+                        </ActionIcon>
+                      </Menu.Target>
+
+                      <Menu.Dropdown>
+                        <Menu.Label>{t('cms.mediaPage.fileActions')}</Menu.Label>
+                        <Menu.Item
+                          leftSection={<IconEye size={14} />}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleOpenPreview(file)
+                          }}
+                        >
+                          {t('cms.mediaPage.view')}
+                        </Menu.Item>
+                        <Menu.Item
+                          leftSection={<IconDownload size={14} />}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDownloadFile(file)
+                          }}
+                        >
+                          {t('cms.mediaPage.download')}
+                        </Menu.Item>
+                        <Menu.Item
+                          leftSection={<IconCopy size={14} />}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleCopyUrl(file)
+                          }}
+                        >
+                          {t('cms.mediaPage.copyUrl')}
+                        </Menu.Item>
+                        {hasPermission('cms.media.files.delete') && (
+                          <Menu.Item
+                            leftSection={<IconTrash size={14} />}
+                            color="red"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteFile(file)
+                            }}
+                          >
+                            {t('cms.mediaPage.delete')}
+                          </Menu.Item>
+                        )}
+                      </Menu.Dropdown>
+                    </Menu>
+
+                    {selectedFiles.has(file.id) && (
+                      <ActionIcon
+                        pos="absolute"
+                        top={8}
+                        left={8}
+                        size="sm"
+                        color="red"
+                        variant="filled"
+                        style={{ zIndex: 10 }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleFileSelection(file.id)
+                        }}
+                      >
+                        <IconCheck size={16} />
+                      </ActionIcon>
+                    )}
 
                     {isImage(file.mimeType) ? (
                       <Image
                         src={file.url}
                         alt={file.originalFilename}
                         height={120}
-                        fit="contain"
-                        radius="md"
-                        onClick={() => handleOpenPreview(file)}
+                        fit="cover"
+                        radius="7px 7px 0 0"
+                        onClick={() => toggleFileSelection(file.id)}
                         styles={{ image: { cursor: 'pointer' } }}
                       />
                     ) : (
@@ -864,7 +1034,7 @@ export default function MediaLibraryPage() {
                         align="center"
                         justify="center"
                         gap="xs"
-                        onClick={() => handleOpenPreview(file)}
+                        onClick={() => toggleFileSelection(file.id)}
                       >
                         <IconFile size={40} c="dimmed" />
                         <Text size="xs" c="dimmed" lineClamp={2} ta="center">
@@ -873,14 +1043,16 @@ export default function MediaLibraryPage() {
                       </Stack>
                     )}
 
-                    <Text size="xs" c="dimmed" mt="xs" lineClamp={1}>
-                      {file.originalFilename}
-                    </Text>
-                    <Group gap={4} mt={4}>
-                      <Text size="xs" c="dimmed">
-                        {formatFileSize(file.size)}
+                    <Box p="xs">
+                      <Text size="xs" c="dimmed" lineClamp={1}>
+                        {file.originalFilename}
                       </Text>
-                    </Group>
+                      <Group gap={4} mt={4}>
+                        <Text size="xs" c="dimmed">
+                          {formatFileSize(file.size)}
+                        </Text>
+                      </Group>
+                    </Box>
                   </Paper>
                 ))}
             </SimpleGrid>

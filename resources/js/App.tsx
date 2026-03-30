@@ -19,6 +19,9 @@ import EditProduct from "@/app/admin/catalog/products/[id]/edit/page"
 import Variants from "@/app/admin/catalog/variants/page"
 import VariantAttributes from "@/app/admin/catalog/variant-attributes/page"
 import Categories from "@/app/admin/catalog/categories/page"
+import CreateCategory from "@/app/admin/catalog/categories/create/page"
+import EditCategory from "@/app/admin/catalog/categories/[id]/edit/page"
+import CategoryDetail from "@/app/admin/catalog/categories/[id]/page"
 import Brands from "@/app/admin/catalog/brands/page"
 import Attributes from "@/app/admin/catalog/attributes/page"
 import Units from "@/app/admin/catalog/units/page"
@@ -184,6 +187,9 @@ function App() {
               <Route path="catalog/products" element={<Products />} />
               <Route path="catalog/variants" element={<Variants />} />
               <Route path="catalog/variant-attributes" element={<VariantAttributes />} />
+              <Route path="catalog/categories/create" element={<CreateCategory />} />
+              <Route path="catalog/categories/:id/edit" element={<EditCategory />} />
+              <Route path="catalog/categories/:id" element={<CategoryDetail />} />
               <Route path="catalog/categories" element={<Categories />} />
               <Route path="catalog/brands" element={<Brands />} />
               <Route path="catalog/attributes" element={<Attributes />} />

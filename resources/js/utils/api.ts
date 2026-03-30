@@ -2953,6 +2953,7 @@ export type Category = {
   updated_at: string
   parent?: Category
   children?: Category[]
+  image?: { id: number; url: string; file_name: string; file_path: string } | null
   productsCount?: number
 }
 

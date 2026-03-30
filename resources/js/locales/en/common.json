@@ -13,6 +13,8 @@
   "confirm": "Delete",
   "success": "Data updated successfully",
   "error": "Error",
+  "loading": "Loading...",
+  "success": "Success",
   "validationError": "Validation Error",
   "warning": "This action cannot be undone. All order data will be permanently removed.",
   "accessDenied": "You don't have permission to view products.",
@@ -37,8 +39,16 @@
   "remove": "Remove",
   "active": "Active",
   "inactive": "Inactive",
+  "notAvailable": "N/A",
   "date": "Date",
   "notes": "Notes",
   "attachment": "Attachment",
-  "title": "Products"
+  "title": "Products",
+  "refresh": "Refresh",
+  "somethingWentWrong": "Something went wrong",
+  "errorLoading": "Failed to load data",
+  "deleted": "Deleted successfully",
+  "errorDeleting": "Failed to delete",
+  "deleteConfirm": "Are you sure?",
+  "deleteConfirmMessage": "This action cannot be undone."
 }

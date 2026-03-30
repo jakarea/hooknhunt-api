@@ -18,6 +18,8 @@ return new class extends Migration
             $table->string('address_line2')->nullable();
             $table->string('area');
             $table->string('city');
+            $table->string('district')->nullable();
+            $table->string('thana')->nullable();
             $table->string('postal_code')->nullable();
             $table->string('division')->nullable();
             $table->string('country')->default('Bangladesh');
