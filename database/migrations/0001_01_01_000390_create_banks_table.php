@@ -25,7 +25,6 @@ return new class extends Migration
             // Chart of account link (added 2026-02-06)
             $table->foreignId('chart_of_account_id')
                 ->nullable()
-                ->after('notes')
                 ->constrained('chart_of_accounts')
                 ->nullOnDelete();
 

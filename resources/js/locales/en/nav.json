@@ -1,10 +1,14 @@
 {
-  "main": "Main",
-  "dashboard": "Dashboard",
-  "hrm": "Catalog & Operations",
-  "procurement": "Procurement",
-  "crm": "CRM",
-  "finance": "Finance",
-  "cms": "CMS",
-  "settings": "Settings"
+  "nav": {
+    "main": "Main",
+    "dashboard": "Dashboard",
+    "hrm": "Catalog & Operations",
+    "procurement": "Procurement",
+    "crm": "CRM",
+    "finance": "Finance",
+    "cms": "CMS",
+    "website": "Website",
+    "websiteOrders": "Orders",
+    "settings": "Settings"
+  }
 }

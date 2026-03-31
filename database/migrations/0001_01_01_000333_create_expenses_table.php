@@ -13,8 +13,8 @@ return new class extends Migration
             $table->foreignId('currency_id')->nullable()->constrained('currencies')->nullOnDelete();
 
             // Source tracking fields (added 2026-02-09) - Polymorphic relation to source (e.g., Payroll)
-            $table->string('source_type')->nullable()->after('currency_id');
-            $table->unsignedBigInteger('source_id')->nullable()->after('source_type');
+            $table->string('source_type')->nullable();
+            $table->unsignedBigInteger('source_id')->nullable();
 
             $table->string('title');
             $table->decimal('amount', 12, 2);

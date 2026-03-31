@@ -22,11 +22,11 @@ return new class extends Migration
             $table->decimal('total_amount', 15, 2)->default(0); // Total amount in RMB
 
             // Refund fields (added 2026-02-19)
-            $table->decimal('refund_amount', 10, 2)->default(0)->after('total_amount'); // Total refund in BDT
-            $table->string('credit_note_number')->nullable()->after('refund_amount'); // Credit note number
-            $table->boolean('refund_auto_credited')->default(false)->after('credit_note_number'); // Auto or manual
-            $table->timestamp('refunded_at')->nullable()->after('refund_auto_credited'); // Refund timestamp
-            $table->text('receiving_notes')->nullable()->after('refunded_at'); // Lost/received notes
+            $table->decimal('refund_amount', 10, 2)->default(0); // Total refund in BDT
+            $table->string('credit_note_number')->nullable(); // Credit note number
+            $table->boolean('refund_auto_credited')->default(false); // Auto or manual
+            $table->timestamp('refunded_at')->nullable(); // Refund timestamp
+            $table->text('receiving_notes')->nullable(); // Lost/received notes
 
             // Status with partially_completed option (added 2026-02-21)
             $table->enum('status', [
@@ -41,20 +41,18 @@ return new class extends Migration
                 'partially_completed', // Added 2026-02-21
                 'completed',
                 'lost'
-            ])->default('draft')->after('receiving_notes');
+            ])->default('draft');
 
             // Payment fields (added 2026-02-22)
             $table->foreignId('payment_account_id')
                 ->nullable()
-                ->after('status')
                 ->constrained('banks')
                 ->nullOnDelete();
-            $table->decimal('payment_amount', 10, 2)->nullable()->after('payment_account_id'); // Total payment in BDT
-            $table->decimal('supplier_credit_used', 10, 2)->default(0)->after('payment_amount'); // From supplier credit
-            $table->decimal('bank_payment_amount', 10, 2)->nullable()->after('supplier_credit_used'); // From bank
+            $table->decimal('payment_amount', 10, 2)->nullable(); // Total payment in BDT
+            $table->decimal('supplier_credit_used', 10, 2)->default(0); // From supplier credit
+            $table->decimal('bank_payment_amount', 10, 2)->nullable(); // From bank
             $table->foreignId('journal_entry_id')
                 ->nullable()
-                ->after('bank_payment_amount')
                 ->constrained('journal_entries')
                 ->nullOnDelete();
 
@@ -65,7 +63,7 @@ return new class extends Migration
 
             // Shipping fields
             $table->string('shipping_method')->nullable();
-            $table->decimal('total_shipping_cost', 10, 2)->default(0)->after('shipping_method'); // Added 2026-02-21
+            $table->decimal('total_shipping_cost', 10, 2)->default(0); // Added 2026-02-21
             $table->decimal('shipping_cost', 15, 2)->nullable()->default(0); // Legacy field (use total_shipping_cost)
             $table->decimal('total_weight', 10, 2)->nullable();
             $table->decimal('extra_cost_global', 15, 2)->nullable()->default(0); // Additional costs

@@ -20,6 +20,7 @@ return new class extends Migration
             $table->integer('height')->nullable();
             $table->unsignedBigInteger('size')->nullable();
             $table->string('disk')->default('public');
+            $table->boolean('is_staff_document')->default(false)->index();
             $table->foreignId('uploaded_by_user_id')->nullable();
             $table->string('alt_text')->nullable();
             $table->json('variants')->nullable();

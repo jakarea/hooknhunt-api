@@ -20,6 +20,7 @@ import {
   IconCurrency,
   IconHistory,
   IconClock,
+  IconDeviceDesktop,
 } from "@tabler/icons-react"
 import {
   Box,
@@ -290,6 +291,17 @@ export function AppSidebarMantine({
         icon: IconPhoto,
         items: [
           { title: t("cms.media"), url: "/cms/media" },
+        ],
+      },
+      {
+        label: t("nav.website"),
+        icon: IconDeviceDesktop,
+        items: [
+          {
+            title: t("nav.websiteOrders"),
+            icon: IconShoppingCart,
+            url: "/website/orders",
+          },
         ],
       },
       {

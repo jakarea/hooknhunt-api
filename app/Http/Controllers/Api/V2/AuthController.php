@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Services\AlphaSmsService;
 
 class AuthController extends Controller
 {
@@ -301,15 +302,23 @@ class AuthController extends Controller
         // 2. Generate 5 Digit Code
         $code = rand(10000, 99999);
 
-        // 3. Store in DB (Added user_id)
+        // 3. Store in DB
         Otp::create([
-            'user_id' => $userId, // <--- NEW ADDITION
+            'user_id' => $userId,
             'identifier' => $phone,
             'token' => $code,
-            'expires_at' => Carbon::now()->addSeconds(120) // 2 minutes expiry
+            'expires_at' => Carbon::now()->addMinutes(5)
         ]);
 
-        // 4. Send SMS Log
+        // 4. Send SMS
+        try {
+            $smsService = new AlphaSmsService();
+            $smsService->sendOTP($phone, $code);
+        } catch (\Exception $e) {
+            \Log::warning("SMS send failed for {$phone}: " . $e->getMessage());
+        }
+
+        // 5. Log for debugging
         \Log::info("OTP for User ID {$userId} ({$phone}): {$code}");
     }
 

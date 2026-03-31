@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('old_status')->nullable();
             $table->string('new_status');
             $table->text('comments')->nullable();
+            $table->json('timeline_data')->nullable();
             $table->foreignId('changed_by')->nullable()->constrained('users')->onDelete('set null');
             $table->timestamps();
 

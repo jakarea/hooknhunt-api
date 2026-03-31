@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Customer extends Model {
     protected $guarded = ['id'];
-    protected $fillable = ['currency_id'];
 
     /**
      * Get the customer's preferred currency.

@@ -143,6 +143,8 @@ import APISettings from "@/app/admin/settings/api/page"
 import Backup from "@/app/admin/settings/backup/page"
 import TaxSettings from "@/app/admin/settings/taxes/page"
 import WorkingHoursSettings from "@/app/admin/settings/working-hours/page"
+import WebsiteOrders from "@/app/admin/website/orders/page"
+import WebsiteOrderDetail from "@/app/admin/website/orders/[id]/page"
 
 import Login from "@/app/login/page"
 import ForgotPassword from "@/app/forgot-password/page"
@@ -312,6 +314,9 @@ function App() {
               <Route path="settings/backup" element={<Backup />} />
               <Route path="settings/taxes" element={<TaxSettings />} />
               <Route path="settings/working-hours" element={<WorkingHoursSettings />} />
+              {/* Website Admin */}
+              <Route path="website/orders" element={<WebsiteOrders />} />
+              <Route path="website/orders/:id" element={<WebsiteOrderDetail />} />
             </Route>
           </Route>
 
