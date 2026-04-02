@@ -85,7 +85,7 @@ describe('Supplier Wallet Helpers', () => {
   it('should format wallet balance', () => {
     expect(formatWalletBalance(1234.56)).toBe('৳1234.56')
     expect(formatWalletBalance(0)).toBe('৳0.00')
-    expect(formatWalletBalance(100, '$')).toBe('$100.00')
+    expect(formatWalletBalance(100, '৳')).toBe('৳100.00')
   })
 
   it('should check sufficient balance', () => {

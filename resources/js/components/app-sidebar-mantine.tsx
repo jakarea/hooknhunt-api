@@ -7,7 +7,6 @@ import {
   IconUsersGroup,
   IconShield,
   IconSearch,
-  IconInnerShadowTop,
   IconChevronRight,
   IconCoin,
   IconShoppingCart,
@@ -711,10 +710,7 @@ export function AppSidebarMantine({
         <Group justify="space-between">
           <Link to="/dashboard" style={{ textDecoration: 'none' }}>
             <Group gap="xs">
-              <IconInnerShadowTop size={28} className="text-red-600" />
-              <Text fw={800} size="xl" c="light-dark(var(--mantine-color-dark-0), var(--mantine-color-dark-0))">
-                {t("common.appName")}
-              </Text>
+              <img src="/hnh-logo.svg" alt="Hook & Hunt" style={{ height: rem(28) }} />
             </Group>
           </Link>
           {isMobile && (

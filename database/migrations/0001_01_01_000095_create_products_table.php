@@ -25,6 +25,10 @@ return new class extends Migration
             $table->string('seo_title')->nullable();
             $table->text('seo_description')->nullable();
             $table->json('seo_tags')->nullable();
+            $table->boolean('warranty_enabled')->nullable()->default(false);
+            $table->json('warranty_details')->nullable();
+            $table->json('highlights')->nullable();
+            $table->json('includes_in_box')->nullable();
             $table->enum('status', ['draft', 'published', 'archived'])->default('draft');
             $table->timestamps();
             $table->softDeletes(); // Soft delete - no data loss

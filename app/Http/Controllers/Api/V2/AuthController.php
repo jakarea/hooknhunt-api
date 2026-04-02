@@ -190,7 +190,7 @@ class AuthController extends Controller
 
         return $this->sendSuccess([
             'access_token' => $token,
-            'user' => $user->load('role')
+            'user' => $user->load('role.permissions')
         ], 'Phone verified successfully.');
     }
 
@@ -214,7 +214,7 @@ class AuthController extends Controller
         }
 
         // Debug: Log user data
-        \Log::info('LOGIN ATTEMPT - User Found', [
+        \Log::warning('LOGIN ATTEMPT - User Found', [
             'user_id' => $user->id,
             'email' => $user->email,
             'phone' => $user->phone,
@@ -318,8 +318,68 @@ class AuthController extends Controller
             \Log::warning("SMS send failed for {$phone}: " . $e->getMessage());
         }
 
-        // 5. Log for debugging
-        \Log::info("OTP for User ID {$userId} ({$phone}): {$code}");
+        // 5. Log for debugging (warning level to always write regardless of LOG_LEVEL)
+        \Log::warning("OTP for User ID {$userId} ({$phone}): {$code}");
+    }
+
+    /**
+     * Send OTP for password reset
+     */
+    public function sendResetOtp(Request $request)
+    {
+        $request->validate(['phone' => 'required|exists:users,phone']);
+
+        $user = User::where('phone', $request->phone)->first();
+
+        // Only allow reset for verified users
+        if (!$user->phone_verified_at) {
+            return $this->sendError('Phone number not verified. Please verify your phone first.', [
+                'error_code' => 'phone_not_verified',
+            ], 403);
+        }
+
+        $this->sendOtp($request->phone, $user->id);
+
+        return $this->sendSuccess(null, 'OTP sent for password reset.');
+    }
+
+    /**
+     * Reset password using OTP
+     */
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'phone' => 'required|exists:users,phone',
+            'otp' => 'required|string|digits:5',
+            'password' => 'required|string|min:6|confirmed',
+        ]);
+
+        $otp = Otp::where('identifier', $request->phone)
+            ->where('token', $request->otp)
+            ->first();
+
+        if (!$otp || !$otp->isValid()) {
+            return $this->sendError('Invalid or expired OTP.');
+        }
+
+        $user = User::where('phone', $request->phone)->first();
+        $user->update(['password' => Hash::make($request->password)]);
+
+        // Invalidate all existing tokens (force re-login on all devices)
+        $user->tokens()->delete();
+
+        $otp->delete();
+
+        return $this->sendSuccess(null, 'Password reset successfully. Please login with new password.');
+    }
+
+    /**
+     * Test SMS balance (development only)
+     */
+    public function testSmsBalance()
+    {
+        $smsService = new AlphaSmsService();
+        return response()->json($smsService->getBalance());
     }
 
     public function profile(Request $request)

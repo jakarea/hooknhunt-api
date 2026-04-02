@@ -32,6 +32,7 @@ return new class extends Migration
             $table->integer('stock_alert_level')->default(5);
             $table->integer('allow_preorder')->default(false);
             $table->date('expected_delivery')->nullable();
+            $table->integer('stock')->default(0);
             $table->integer('moq')->default(1);
             $table->boolean('is_active')->default(true);
             $table->unique(['product_id', 'variant_name', 'channel'], 'unique_variant_name_per_product_channel');

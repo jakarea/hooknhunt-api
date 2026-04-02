@@ -8,15 +8,7 @@ use App\Models\Role;
 use App\Models\Department;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-// use Illuminate\Support\Facades\Hash; // ⚠️ DISABLED FOR DEVELOPMENT
-
-/**
- * Admin Seeder - Creates Super Admin User
- *
- * SECURITY NOTE: Password hashing disabled for development
- * To re-enable hashing, change line 57 to:
- * 'password' => Hash::make('Arif@1658'),
- */
+use Illuminate\Support\Facades\Hash;
 class AdminSeeder extends Seeder
 {
     /**
@@ -51,7 +43,6 @@ class AdminSeeder extends Seeder
             $department = Department::firstOrCreate(
                 ['name' => 'Administration'],
                 [
-                    'description' => 'Administration Department',
                     'is_active' => true,
                 ]
             );
@@ -61,7 +52,7 @@ class AdminSeeder extends Seeder
                 'name' => 'Md Ariful Islam',
                 'email' => 'bp9716190715@gmail.com',
                 'phone' => '01721100616',
-                'password' => 'Arif@1658', // ⚠️ PLAIN TEXT - CHANGE TO: Hash::make('Arif@1658')
+                'password' => Hash::make('Arif@1658'),
                 'role_id' => $superAdminRole->id,
                 'is_active' => true,
                 'phone_verified_at' => now(),

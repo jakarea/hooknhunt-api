@@ -20,7 +20,14 @@ class ProductController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Product::with(['category', 'brand', 'thumbnail', 'variants.batches']);
+        // Dashboard shows wholesale channel only — each logical variant
+        // is stored as 2 rows (retail + wholesale) with identical stock.
+        // Filtering avoids doubled variant count and doubled stock total.
+        $query = Product::with([
+            'category', 'brand', 'thumbnail',
+            'variants' => fn($q) => $q->where('channel', 'wholesale'),
+            'variants.batches',
+        ]);
 
         if ($request->search) {
             $query->where('name', 'like', "%{$request->search}%")
@@ -57,22 +64,26 @@ class ProductController extends Controller
                     $query->orderBy('updated_at', 'asc');
                     break;
                 case 'price_desc':
-                    // Sort by minimum variant price descending
                     $query->with(['variants' => function($q) {
-                        $q->orderBy('price', 'desc');
+                        $q->where('channel', 'wholesale')->orderBy('price', 'desc');
                     }])
                     ->select('products.*')
-                    ->leftJoin('product_variants as pv', 'products.id', '=', 'pv.product_id')
+                    ->leftJoin('product_variants as pv', function ($join) {
+                        $join->on('products.id', '=', 'pv.product_id')
+                             ->where('pv.channel', 'wholesale');
+                    })
                     ->groupBy('products.id')
                     ->orderByRaw('MIN(pv.price) DESC');
                     break;
                 case 'price_asc':
-                    // Sort by minimum variant price ascending
                     $query->with(['variants' => function($q) {
-                        $q->orderBy('price', 'asc');
+                        $q->where('channel', 'wholesale')->orderBy('price', 'asc');
                     }])
                     ->select('products.*')
-                    ->leftJoin('product_variants as pv', 'products.id', '=', 'pv.product_id')
+                    ->leftJoin('product_variants as pv', function ($join) {
+                        $join->on('products.id', '=', 'pv.product_id')
+                             ->where('pv.channel', 'wholesale');
+                    })
                     ->groupBy('products.id')
                     ->orderByRaw('MIN(pv.price) ASC');
                     break;
@@ -340,10 +351,60 @@ class ProductController extends Controller
 
     public function show($id)
     {
-        // Load variants and their specific channel prices
-        return $this->sendSuccess(
-            Product::with(['variants.channelSettings', 'category', 'brand', 'thumbnail'])->findOrFail($id)
-        );
+        $product = Product::with(['variants.channelSettings', 'category', 'brand', 'thumbnail'])->findOrFail($id);
+
+        // Pair retail + wholesale variants by variant_name into single rows
+        // so the frontend gets both channel prices per variant.
+        $variants = $product->variants->groupBy('variant_name')->map(function ($group) {
+            $retail  = $group->firstWhere('channel', 'retail');
+            $wholesale = $group->firstWhere('channel', 'wholesale');
+
+            // Use whichever row exists as the base (prefer retail)
+            $base = $retail ?? $wholesale;
+
+            return [
+                'id'                    => $base->id,
+                'retailId'              => $retail?->id,
+                'wholesaleId'           => $wholesale?->id,
+                'productId'             => $base->product_id,
+                'variantName'           => $base->variant_name,
+                'variantSlug'           => $base->variant_slug,
+                'customSku'             => $base->custom_sku,
+                'sku'                   => $base->sku,
+                'color'                 => $base->color,
+                'size'                  => $base->size,
+                'material'              => $base->material,
+                'weight'                => $base->weight,
+                'pattern'               => $base->pattern,
+                'unitId'                => $base->unit_id,
+                'unitValue'             => $base->unit_value,
+                'purchaseCost'          => $base->purchase_cost ? (float) $base->purchase_cost : 0,
+                'stock'                 => $base->stock ?? 0,
+                'currentStock'          => $base->current_stock ?? 0,
+                'stockAlertLevel'       => $base->stock_alert_level ?? 5,
+                'moq'                   => $base->moq ?? 1,
+                'isActive'              => $base->is_active ?? true,
+                'allowPreorder'         => $base->allow_preorder ?? false,
+                'expectedDelivery'      => $base->expected_delivery,
+                // Retail channel fields
+                'retailPrice'           => $retail ? (float) $retail->price : 0,
+                'retailOfferPrice'      => $retail && $retail->offer_price ? (float) $retail->offer_price : null,
+                'retailOfferStarts'     => $retail?->offer_starts,
+                'retailOfferEnds'       => $retail?->offer_ends,
+                'retailSku'             => $retail?->sku,
+                // Wholesale channel fields
+                'wholesalePrice'        => $wholesale ? (float) $wholesale->price : 0,
+                'wholesaleOfferPrice'   => $wholesale && $wholesale->offer_price ? (float) $wholesale->offer_price : null,
+                'wholesaleOfferStarts'  => $wholesale?->offer_starts,
+                'wholesaleOfferEnds'    => $wholesale?->offer_ends,
+                'wholesaleSku'          => $wholesale?->sku,
+            ];
+        })->values();
+
+        // Replace the variants relation with paired data
+        $product->setRelation('variants', $variants);
+
+        return $this->sendSuccess($product);
     }
 
     /**

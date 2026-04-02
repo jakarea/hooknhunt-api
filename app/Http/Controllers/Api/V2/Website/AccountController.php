@@ -76,15 +76,15 @@ class AccountController extends Controller
             ], 401);
         }
 
-        // Load customer profile and addresses
-        $user->load(['customerProfile', 'addresses']);
+        // Load role, customer profile and addresses
+        $user->load(['role', 'customerProfile', 'addresses']);
 
         // Transform user data for API response
         $userData = [
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
-            'role' => $user->role->name,
+            'role' => $user->role?->name,
             'phone_number' => $user->phone,
             'email_verified_at' => $user->email_verified_at?->toIso8601String(),
             'phone_verified_at' => $user->phone_verified_at?->toIso8601String(),

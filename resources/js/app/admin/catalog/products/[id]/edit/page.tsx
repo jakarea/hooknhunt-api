@@ -1161,10 +1161,9 @@ export default function EditProductPage() {
                       <Paper
                         withBorder
                         p="xl"
-                        className="border-dashed"
+                        className="border-dashed items-center justify-center"
                         h={50}
                         display="flex"
-                        className="items-center justify-center"
                       >
                         <Stack align="center" gap="sm">
                           <IconPhoto size={32} className="text-gray-400" />
