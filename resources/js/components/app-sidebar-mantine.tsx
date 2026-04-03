@@ -20,6 +20,7 @@ import {
   IconHistory,
   IconClock,
   IconDeviceDesktop,
+  IconLayout,
 } from "@tabler/icons-react"
 import {
   Box,
@@ -33,9 +34,11 @@ import {
   ActionIcon,
   UnstyledButton,
   Collapse,
+  Badge,
 } from "@mantine/core"
 import { useMediaQuery } from "@mantine/hooks"
 import { useAuthStore } from "@/stores/authStore"
+import { useOrderBadgeStore } from "@/stores/orderBadgeStore"
 import { usePermissions } from "@/hooks/usePermissions"
 
 interface NavItem {
@@ -65,6 +68,12 @@ export function AppSidebarMantine({
   const isMobile = useMediaQuery("(max-width: 768px)")
   const user = useAuthStore((state) => state.user)
   const { permissions, permissionObjects, isSuperAdmin } = usePermissions()
+  const pendingCount = useOrderBadgeStore((s) => s.pendingCount)
+  const fetchPendingCount = useOrderBadgeStore((s) => s.fetchPendingCount)
+
+  React.useEffect(() => {
+    if (user) fetchPendingCount()
+  }, [user])
 
   const toggleSection = (label: string) => {
     setOpened((prev) => ({
@@ -300,6 +309,11 @@ export function AppSidebarMantine({
             title: t("nav.websiteOrders"),
             icon: IconShoppingCart,
             url: "/website/orders",
+          },
+          {
+            title: t("nav.websiteSliders"),
+            icon: IconLayout,
+            url: "/website/sliders",
           },
         ],
       },
@@ -578,6 +592,11 @@ export function AppSidebarMantine({
           key={index}
           label={item.title}
           leftSection={item.icon ? <item.icon style={{ width: rem(16), height: rem(16) }} /> : undefined}
+          rightSection={item.url === '/website/orders' && pendingCount > 0 ? (
+            <Badge size="sm" variant="filled" color="red" radius="xl" fz="xs">
+              {pendingCount}
+            </Badge>
+          ) : undefined}
           to={item.url || '/'}
           component={Link}
           active={isActive}

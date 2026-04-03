@@ -131,7 +131,6 @@ class ProductController extends Controller
             'productName' => 'required|string|max:255',
             'retailName' => 'nullable|string|max:255',
             'wholesaleName' => 'nullable|string|max:255',
-            'customName' => 'nullable|string|max:255',
             'category' => 'required|integer|exists:categories,id',
             'brand' => 'required|integer|exists:brands,id',
             'status' => 'required|in:draft,published,archived',
@@ -217,9 +216,8 @@ class ProductController extends Controller
             // 1. Create Product
             $product = Product::create([
                 'name' => $validated['productName'],
-                'retail_name' => $validated['retailName'] ?? null,
+                'retail_name' => $validated['retailName'] ?? $validated['productName'],
                 'wholesale_name' => $validated['wholesaleName'] ?? null,
-                'custom_name' => $validated['customName'] ?? null,
                 'slug' => SlugHelper::generateUniqueSlug($validated['productName'], 'products', 'slug'),
                 'category_id' => $validated['category'],
                 'brand_id' => $validated['brand'],
@@ -446,22 +444,12 @@ class ProductController extends Controller
             'productName' => 'sometimes|required|string',
             'retailName' => 'nullable|string',
             'wholesaleName' => 'nullable|string',
-            'customName' => 'nullable|string',
             'category' => 'sometimes|required|exists:categories,id',
             'brand' => 'nullable|exists:brands,id',
             'status' => 'in:draft,published,archived'
         ]);
 
         $product = Product::findOrFail($id);
-
-        // DEBUG: Write to file for debugging
-        $debugFile = storage_path('logs/custom_name_debug.log');
-        $debugData = date('Y-m-d H:i:s') . " - UPDATE START\n";
-        $debugData .= "ID: $id\n";
-        $debugData .= "Request customName: " . var_export($request->input('customName'), true) . "\n";
-        $debugData .= "Request has customName: " . var_export($request->has('customName'), true) . "\n";
-        $debugData .= "Product before: " . var_export($product->custom_name, true) . "\n";
-        file_put_contents($debugFile, $debugData, FILE_APPEND);
 
         DB::beginTransaction();
         try {
@@ -474,9 +462,8 @@ class ProductController extends Controller
             // Update product fields - map camelCase to snake_case
             $product->update([
                 'name' => $request->productName ?? $product->name,
-                'retail_name' => $request->retailName ?? $product->retail_name,
+                'retail_name' => $request->retailName ?? ($request->productName ?? $product->retail_name),
                 'wholesale_name' => $request->wholesaleName ?? $product->wholesale_name,
-                'custom_name' => $request->has('customName') ? $request->customName : $product->custom_name,
                 'slug' => $newSlug,
                 'category_id' => $request->category ?? $product->category_id,
                 'brand_id' => $request->brand ?? $product->brand_id,
@@ -493,12 +480,6 @@ class ProductController extends Controller
                 'highlights' => $request->highlights ?? $product->highlights,
                 'includes_in_box' => $request->includesInTheBox ?? $product->includes_in_box,
             ]);
-
-            // DEBUG: Log what was actually saved
-            $product->refresh(); // Reload from database
-            $debugData = "Product after: " . var_export($product->custom_name, true) . "\n";
-            $debugData .= "UPDATE END\n\n";
-            file_put_contents($debugFile, $debugData, FILE_APPEND);
 
             // Handle variants update
             if ($request->has('variants') && is_array($request->variants)) {

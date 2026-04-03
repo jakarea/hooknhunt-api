@@ -3,12 +3,15 @@
     "main": "প্রধান",
     "dashboard": "ড্যাশবোর্ড",
     "hrm": "ক্যাটালগ এবং অপারেশন",
+    "products": "পণ্য",
+    "inventory": "ইনভেন্টরি",
     "procurement": "ক্রয়",
     "crm": "সিআরএম",
     "finance": "অর্থ",
     "cms": "সিএমএস",
     "website": "ওয়েবসাইট",
     "websiteOrders": "অর্ডারসমূহ",
+    "websiteSliders": "মডিউল স্লাইডার",
     "settings": "সেটিংস"
   }
 }

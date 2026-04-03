@@ -132,7 +132,7 @@ export default function VariantsPage() {
             productThumbnail: product.thumbnail,
             category: product.category,
             brand: product.brand,
-            variantName: variant.variantName || variant.customName || variant.name || '-',
+            variantName: variant.variantName || variant.name || '-',
             sku: variant.sku || variant.customSku || '-',
             channel: channel,
             price: parseFloat(String(variant.price || variant.retailPrice || variant.defaultRetailPrice || 0)),

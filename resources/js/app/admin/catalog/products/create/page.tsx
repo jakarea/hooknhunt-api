@@ -34,8 +34,6 @@ import {
   IconPackages,
   IconDeviceFloppy,
   IconUpload,
-  IconChevronUp,
-  IconChevronDown,
   IconTrash,
   IconVideo,
   IconPlus,
@@ -51,12 +49,73 @@ import { useMediaSelector } from '@/hooks/useMediaSelector'
 import { useUIStore } from '@/stores/uiStore'
 import { apiMethods } from '@/lib/api'
 import type { MediaFile } from '@/utils/api'
+import { DndContext, closestCenter, type DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { SortableContext, useSortable, horizontalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface GalleryImage {
   id: string
   mediaId: number
   url: string
   order: number
+}
+
+// Sortable Gallery Image (drag & drop)
+function SortableGalleryImage({
+  image,
+  index,
+  onRemove,
+}: {
+  image: GalleryImage
+  index: number
+  onRemove: (id: string) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: image.id })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    cursor: 'grab',
+    position: 'relative' as const,
+  }
+
+  return (
+    <Box ref={setNodeRef} style={style} {...attributes} {...listeners} w={80}>
+      <Paper shadow="sm" p={4} withBorder>
+        <Image
+          src={image.url}
+          alt={`Gallery ${index + 1}`}
+          height={80}
+          radius="md"
+          fit="cover"
+        />
+      </Paper>
+      <Badge
+        pos="absolute"
+        top={4}
+        left={4}
+        size="sm"
+        variant="filled"
+        color="gray"
+      >
+        {index + 1}
+      </Badge>
+      <ActionIcon
+        pos="absolute"
+        top={4}
+        right={4}
+        color="red"
+        variant="filled"
+        size="sm"
+        onClick={(e: React.MouseEvent) => {
+          e.stopPropagation()
+          onRemove(image.id)
+        }}
+      >
+        <IconTrash size={12} />
+      </ActionIcon>
+    </Box>
+  )
 }
 
 interface ProductVariant {
@@ -114,9 +173,7 @@ export default function CreateProductPage() {
 
   // Form state
   const [productName, setProductName] = useState('')
-  const [retailName, setRetailName] = useState('')
   const [wholesaleName, setWholesaleName] = useState('')
-  const [customName, setCustomName] = useState('')
   const [category, setCategory] = useState<string | null>(null)
   const [brand, setBrand] = useState<string | null>(null)
   const [status, setStatus] = useState<string>('draft')
@@ -136,27 +193,19 @@ export default function CreateProductPage() {
 
   // Track which fields have been manually edited by the user
   const [manuallyEdited, setManuallyEdited] = useState({
-    retailName: false,
     wholesaleName: false,
-    customName: false,
     seoTitle: false
   })
 
-  // Auto-fill retail name, wholesale name, custom name, and SEO title from product name
+  // Auto-fill wholesale name and SEO title from product name
   // Only updates fields that haven't been manually edited by the user
   useEffect(() => {
     if (productName) {
-      if (!manuallyEdited.retailName) {
-        setRetailName(productName)
-      }
       if (!manuallyEdited.wholesaleName) {
         setWholesaleName(productName)
       }
-      if (!manuallyEdited.customName) {
-        setCustomName(productName)
-      }
       if (!manuallyEdited.seoTitle) {
-        setSeoTitle(productName)
+        setSeoTitle(productName.slice(0, 60))
       }
     }
   }, [productName])
@@ -170,6 +219,26 @@ export default function CreateProductPage() {
   const [featuredImage, setFeaturedImage] = useState<{ mediaId: number; url: string } | null>(null)
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([])
 
+  // DnD sensors for gallery reordering
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  )
+
+  const handleGalleryDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    setGalleryImages((prev) => {
+      const oldIndex = prev.findIndex((img) => img.id === active.id)
+      const newIndex = prev.findIndex((img) => img.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return prev
+      const updated = [...prev]
+      const [moved] = updated.splice(oldIndex, 1)
+      updated.splice(newIndex, 0, moved)
+      return updated.map((img, idx) => ({ ...img, order: idx }))
+    })
+  }
+
   // Variants state
   const [variants, setVariants] = useState<ProductVariant[]>([
     {
@@ -182,7 +251,7 @@ export default function CreateProductPage() {
       purchaseCost: 0,
       specialPrice: undefined,
       wholesaleOfferPrice: undefined,
-      wholesaleMoq: 0,
+      wholesaleMoq: 6,
       weight: 0,
       stock: 0,
       sellerSku: ''
@@ -191,12 +260,13 @@ export default function CreateProductPage() {
 
   // Default values for new variants
   const [defaultValues, setDefaultValues] = useState({
+    name: '',
     price: 0,
     wholesalePrice: 0,
     purchaseCost: 0,
     specialPrice: undefined as number | undefined,
     wholesaleOfferPrice: undefined as number | undefined,
-    wholesaleMoq: 0,
+    wholesaleMoq: 6,
     weight: 0,
     stock: 0,
     sellerSku: ''
@@ -810,21 +880,6 @@ export default function CreateProductPage() {
     setGalleryImages(prev => prev.map((img, index) => ({ ...img, order: index })))
   }
 
-  const handleMoveImage = (id: string, direction: 'up' | 'down') => {
-    const index = galleryImages.findIndex(img => img.id === id)
-    if (index < 0) return
-
-    const newGallery = [...galleryImages]
-    if (direction === 'up' && index > 0) {
-      ;[newGallery[index], newGallery[index - 1]] = [newGallery[index - 1], newGallery[index]]
-    } else if (direction === 'down' && index < galleryImages.length - 1) {
-      ;[newGallery[index], newGallery[index + 1]] = [newGallery[index + 1], newGallery[index]]
-    }
-
-    // Update order
-    setGalleryImages(newGallery.map((img, idx) => ({ ...img, order: idx })))
-  }
-
   // Variant handlers
   const handleAddVariant = () => {
     const newId = Date.now().toString()
@@ -834,16 +889,16 @@ export default function CreateProductPage() {
         id: newId,
         retail_id: null,
         wholesale_id: null,
-        name: '',
-        price: 0,
-        wholesalePrice: 0,
-        purchaseCost: 0,
-        specialPrice: undefined,
-        wholesaleOfferPrice: undefined,
-        wholesaleMoq: 0,
-        weight: 0,
-        stock: 0,
-        sellerSku: ''
+        name: defaultValues.name || '',
+        price: defaultValues.price,
+        wholesalePrice: defaultValues.wholesalePrice,
+        purchaseCost: defaultValues.purchaseCost,
+        specialPrice: defaultValues.specialPrice,
+        wholesaleOfferPrice: defaultValues.wholesaleOfferPrice,
+        wholesaleMoq: defaultValues.wholesaleMoq,
+        weight: defaultValues.weight,
+        stock: defaultValues.stock,
+        sellerSku: defaultValues.sellerSku
       }
     ])
   }
@@ -861,15 +916,23 @@ export default function CreateProductPage() {
   }
 
   const handleUpdateVariant = (id: string, field: keyof ProductVariant, value: any) => {
-    setVariants(variants.map(v =>
-      v.id === id ? { ...v, [field]: value } : v
-    ))
+    setVariants(variants.map(v => {
+      if (v.id !== id) return v
+      const updated = { ...v, [field]: value }
+      // Auto-calculate retail & wholesale price when purchase cost changes
+      if (field === 'purchaseCost' && typeof value === 'number' && value > 0) {
+        updated.price = value * 1.5
+        updated.wholesalePrice = value * 1.2
+      }
+      return updated
+    }))
   }
 
   // Apply default values to all variants
   const handleApplyDefaultsToAll = () => {
     setVariants(variants.map(v => ({
       ...v,
+      ...(defaultValues.name ? { name: defaultValues.name } : {}),
       price: defaultValues.price,
       wholesalePrice: defaultValues.wholesalePrice,
       purchaseCost: defaultValues.purchaseCost,
@@ -905,9 +968,7 @@ export default function CreateProductPage() {
 
     console.log('🔍 Form values:', {
       productName,
-      retailName,
       wholesaleName,
-      customName,
       category,
       brand,
       status,
@@ -980,9 +1041,8 @@ export default function CreateProductPage() {
       // Prepare data for API
       const payload = {
         productName,
-        retailName,
+        retailName: productName,
         wholesaleName,
-        customName,
         category: parseInt(category!),
         brand: parseInt(brand!),
         status,
@@ -1132,8 +1192,8 @@ export default function CreateProductPage() {
 
                     <TextInput
                       id="productName"
-                      label={t('catalog.productsCreate.productName') || 'Product Name'}
-                      placeholder={t('catalog.productsCreate.productNamePlaceholder') || 'Enter product name'}
+                      label={t('catalog.productsCreate.retailName') || 'Retail Name'}
+                      placeholder={t('catalog.productsCreate.retailNamePlaceholder') || 'Enter retail name'}
                       value={productName}
                       onChange={(value) => {
                         clearError('productName')
@@ -1142,21 +1202,6 @@ export default function CreateProductPage() {
                       onFocus={collapseSidebarIfNeeded}
                       required
                       error={errors.productName}
-                    />
-
-                    <TextInput
-                      label={t('catalog.productsCreate.retailName') || 'Retail Name'}
-                      placeholder={t('catalog.productsCreate.retailNamePlaceholder') || 'Enter retail name'}
-                      value={retailName}
-                      onChange={(value) => {
-                        if (!manuallyEdited.retailName) {
-                          setManuallyEdited(prev => ({ ...prev, retailName: true }))
-                        }
-                        setRetailName(typeof value === 'string' ? value : value?.currentTarget?.value || '')
-                      }}
-                      onFocus={collapseSidebarIfNeeded}
-                      maxLength={255}
-                      error={errors.retailName}
                     />
 
                     <TextInput
@@ -1172,21 +1217,6 @@ export default function CreateProductPage() {
                       onFocus={collapseSidebarIfNeeded}
                       maxLength={255}
                       error={errors.wholesaleName}
-                    />
-
-                    <TextInput
-                      label={t('catalog.productsCreate.customName') || 'Custom Name'}
-                      placeholder={t('catalog.productsCreate.customNamePlaceholder') || 'Enter custom name'}
-                      value={customName}
-                      onChange={(value) => {
-                        if (!manuallyEdited.customName) {
-                          setManuallyEdited(prev => ({ ...prev, customName: true }))
-                        }
-                        setCustomName(typeof value === 'string' ? value : value?.currentTarget?.value || '')
-                      }}
-                      onFocus={collapseSidebarIfNeeded}
-                      maxLength={255}
-                      error={errors.customName}
                     />
 
                     <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -1337,65 +1367,27 @@ export default function CreateProductPage() {
                         </Stack>
                       </Paper>
                     ) : (
-                      <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="sm">
-                        {galleryImages.map((image, index) => (
-                          <Box key={image.id} pos="relative">
-                            <Paper shadow="sm" p="xs" withBorder>
-                              <Image
-                                src={image.url}
-                                alt={`Gallery ${index + 1}`}
-                                height={80}
-                                width={80}
-                                radius="md"
+                      <DndContext
+                        sensors={dndSensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleGalleryDragEnd}
+                      >
+                        <SortableContext
+                          items={galleryImages.map((img) => img.id)}
+                          strategy={horizontalListSortingStrategy}
+                        >
+                          <Group gap="xs" wrap="nowrap">
+                            {galleryImages.map((image, index) => (
+                              <SortableGalleryImage
+                                key={image.id}
+                                image={image}
+                                index={index}
+                                onRemove={handleRemoveGalleryImage}
                               />
-                            </Paper>
-
-                            <Badge
-                              pos="absolute"
-                              top={4}
-                              left={4}
-                              size="sm"
-                              variant="filled"
-                              color="gray"
-                            >
-                              {index + 1}
-                            </Badge>
-
-                            <ActionIcon
-                              pos="absolute"
-                              top={4}
-                              right={4}
-                              color="red"
-                              variant="filled"
-                              size="sm"
-                              onClick={() => handleRemoveGalleryImage(image.id)}
-                            >
-                              <IconTrash size={12} />
-                            </ActionIcon>
-
-                            <Stack pos="absolute" bottom={4} right={4} gap={2}>
-                              <ActionIcon
-                                color="blue"
-                                variant="filled"
-                                size={20}
-                                disabled={index === 0}
-                                onClick={() => handleMoveImage(image.id, 'up')}
-                              >
-                                <IconChevronUp size={14} />
-                              </ActionIcon>
-                              <ActionIcon
-                                color="blue"
-                                variant="filled"
-                                size={20}
-                                disabled={index === galleryImages.length - 1}
-                                onClick={() => handleMoveImage(image.id, 'down')}
-                              >
-                                <IconChevronDown size={14} />
-                              </ActionIcon>
-                            </Stack>
-                          </Box>
-                        ))}
-                      </SimpleGrid>
+                            ))}
+                          </Group>
+                        </SortableContext>
+                      </DndContext>
                     )}
 
                     <Group>
@@ -1455,20 +1447,12 @@ export default function CreateProductPage() {
 
                     {/* Default Values Form */}
                     <Stack gap="xs">
-                      <Group justify="space-between" align="center" px="sm">
+                      <Group align="center" px="sm">
                         <Text size="xs" fw={600}>{t('catalog.productsCreate.defaultValues') || 'Default Values for New Variants'}</Text>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          leftSection={<IconDeviceFloppy size={12} />}
-                          onClick={handleApplyDefaultsToAll}
-                        >
-                          {t('catalog.productsCreate.applyToAll') || 'Apply to All'}
-                        </Button>
                       </Group>
 
                       <Text size="xs" c="blue" px="sm">
-                        💡 {t('catalog.productsCreate.autoCalculationTip') || 'Enter Purchase Cost to auto-calculate Retail Price (+50%) and Wholesale Price (+20%)'}
+                        {t('catalog.productsCreate.autoCalculationTip') || 'Enter Purchase Cost to auto-calculate Retail Price (+50%) and Wholesale Price (+20%)'}
                       </Text>
 
                       <Paper
@@ -1477,9 +1461,16 @@ export default function CreateProductPage() {
                         bg={colorScheme === 'dark' ? 'dark.7' : 'blue.0'}
                       >
                         <SimpleGrid cols={10} spacing="md">
-                          {/* Variant Name (empty) */}
+                          {/* Variant Name */}
                           <Stack gap={4}>
                             <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.variantName') || 'VARIANT NAME'}</Text>
+                            <TextInput
+                              placeholder={t('catalog.productsCreate.variantNamePlaceholder') || 'Size, Color...'}
+                              value={defaultValues.name}
+                              onChange={(value) => setDefaultValues(prev => ({ ...prev, name: typeof value === 'string' ? value : value?.currentTarget?.value || '' }))}
+                              onFocus={collapseSidebarIfNeeded}
+                              size="xs"
+                            />
                           </Stack>
 
                           {/* Seller SKU */}
@@ -1541,7 +1532,7 @@ export default function CreateProductPage() {
 
                           {/* Retail Offer Price */}
                           <Stack gap={4}>
-                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.retailOfferPrice') || 'RETAIL OFFER PRICE'}</Text>
+                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.retailOfferPrice') || 'RETAIL OFFER'}</Text>
                             <NumberInput
                               placeholder="0"
                               value={defaultValues.specialPrice}
@@ -1559,7 +1550,7 @@ export default function CreateProductPage() {
 
                           {/* Wholesale Offer Price */}
                           <Stack gap={4}>
-                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.wholesaleOfferPrice') || 'WHOLESALE OFFER PRICE'}</Text>
+                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.wholesaleOfferPrice') || 'WS OFFER'}</Text>
                             <NumberInput
                               placeholder="0"
                               value={defaultValues.wholesaleOfferPrice}
@@ -1577,9 +1568,9 @@ export default function CreateProductPage() {
 
                           {/* Wholesale MOQ */}
                           <Stack gap={4}>
-                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.wholesaleMoq') || 'WHOLESALE MOQ'}</Text>
+                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.wholesaleMoq') || 'MOQ'}</Text>
                             <NumberInput
-                              placeholder="0"
+                              placeholder="6"
                               value={defaultValues.wholesaleMoq}
                               onChange={(value) => setDefaultValues(prev => ({ ...prev, wholesaleMoq: typeof value === 'number' ? value : 0 }))}
                               onFocus={collapseSidebarIfNeeded}
@@ -1590,7 +1581,7 @@ export default function CreateProductPage() {
 
                           {/* Weight */}
                           <Stack gap={4}>
-                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.weight') || 'WEIGHT (g)'}</Text>
+                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.weight') || 'WT(g)'}</Text>
                             <NumberInput
                               placeholder="0"
                               value={defaultValues.weight}
@@ -1602,7 +1593,7 @@ export default function CreateProductPage() {
                             />
                           </Stack>
 
-                          {/* Stock */}
+                          {/* Stock + Apply */}
                           <Stack gap={4}>
                             <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.stock') || 'STOCK'}</Text>
                             <NumberInput
@@ -1613,6 +1604,14 @@ export default function CreateProductPage() {
                               min={0}
                               size="xs"
                             />
+                            <Button
+                              size="xs"
+                              variant="light"
+                              onClick={handleApplyDefaultsToAll}
+                              w="100%"
+                            >
+                              {t('catalog.productsCreate.applyToAll') || 'Apply'}
+                            </Button>
                           </Stack>
                         </SimpleGrid>
                       </Paper>
@@ -1629,10 +1628,10 @@ export default function CreateProductPage() {
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.purchaseCost') || 'PURCHASE COST'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.retailPrice') || 'RETAIL PRICE'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.wholesalePrice') || 'WHOLESALE PRICE'}</Text>
-                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.retailOfferPrice') || 'RETAIL OFFER PRICE'}</Text>
-                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.wholesaleOfferPrice') || 'WHOLESALE OFFER PRICE'}</Text>
-                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.wholesaleMoq') || 'WHOLESALE MOQ'}</Text>
-                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.weight') || 'WEIGHT (g)'}</Text>
+                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.retailOfferPrice') || 'RETAIL OFFER'}</Text>
+                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.wholesaleOfferPrice') || 'WS OFFER'}</Text>
+                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.wholesaleMoq') || 'MOQ'}</Text>
+                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.weight') || 'WT(g)'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.stock') || 'STOCK'}</Text>
                         </SimpleGrid>
 

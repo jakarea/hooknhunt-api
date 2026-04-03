@@ -486,4 +486,8 @@ Route::group([
 
     // SMS
     Route::post('orders/{id}/send-sms', 'OrderController@sendSms');
+
+    // Sliders (Module Slider)
+    Route::post('sliders/reorder', 'SliderController@reorder');
+    Route::apiResource('sliders', 'SliderController');
 });

@@ -145,6 +145,9 @@ import TaxSettings from "@/app/admin/settings/taxes/page"
 import WorkingHoursSettings from "@/app/admin/settings/working-hours/page"
 import WebsiteOrders from "@/app/admin/website/orders/page"
 import WebsiteOrderDetail from "@/app/admin/website/orders/[id]/page"
+import WebsiteSliders from "@/app/admin/website/sliders/page"
+import CreateSlider from "@/app/admin/website/sliders/create/page"
+import EditSlider from "@/app/admin/website/sliders/[id]/edit/page"
 
 import Login from "@/app/login/page"
 import ForgotPassword from "@/app/forgot-password/page"
@@ -317,6 +320,9 @@ function App() {
               {/* Website Admin */}
               <Route path="website/orders" element={<WebsiteOrders />} />
               <Route path="website/orders/:id" element={<WebsiteOrderDetail />} />
+              <Route path="website/sliders" element={<WebsiteSliders />} />
+              <Route path="website/sliders/create" element={<CreateSlider />} />
+              <Route path="website/sliders/:id/edit" element={<EditSlider />} />
             </Route>
           </Route>
 

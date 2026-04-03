@@ -19,7 +19,6 @@ class Product extends Model
         'name',
         'retail_name',
         'wholesale_name',
-        'custom_name',
         'slug',
         'category_id',
         'brand_id',
@@ -103,11 +102,6 @@ class Product extends Model
     public function getWholesaleNameAttribute()
     {
         return $this->attributes['wholesale_name'] ?? null;
-    }
-
-    public function getCustomNameAttribute()
-    {
-        return $this->attributes['custom_name'] ?? null;
     }
 
 

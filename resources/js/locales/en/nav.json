@@ -3,12 +3,15 @@
     "main": "Main",
     "dashboard": "Dashboard",
     "hrm": "Catalog & Operations",
+    "products": "Products",
+    "inventory": "Inventory",
     "procurement": "Procurement",
     "crm": "CRM",
     "finance": "Finance",
     "cms": "CMS",
     "website": "Website",
     "websiteOrders": "Orders",
+    "websiteSliders": "Module Sliders",
     "settings": "Settings"
   }
 }

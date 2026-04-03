@@ -330,3 +330,80 @@ export const channelLabels: Record<OrderChannel, string> = {
 export const formatCurrency = (amount: number | string | undefined | null): string => {
   return (Number(amount ?? 0)).toLocaleString('en-BD', { style: 'currency', currency: 'BDT', minimumFractionDigits: 0 })
 }
+
+// ============================================
+// SLIDER TYPES & API
+// ============================================
+
+export type SliderMediaType = 'image' | 'video'
+
+export type WebsiteSlider = {
+  id: number
+  mediaType: SliderMediaType
+  imageUrl: string | null
+  videoUrl: string | null
+  capsuleTitle: string | null
+  title: string
+  subTitle: string | null
+  features: string | null
+  featuresList: string[]
+  cta1Label: string | null
+  cta1Link: string | null
+  cta2Label: string | null
+  cta2Link: string | null
+  sortOrder: number
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type SliderFormData = {
+  mediaType: SliderMediaType
+  imageUrl?: string | null
+  videoUrl?: string | null
+  capsuleTitle?: string
+  title: string
+  subTitle?: string
+  features?: string
+  cta1Label?: string
+  cta1Link?: string
+  cta2Label?: string
+  cta2Link?: string
+  isActive?: boolean
+}
+
+export const getSliders = async () => {
+  const response = await api.get('website-admin/sliders')
+  return response.data
+}
+
+const toSnakeCase = (data: Record<string, any>): Record<string, any> => {
+  const mapped: Record<string, any> = {}
+  for (const [key, value] of Object.entries(data)) {
+    if (value === undefined) continue
+    const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+    mapped[snakeKey] = value
+  }
+  return mapped
+}
+
+export const createSlider = async (data: SliderFormData) => {
+  const response = await api.post('website-admin/sliders', toSnakeCase(data))
+  return response.data
+}
+
+export const updateSlider = async (id: number, data: Partial<SliderFormData>) => {
+  const response = await api.put(`website-admin/sliders/${id}`, toSnakeCase(data))
+  return response.data
+}
+
+export const deleteSlider = async (id: number) => {
+  const response = await api.delete(`website-admin/sliders/${id}`)
+  return response.data
+}
+
+export const reorderSliders = async (items: Array<{ id: number; sortOrder: number }>) => {
+  const snakeItems = items.map((item) => ({ id: item.id, sort_order: item.sortOrder }))
+  const response = await api.post('website-admin/sliders/reorder', { items: snakeItems })
+  return response.data
+}

@@ -94,7 +94,6 @@ interface ChannelSetting {
   id: number
   channel: 'RETAIL_WEB' | 'WHOLESALE_WEB' | 'DARAZ' | 'POS'
   isActive: boolean
-  customName?: string | null
   price?: number | null
 }
 
@@ -105,7 +104,6 @@ interface ProductVariant {
   channel: 'retail' | 'wholesale' | 'daraz' | 'pos'
   sku: string
   customSku?: string | null
-  customName?: string | null
   color?: string | null
   size?: string | null
   material?: string | null
@@ -309,7 +307,7 @@ export default function ProductDetailPage() {
         <Table.Td>
           <Stack gap="xs">
             <Text className="text-sm md:text-base" fw={500}>
-              {variant.customName || variant.variantName}
+              {variant.variantName}
             </Text>
             {!variant.isActive && (
               <Badge color="red" size="xs">
@@ -483,7 +481,7 @@ export default function ProductDetailPage() {
             <Stack gap={0} className="flex-1">
               <Group gap="xs" align="center" wrap="nowrap">
                 <Text className="text-sm md:text-base" fw={500}>
-                  {variant.customName || variant.variantName}
+                  {variant.variantName}
                 </Text>
                 {!variant.isActive && (
                   <Badge color="red" size="xs">

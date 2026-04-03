@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V2\AuthController;
 use App\Http\Controllers\Api\V2\Website\ProductController;
 use App\Http\Controllers\Api\V2\Website\AccountController;
 use App\Http\Controllers\Api\V2\Website\OrderController;
+use App\Http\Controllers\Api\V2\Website\StorefrontSliderController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -43,6 +44,9 @@ Route::prefix('api')->group(function () {
     // Public Order Route (Place Order - works for both guests and authenticated users)
     Route::post('/orders', [OrderController::class, 'placeOrder']);
     Route::post('/orders/verify', [OrderController::class, 'verifyOrder']);
+
+    // Public Sliders (Storefront)
+    Route::get('/sliders', [StorefrontSliderController::class, 'index']);
 
     // We will add public '/brands' routes here in a future step
     // We will add public '/pages' routes here in a future step (About, Contact, etc.)

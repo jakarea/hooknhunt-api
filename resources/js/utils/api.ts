@@ -3836,7 +3836,6 @@ export type ProductChannelSetting = {
   productVariantId: number
   channel: 'retail_web' | 'wholesale_web' | 'daraz' | 'pos'
   price: number
-  customName?: string | null
   isActive: boolean
 }
 
