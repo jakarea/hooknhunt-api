@@ -16,6 +16,9 @@ import {
   SimpleGrid,
   Anchor,
   Avatar,
+  FileInput,
+  Image,
+  ActionIcon,
 } from '@mantine/core'
 import {
   IconChevronRight,
@@ -29,7 +32,10 @@ import {
   IconBriefcase,
   IconCoin,
   IconBuilding,
+  IconUpload,
+  IconX,
 } from '@tabler/icons-react'
+import { useTranslation } from 'react-i18next'
 import { notifications } from '@mantine/notifications'
 import api from '@/lib/api'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -78,6 +84,11 @@ interface FormData {
   bank_account_number: string
   bank_name: string
   bank_branch: string
+
+  // Documents
+  profile_photo_id: number | null
+  national_id: number | null
+  resume: number | null
 }
 
 const initialFormData: FormData = {
@@ -110,6 +121,11 @@ const initialFormData: FormData = {
   bank_account_number: '',
   bank_name: '',
   bank_branch: '',
+
+  // Documents
+  profile_photo_id: null,
+  national_id: null,
+  resume: null,
 }
 
 interface FieldErrors {
@@ -117,6 +133,7 @@ interface FieldErrors {
 }
 
 export default function CreateStaffPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { hasPermission, isSuperAdmin } = usePermissions()
 
@@ -127,6 +144,18 @@ export default function CreateStaffPage() {
   const [roles, setRoles] = useState<Role[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
+
+  // Document upload state
+  const [uploadingDocs, setUploadingDocs] = useState(false)
+  const [docPreviews, setDocPreviews] = useState<{
+    profile_photo_id: { file: File; url: string } | null
+    national_id: { file: File; url: string } | null
+    resume: { file: File; url: string } | null
+  }>({
+    profile_photo_id: null,
+    national_id: null,
+    resume: null,
+  })
 
   // Derived state for cascading dropdowns
   const selectedDivision = bangladeshDivisions.find(d => d.name === formData.division)
@@ -253,22 +282,41 @@ export default function CreateStaffPage() {
     }
   }
 
+  // Handle document file uploads
+  const handleDocUpload = async (field: keyof FormData, file: File | null) => {
+    if (!file) {
+      setDocPreviews((prev) => ({ ...prev, [field]: null }))
+      setFormData((prev) => ({ ...prev, [field]: null }))
+      return
+    }
+
+    // Create preview URL
+    const previewUrl = URL.createObjectURL(file)
+    setDocPreviews((prev) => ({ ...prev, [field]: { file, url: previewUrl } }))
+  }
+
+  // Handle clearing a document
+  const handleClearDocument = (field: keyof FormData) => {
+    setDocPreviews((prev) => ({ ...prev, [field]: null }))
+    setFormData((prev) => ({ ...prev, [field]: null }))
+  }
+
   // Validate form
   const validateForm = (): string | null => {
-    if (!formData.name.trim()) return 'Name is required'
-    if (!formData.phone.trim()) return 'Phone number is required'
-    if (!formData.role_id) return 'Role is required'
-    if (!formData.department_id) return 'Department is required'
-    if (!formData.designation.trim()) return 'Designation is required'
-    if (!formData.joining_date) return 'Joining date is required'
-    if (!formData.base_salary || formData.base_salary <= 0) return 'Base salary is required'
+    if (!formData.name.trim()) return t('hrm.staff.validation.nameRequired')
+    if (!formData.phone.trim()) return t('hrm.staff.validation.phoneRequired')
+    if (!formData.role_id) return t('hrm.staff.validation.roleRequired')
+    if (!formData.department_id) return t('hrm.staff.validation.departmentRequired')
+    if (!formData.designation.trim()) return t('hrm.staff.validation.designationRequired')
+    if (!formData.joining_date) return t('hrm.staff.validation.joiningDateRequired')
+    if (!formData.base_salary || formData.base_salary <= 0) return t('hrm.staff.validation.baseSalaryRequired')
 
     // Validate email format if provided
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      return 'Invalid email format'
+      return t('hrm.staff.validation.emailInvalid')
     }
     if (formData.office_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.office_email)) {
-      return 'Invalid office email format'
+      return t('hrm.staff.validation.officeEmailInvalid')
     }
 
     return null
@@ -294,6 +342,52 @@ export default function CreateStaffPage() {
 
     try {
       setSubmitting(true)
+      setUploadingDocs(true)
+
+      // Upload documents first
+      const docUploads = {
+        profile_photo_id: null as number | null,
+        national_id: null as number | null,
+        resume: null as number | null,
+      }
+
+      // Upload profile photo
+      if (docPreviews.profile_photo_id?.file) {
+        const formData = new FormData()
+        formData.append('files[]', docPreviews.profile_photo_id.file)
+        const uploadRes = await api.post('/media/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        if (uploadRes.data?.data?.[0]?.id) {
+          docUploads.profile_photo_id = uploadRes.data.data[0].id
+        }
+      }
+
+      // Upload national ID
+      if (docPreviews.national_id?.file) {
+        const formData = new FormData()
+        formData.append('files[]', docPreviews.national_id.file)
+        const uploadRes = await api.post('/media/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        if (uploadRes.data?.data?.[0]?.id) {
+          docUploads.national_id = uploadRes.data.data[0].id
+        }
+      }
+
+      // Upload resume
+      if (docPreviews.resume?.file) {
+        const formData = new FormData()
+        formData.append('files[]', docPreviews.resume.file)
+        const uploadRes = await api.post('/media/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        if (uploadRes.data?.data?.[0]?.id) {
+          docUploads.resume = uploadRes.data.data[0].id
+        }
+      }
+
+      setUploadingDocs(false)
 
       // Prepare payload
       const payload = {
@@ -329,13 +423,18 @@ export default function CreateStaffPage() {
         district: formData.district || null,
         thana: formData.thana || null,
         whatsapp_number: formData.whatsapp_number || null,
+
+        // Document uploads
+        profile_photo_id: docUploads.profile_photo_id,
+        national_id: docUploads.national_id,
+        resume: docUploads.resume,
       }
 
       await api.post('/hrm/staff', payload)
 
       notifications.show({
-        title: 'Success',
-        message: 'Staff created successfully. Login credentials sent via SMS.',
+        title: t('common.success'),
+        message: t('hrm.staff.created'),
         color: 'green',
         icon: <IconCheck size={16} />,
       })
@@ -379,6 +478,7 @@ export default function CreateStaffPage() {
       }
     } finally {
       setSubmitting(false)
+      setUploadingDocs(false)
     }
   }
 
@@ -409,9 +509,9 @@ export default function CreateStaffPage() {
           <Group justify="space-between">
             <Box>
               <Title order={1} className="text-lg md:text-xl lg:text-2xl">
-                Add New Staff
+                {t('hrm.staff.createTitle')}
               </Title>
-              <Text c="dimmed">Create a new staff account and profile</Text>
+              <Text c="dimmed">{t('hrm.staff.createSubtitle')}</Text>
             </Box>
             <Button
               component={Link}
@@ -419,7 +519,7 @@ export default function CreateStaffPage() {
               variant="light"
               leftSection={<IconArrowLeft size={16} />}
             >
-              Back to Staff
+              {t('common.back')}
             </Button>
           </Group>
 
@@ -430,11 +530,11 @@ export default function CreateStaffPage() {
               <Box>
                 <Group gap="xs" mb="md">
                   <IconUser size={20} style={{ color: 'var(--mantine-color-red-filled)' }} />
-                  <Title order={4}>Account Information</Title>
+                  <Title order={4}>{t('hrm.staff.accountInfo')}</Title>
                 </Group>
                 <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
                   <TextInput
-                    label="Full Name"
+                    label={t('hrm.staff.fullName')}
                     placeholder="John Doe"
                     value={formData.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
@@ -444,7 +544,7 @@ export default function CreateStaffPage() {
                   />
 
                   <TextInput
-                    label="Phone Number"
+                    label={t('hrm.staff.phoneNumber')}
                     placeholder="01XXXXXXXXX"
                     value={formData.phone}
                     onChange={(e) => handleInputChange('phone', e.target.value)}
@@ -454,7 +554,7 @@ export default function CreateStaffPage() {
                   />
 
                   <TextInput
-                    label="Personal Email"
+                    label={t('hrm.staff.personalEmail')}
                     type="email"
                     placeholder="john@example.com"
                     value={formData.email}
@@ -463,7 +563,7 @@ export default function CreateStaffPage() {
                   />
 
                   <Select
-                    label="Role"
+                    label={t('hrm.staff.role')}
                     placeholder="Select role"
                     data={roles.map((role) => ({
                       value: role.id.toString(),
@@ -483,11 +583,11 @@ export default function CreateStaffPage() {
               <Box>
                 <Group gap="xs" mb="md">
                   <IconId size={20} style={{ color: 'var(--mantine-color-red-filled)' }} />
-                  <Title order={4}>Personal Details</Title>
+                  <Title order={4}>{t('hrm.staff.personalDetails')}</Title>
                 </Group>
                 <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
                   <Select
-                    label="Gender"
+                    label={t('hrm.staff.gender')}
                     placeholder="Select gender"
                     data={[
                       { value: 'male', label: 'Male' },
@@ -501,7 +601,7 @@ export default function CreateStaffPage() {
                   />
 
                   <TextInput
-                    label="Date of Birth"
+                    label={t('hrm.staff.dateOfBirth')}
                     type="date"
                     value={formData.dob}
                     onChange={(e) => handleInputChange('dob', e.target.value)}
@@ -509,7 +609,7 @@ export default function CreateStaffPage() {
                   />
 
                   <TextInput
-                    label="WhatsApp Number"
+                    label={t('hrm.staff.whatsappNumber')}
                     placeholder="01XXXXXXXXX"
                     value={formData.whatsapp_number}
                     onChange={(e) => handleInputChange('whatsapp_number', e.target.value)}
@@ -601,37 +701,37 @@ export default function CreateStaffPage() {
               <Box>
                 <Group gap="xs" mb="md">
                   <IconCoin size={20} style={{ color: 'var(--mantine-color-orange-filled)' }} />
-                  <Title order={4}>Bank Account Information</Title>
-                  <Text size="xs" c="dimmed">(For automatic salary transfer)</Text>
+                  <Title order={4}>{t('hrm.staff.bankInfo')}</Title>
+                  <Text size="xs" c="dimmed">{t('hrm.staff.bankInfoSubtitle')}</Text>
                 </Group>
                 <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
                   <TextInput
-                    label="Account Holder Name"
-                    placeholder="Name as per bank account"
+                    label={t('hrm.staff.accountHolderName')}
+                    placeholder={t('hrm.staff.enterAccountHolderName')}
                     value={formData.bank_account_name}
                     onChange={(e) => handleInputChange('bank_account_name', e.target.value)}
                     error={fieldErrors.bank_account_name}
                   />
 
                   <TextInput
-                    label="Bank Account Number"
-                    placeholder="Enter bank account number"
+                    label={t('hrm.staff.bankAccountNumber')}
+                    placeholder={t('hrm.staff.enterBankAccountNumber')}
                     value={formData.bank_account_number}
                     onChange={(e) => handleInputChange('bank_account_number', e.target.value)}
                     error={fieldErrors.bank_account_number}
                   />
 
                   <TextInput
-                    label="Bank Name"
-                    placeholder="e.g., Dutch-Bangla Bank, BRAC Bank"
+                    label={t('hrm.staff.bankName')}
+                    placeholder={t('hrm.staff.enterBankName')}
                     value={formData.bank_name}
                     onChange={(e) => handleInputChange('bank_name', e.target.value)}
                     error={fieldErrors.bank_name}
                   />
 
                   <TextInput
-                    label="Branch Name"
-                    placeholder="e.g., Gulshan Avenue Branch"
+                    label={t('hrm.staff.branchName')}
+                    placeholder={t('hrm.staff.enterBranchName')}
                     value={formData.bank_branch}
                     onChange={(e) => handleInputChange('bank_branch', e.target.value)}
                     error={fieldErrors.bank_branch}
@@ -639,15 +739,109 @@ export default function CreateStaffPage() {
                 </SimpleGrid>
               </Box>
 
+              {/* Document Uploads */}
+              <Box>
+                <Group gap="xs" mb="md">
+                  <IconUpload size={20} style={{ color: 'var(--mantine-color-blue-filled)' }} />
+                  <Title order={4}>{t('hrm.staff.documents')}</Title>
+                  <Text size="xs" c="dimmed">{t('hrm.staff.uploadDocuments')}</Text>
+                </Group>
+                <SimpleGrid cols={{ base: 1, md: 3 }}>
+                  {/* Profile Photo */}
+                  <Stack gap="xs">
+                    <Text size="sm" fw={500}>{t('hrm.staff.profilePhoto')}</Text>
+                    {docPreviews.profile_photo_id ? (
+                      <Group gap="xs">
+                        <Avatar src={docPreviews.profile_photo_id.url} size={40} radius="xl" />
+                        <Text size="xs" style={{ flex: 1 }} lineClamp={1}>
+                          {docPreviews.profile_photo_id.file.name}
+                        </Text>
+                        <ActionIcon
+                          size="sm"
+                          color="red"
+                          variant="light"
+                          onClick={() => handleClearDocument('profile_photo_id')}
+                        >
+                          <IconX size={14} />
+                        </ActionIcon>
+                      </Group>
+                    ) : (
+                      <FileInput
+                        accept="image/*"
+                        onChange={(file) => handleDocUpload('profile_photo_id', file)}
+                        leftSection={<IconUpload size={14} />}
+                        size="xs"
+                      />
+                    )}
+                  </Stack>
+
+                  {/* National ID */}
+                  <Stack gap="xs">
+                    <Text size="sm" fw={500}>{t('hrm.staff.nationalId')}</Text>
+                    {docPreviews.national_id ? (
+                      <Group gap="xs">
+                        <IconId size={24} />
+                        <Text size="xs" style={{ flex: 1 }} lineClamp={1}>
+                          {docPreviews.national_id.file.name}
+                        </Text>
+                        <ActionIcon
+                          size="sm"
+                          color="red"
+                          variant="light"
+                          onClick={() => handleClearDocument('national_id')}
+                        >
+                          <IconX size={14} />
+                        </ActionIcon>
+                      </Group>
+                    ) : (
+                      <FileInput
+                        accept="image/*"
+                        onChange={(file) => handleDocUpload('national_id', file)}
+                        leftSection={<IconUpload size={14} />}
+                        size="xs"
+                      />
+                    )}
+                  </Stack>
+
+                  {/* Resume (PDF) */}
+                  <Stack gap="xs">
+                    <Text size="sm" fw={500}>{t('hrm.staff.resume')}</Text>
+                    {docPreviews.resume ? (
+                      <Group gap="xs">
+                        <IconId size={24} />
+                        <Text size="xs" style={{ flex: 1 }} lineClamp={1}>
+                          {docPreviews.resume.file.name}
+                        </Text>
+                        <ActionIcon
+                          size="sm"
+                          color="red"
+                          variant="light"
+                          onClick={() => handleClearDocument('resume')}
+                        >
+                          <IconX size={14} />
+                        </ActionIcon>
+                      </Group>
+                    ) : (
+                      <FileInput
+                        accept=".pdf,application/pdf"
+                        onChange={(file) => handleDocUpload('resume', file)}
+                        leftSection={<IconUpload size={14} />}
+                        size="xs"
+                      />
+                    )}
+                  </Stack>
+                </SimpleGrid>
+              </Box>
+
               {/* Professional Information */}
               <Box>
                 <Group gap="xs" mb="md">
                   <IconBriefcase size={20} style={{ color: 'var(--mantine-color-red-filled)' }} />
-                  <Title order={4}>Professional Information</Title>
+                  <Title order={4}>{t('hrm.staff.professionalInfo')}</Title>
                 </Group>
                 <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
                   <Select
-                    label="Department"
+                    label={t('hrm.staff.department')}
                     placeholder="Select department"
                     data={departments.map((dept) => ({
                       value: dept.id.toString(),
@@ -662,7 +856,7 @@ export default function CreateStaffPage() {
                   />
 
                   <TextInput
-                    label="Designation"
+                    label={t('hrm.staff.designation')}
                     placeholder="Software Engineer"
                     value={formData.designation}
                     onChange={(e) => handleInputChange('designation', e.target.value)}
@@ -672,7 +866,7 @@ export default function CreateStaffPage() {
                   />
 
                   <TextInput
-                    label="Joining Date"
+                    label={t('hrm.staff.joiningDate')}
                     type="date"
                     value={formData.joining_date}
                     onChange={(e) => handleInputChange('joining_date', e.target.value)}
@@ -687,11 +881,11 @@ export default function CreateStaffPage() {
               <Box>
                 <Group gap="xs" mb="md">
                   <IconCoin size={20} style={{ color: 'var(--mantine-color-green-filled)' }} />
-                  <Title order={4}>Salary Information</Title>
+                  <Title order={4}>{t('hrm.staff.salaryInfo')}</Title>
                 </Group>
                 <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
                   <NumberInput
-                    label="Base Salary"
+                    label={t('hrm.staff.baseSalary')}
                     placeholder="15000"
                     value={formData.base_salary ?? ''}
                     onChange={(value) => handleInputChange('base_salary', value)}
@@ -704,7 +898,7 @@ export default function CreateStaffPage() {
                   />
 
                   <NumberInput
-                    label="House Rent"
+                    label={t('hrm.staff.houseRent')}
                     placeholder="5000"
                     value={formData.house_rent ?? ''}
                     onChange={(value) => handleInputChange('house_rent', value)}
@@ -715,7 +909,7 @@ export default function CreateStaffPage() {
                   />
 
                   <NumberInput
-                    label="Medical Allowance"
+                    label={t('hrm.staff.medicalAllowance')}
                     placeholder="2000"
                     value={formData.medical_allowance ?? ''}
                     onChange={(value) => handleInputChange('medical_allowance', value)}
@@ -726,7 +920,7 @@ export default function CreateStaffPage() {
                   />
 
                   <NumberInput
-                    label="Conveyance Allowance"
+                    label={t('hrm.staff.conveyanceAllowance')}
                     placeholder="2000"
                     value={formData.conveyance_allowance ?? ''}
                     onChange={(value) => handleInputChange('conveyance_allowance', value)}
@@ -737,7 +931,7 @@ export default function CreateStaffPage() {
                   />
 
                   <NumberInput
-                    label="Overtime Hourly Rate"
+                    label={t('hrm.staff.overtimeHourlyRate')}
                     placeholder="200"
                     value={formData.overtime_hourly_rate ?? ''}
                     onChange={(value) => handleInputChange('overtime_hourly_rate', value)}
@@ -759,8 +953,12 @@ export default function CreateStaffPage() {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" loading={submitting} leftSection={<IconCheck size={16} />}>
-                  Create Staff
+                <Button
+                  type="submit"
+                  loading={submitting || uploadingDocs}
+                  leftSection={<IconCheck size={16} />}
+                >
+                  {uploadingDocs ? t('hrm.staff.uploadingDocuments') : submitting ? t('hrm.staff.creatingStaff') : t('hrm.staff.create')}
                 </Button>
               </Group>
             </Stack>

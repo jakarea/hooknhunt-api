@@ -437,3 +437,57 @@ Route::group([
     Route::post('crm/leads/checkout-capture', 'Crm\LeadController@captureCheckoutLead');
     Route::post('contact/submit', 'Crm\LeadController@contactSubmit');
 });
+
+// ====================================================
+// MODULE: WEBSITE ADMIN (Storefront Management)
+// ====================================================
+Route::group([
+    'prefix' => 'v2/website-admin',
+    'namespace' => 'App\Http\Controllers\Api\V2\WebsiteAdmin',
+    'middleware' => ['auth'],
+], function () {
+    // Order Statistics
+    Route::get('orders/statistics', 'OrderController@statistics');
+
+    // Product Search (for adding items)
+    Route::get('products/search', 'OrderController@searchProducts');
+    Route::get('products/search-products', 'OrderController@searchProductsGrouped');
+    Route::get('products/top-selling', 'OrderController@topSellingProducts');
+
+    // Product Variants (for changing variant on an item)
+    Route::get('products/{id}/variants', 'OrderController@productVariants');
+
+    // Delivery Charge Calculator
+    Route::post('orders/calculate-delivery', 'OrderController@calculateDeliveryCharge');
+
+    // Order CRUD
+    Route::get('orders', 'OrderController@index');
+    Route::get('orders/{id}', 'OrderController@show');
+    Route::put('orders/{id}', 'OrderController@update');
+
+    // Order Status
+    Route::put('orders/{id}/status', 'OrderController@updateStatus');
+    Route::get('orders/{id}/status-history', 'OrderController@statusHistory');
+
+    // Payment
+    Route::put('orders/{id}/payment', 'OrderController@updatePayment');
+
+    // Item Management
+    Route::post('orders/{id}/items', 'OrderController@addItem');
+    Route::put('orders/{orderId}/items/{itemId}', 'OrderController@updateItem');
+    Route::delete('orders/{orderId}/items/{itemId}', 'OrderController@removeItem');
+
+    // Courier (Steadfast)
+    Route::post('orders/{id}/send-to-courier', 'OrderController@sendToCourier');
+    Route::post('orders/{id}/sync-courier', 'OrderController@syncCourierStatus');
+
+    // Activity Log
+    Route::get('orders/{id}/activity-log', 'OrderController@activityLog');
+
+    // SMS
+    Route::post('orders/{id}/send-sms', 'OrderController@sendSms');
+
+    // Sliders (Module Slider)
+    Route::post('sliders/reorder', 'SliderController@reorder');
+    Route::apiResource('sliders', 'SliderController');
+});

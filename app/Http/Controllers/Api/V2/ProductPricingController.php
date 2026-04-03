@@ -24,7 +24,6 @@ class ProductPricingController extends Controller
             'prices' => 'required|array',
             'prices.*.channel' => 'required|in:retail_web,wholesale_web,daraz,pos',
             'prices.*.price' => 'required|numeric|min:0',
-            'prices.*.custom_name' => 'nullable|string' // যেমন: দারাজে নাম ভিন্ন হতে পারে
         ]);
 
         DB::beginTransaction();
@@ -40,7 +39,6 @@ class ProductPricingController extends Controller
                     ],
                     [
                         'price' => $priceData['price'],
-                        'custom_name' => $priceData['custom_name'] ?? null,
                         'is_active' => true
                     ]
                 );

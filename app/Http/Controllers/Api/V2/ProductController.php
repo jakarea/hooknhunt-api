@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V2;
 
 use App\Http\Controllers\Controller;
+use App\Helpers\SlugHelper;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Traits\ApiResponse;
@@ -19,7 +20,14 @@ class ProductController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Product::with(['category', 'brand', 'thumbnail', 'variants.batches']);
+        // Dashboard shows wholesale channel only — each logical variant
+        // is stored as 2 rows (retail + wholesale) with identical stock.
+        // Filtering avoids doubled variant count and doubled stock total.
+        $query = Product::with([
+            'category', 'brand', 'thumbnail',
+            'variants' => fn($q) => $q->where('channel', 'wholesale'),
+            'variants.batches',
+        ]);
 
         if ($request->search) {
             $query->where('name', 'like', "%{$request->search}%")
@@ -56,22 +64,26 @@ class ProductController extends Controller
                     $query->orderBy('updated_at', 'asc');
                     break;
                 case 'price_desc':
-                    // Sort by minimum variant price descending
                     $query->with(['variants' => function($q) {
-                        $q->orderBy('price', 'desc');
+                        $q->where('channel', 'wholesale')->orderBy('price', 'desc');
                     }])
                     ->select('products.*')
-                    ->leftJoin('product_variants as pv', 'products.id', '=', 'pv.product_id')
+                    ->leftJoin('product_variants as pv', function ($join) {
+                        $join->on('products.id', '=', 'pv.product_id')
+                             ->where('pv.channel', 'wholesale');
+                    })
                     ->groupBy('products.id')
                     ->orderByRaw('MIN(pv.price) DESC');
                     break;
                 case 'price_asc':
-                    // Sort by minimum variant price ascending
                     $query->with(['variants' => function($q) {
-                        $q->orderBy('price', 'asc');
+                        $q->where('channel', 'wholesale')->orderBy('price', 'asc');
                     }])
                     ->select('products.*')
-                    ->leftJoin('product_variants as pv', 'products.id', '=', 'pv.product_id')
+                    ->leftJoin('product_variants as pv', function ($join) {
+                        $join->on('products.id', '=', 'pv.product_id')
+                             ->where('pv.channel', 'wholesale');
+                    })
                     ->groupBy('products.id')
                     ->orderByRaw('MIN(pv.price) ASC');
                     break;
@@ -119,7 +131,6 @@ class ProductController extends Controller
             'productName' => 'required|string|max:255',
             'retailName' => 'nullable|string|max:255',
             'wholesaleName' => 'nullable|string|max:255',
-            'customName' => 'nullable|string|max:255',
             'category' => 'required|integer|exists:categories,id',
             'brand' => 'required|integer|exists:brands,id',
             'status' => 'required|in:draft,published,archived',
@@ -205,10 +216,9 @@ class ProductController extends Controller
             // 1. Create Product
             $product = Product::create([
                 'name' => $validated['productName'],
-                'retail_name' => $validated['retailName'] ?? null,
+                'retail_name' => $validated['retailName'] ?? $validated['productName'],
                 'wholesale_name' => $validated['wholesaleName'] ?? null,
-                'custom_name' => $validated['customName'] ?? null,
-                'slug' => Str::slug($validated['productName']) . '-' . time(),
+                'slug' => SlugHelper::generateUniqueSlug($validated['productName'], 'products', 'slug'),
                 'category_id' => $validated['category'],
                 'brand_id' => $validated['brand'],
                 'status' => $validated['status'],
@@ -235,7 +245,7 @@ class ProductController extends Controller
                 $retailVariant = ProductVariant::create([
                     'product_id' => $product->id,
                     'channel' => 'retail',
-                    'variant_slug' => Str::slug($variant['name'] . '-retail'),
+                    'variant_slug' => SlugHelper::generateVariantSlug($product->slug, $variant['name'], 'retail'),
                     'variant_name' => $variant['name'],
                     'sku' => $baseSku . '-R-' . rand(1000, 9999),
                     'custom_sku' => $variant['sellerSku'],
@@ -256,7 +266,7 @@ class ProductController extends Controller
                 $wholesaleVariant = ProductVariant::create([
                     'product_id' => $product->id,
                     'channel' => 'wholesale',
-                    'variant_slug' => Str::slug($variant['name'] . '-wholesale'),
+                    'variant_slug' => SlugHelper::generateVariantSlug($product->slug, $variant['name'], 'wholesale'),
                     'variant_name' => $variant['name'],
                     'sku' => $baseSku . '-W-' . rand(1000, 9999),
                     'custom_sku' => $variant['sellerSku'],
@@ -339,10 +349,60 @@ class ProductController extends Controller
 
     public function show($id)
     {
-        // Load variants and their specific channel prices
-        return $this->sendSuccess(
-            Product::with(['variants.channelSettings', 'category', 'brand', 'thumbnail'])->findOrFail($id)
-        );
+        $product = Product::with(['variants.channelSettings', 'category', 'brand', 'thumbnail'])->findOrFail($id);
+
+        // Pair retail + wholesale variants by variant_name into single rows
+        // so the frontend gets both channel prices per variant.
+        $variants = $product->variants->groupBy('variant_name')->map(function ($group) {
+            $retail  = $group->firstWhere('channel', 'retail');
+            $wholesale = $group->firstWhere('channel', 'wholesale');
+
+            // Use whichever row exists as the base (prefer retail)
+            $base = $retail ?? $wholesale;
+
+            return [
+                'id'                    => $base->id,
+                'retailId'              => $retail?->id,
+                'wholesaleId'           => $wholesale?->id,
+                'productId'             => $base->product_id,
+                'variantName'           => $base->variant_name,
+                'variantSlug'           => $base->variant_slug,
+                'customSku'             => $base->custom_sku,
+                'sku'                   => $base->sku,
+                'color'                 => $base->color,
+                'size'                  => $base->size,
+                'material'              => $base->material,
+                'weight'                => $base->weight,
+                'pattern'               => $base->pattern,
+                'unitId'                => $base->unit_id,
+                'unitValue'             => $base->unit_value,
+                'purchaseCost'          => $base->purchase_cost ? (float) $base->purchase_cost : 0,
+                'stock'                 => $base->stock ?? 0,
+                'currentStock'          => $base->current_stock ?? 0,
+                'stockAlertLevel'       => $base->stock_alert_level ?? 5,
+                'moq'                   => $base->moq ?? 1,
+                'isActive'              => $base->is_active ?? true,
+                'allowPreorder'         => $base->allow_preorder ?? false,
+                'expectedDelivery'      => $base->expected_delivery,
+                // Retail channel fields
+                'retailPrice'           => $retail ? (float) $retail->price : 0,
+                'retailOfferPrice'      => $retail && $retail->offer_price ? (float) $retail->offer_price : null,
+                'retailOfferStarts'     => $retail?->offer_starts,
+                'retailOfferEnds'       => $retail?->offer_ends,
+                'retailSku'             => $retail?->sku,
+                // Wholesale channel fields
+                'wholesalePrice'        => $wholesale ? (float) $wholesale->price : 0,
+                'wholesaleOfferPrice'   => $wholesale && $wholesale->offer_price ? (float) $wholesale->offer_price : null,
+                'wholesaleOfferStarts'  => $wholesale?->offer_starts,
+                'wholesaleOfferEnds'    => $wholesale?->offer_ends,
+                'wholesaleSku'          => $wholesale?->sku,
+            ];
+        })->values();
+
+        // Replace the variants relation with paired data
+        $product->setRelation('variants', $variants);
+
+        return $this->sendSuccess($product);
     }
 
     /**
@@ -384,7 +444,6 @@ class ProductController extends Controller
             'productName' => 'sometimes|required|string',
             'retailName' => 'nullable|string',
             'wholesaleName' => 'nullable|string',
-            'customName' => 'nullable|string',
             'category' => 'sometimes|required|exists:categories,id',
             'brand' => 'nullable|exists:brands,id',
             'status' => 'in:draft,published,archived'
@@ -392,24 +451,20 @@ class ProductController extends Controller
 
         $product = Product::findOrFail($id);
 
-        // DEBUG: Write to file for debugging
-        $debugFile = storage_path('logs/custom_name_debug.log');
-        $debugData = date('Y-m-d H:i:s') . " - UPDATE START\n";
-        $debugData .= "ID: $id\n";
-        $debugData .= "Request customName: " . var_export($request->input('customName'), true) . "\n";
-        $debugData .= "Request has customName: " . var_export($request->has('customName'), true) . "\n";
-        $debugData .= "Product before: " . var_export($product->custom_name, true) . "\n";
-        file_put_contents($debugFile, $debugData, FILE_APPEND);
-
         DB::beginTransaction();
         try {
+            // Generate new slug if product name changed
+            $newSlug = $product->slug;
+            if ($request->productName && $request->productName !== $product->name) {
+                $newSlug = SlugHelper::generateUniqueSlug($request->productName, 'products', 'slug');
+            }
+
             // Update product fields - map camelCase to snake_case
             $product->update([
                 'name' => $request->productName ?? $product->name,
-                'retail_name' => $request->retailName ?? $product->retail_name,
+                'retail_name' => $request->retailName ?? ($request->productName ?? $product->retail_name),
                 'wholesale_name' => $request->wholesaleName ?? $product->wholesale_name,
-                'custom_name' => $request->has('customName') ? $request->customName : $product->custom_name,
-                'slug' => $request->productName ? Str::slug($request->productName) . '-' . time() : $product->slug,
+                'slug' => $newSlug,
                 'category_id' => $request->category ?? $product->category_id,
                 'brand_id' => $request->brand ?? $product->brand_id,
                 'thumbnail_id' => $request->featuredImage ?? $product->thumbnail_id,
@@ -425,12 +480,6 @@ class ProductController extends Controller
                 'highlights' => $request->highlights ?? $product->highlights,
                 'includes_in_box' => $request->includesInTheBox ?? $product->includes_in_box,
             ]);
-
-            // DEBUG: Log what was actually saved
-            $product->refresh(); // Reload from database
-            $debugData = "Product after: " . var_export($product->custom_name, true) . "\n";
-            $debugData .= "UPDATE END\n\n";
-            file_put_contents($debugFile, $debugData, FILE_APPEND);
 
             // Handle variants update
             if ($request->has('variants') && is_array($request->variants)) {
@@ -453,7 +502,14 @@ class ProductController extends Controller
                     // Update retail variant
                     $retailVariant = \App\Models\ProductVariant::find($variantData['retail_id']);
                     if ($retailVariant && $retailVariant->product_id == $product->id) {
+                        // Generate new variant slug if name changed
+                        $newRetailVariantSlug = $retailVariant->variant_slug;
+                        if (isset($variantData['name']) && $variantData['name'] !== $retailVariant->variant_name) {
+                            $newRetailVariantSlug = SlugHelper::generateVariantSlug($product->slug, $variantData['name'], 'retail');
+                        }
+
                         $retailVariant->update(array_merge($commonFields, [
+                            'variant_slug' => $newRetailVariantSlug,
                             'sku' => $variantData['sellerSku'] ?? $retailVariant->sku,
                             'price' => $variantData['retailPrice'] ?? 0,
                             'offer_price' => $variantData['retailOfferPrice'] ?? null,
@@ -463,7 +519,14 @@ class ProductController extends Controller
                     // Update wholesale variant
                     $wholesaleVariant = \App\Models\ProductVariant::find($variantData['wholesale_id']);
                     if ($wholesaleVariant && $wholesaleVariant->product_id == $product->id) {
+                        // Generate new variant slug if name changed
+                        $newWholesaleVariantSlug = $wholesaleVariant->variant_slug;
+                        if (isset($variantData['name']) && $variantData['name'] !== $wholesaleVariant->variant_name) {
+                            $newWholesaleVariantSlug = SlugHelper::generateVariantSlug($product->slug, $variantData['name'], 'wholesale');
+                        }
+
                         $wholesaleUpdateData = [
+                            'variant_slug' => $newWholesaleVariantSlug,
                             'price' => $variantData['wholesalePrice'] ?? 0,
                             'offer_price' => $variantData['wholesaleOfferPrice'] ?? null,
                         ];

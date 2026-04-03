@@ -25,6 +25,8 @@ class Address extends Model
         'address_line2',
         'area',
         'city',
+        'district',
+        'thana',
         'postal_code',
         'division',
         'country',
@@ -65,9 +67,10 @@ class Address extends Model
             $this->address_line1,
             $this->address_line2,
             $this->area,
-            $this->city,
-            $this->postal_code,
+            $this->thana,
+            $this->district,
             $this->division,
+            $this->postal_code,
             $this->country,
         ]);
 

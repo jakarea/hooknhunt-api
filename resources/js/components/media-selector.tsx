@@ -82,11 +82,36 @@ export function MediaSelector({
         },
       })
 
-      if (response.data && response.data.data) {
-        setMediaFiles(response.data.data)
+      console.log('Media API response:', response)
+      console.log('Response data type:', typeof response?.data)
+      console.log('Is response.data array?', Array.isArray(response?.data))
+
+      // Handle different response structures - ALWAYS ensure array
+      let filesData: MediaFile[] = []
+
+      if (Array.isArray(response?.data)) {
+        filesData = response.data
+      } else if (response?.data?.data && Array.isArray(response.data.data)) {
+        filesData = response.data.data
+      } else if (response?.data?.data?.data && Array.isArray(response.data.data.data)) {
+        filesData = response.data.data.data
+      } else if (response?.data && typeof response.data === 'object') {
+        // Try to find array in response
+        const possibleArrays = Object.values(response.data).filter(Array.isArray)
+        if (possibleArrays.length > 0) {
+          filesData = possibleArrays[0]
+        }
       }
+
+      console.log('Final filesData:', filesData)
+      console.log('Is filesData array?', Array.isArray(filesData))
+
+      // ALWAYS set as array, fallback to empty array
+      setMediaFiles(Array.isArray(filesData) ? filesData : [])
     } catch (error) {
+      console.error('Failed to load media files:', error)
       show_notification_for_error_loading_media_files()
+      setMediaFiles([])
     } finally {
       setLoading(false)
     }
@@ -183,7 +208,12 @@ export function MediaSelector({
   /**
    * Filter media files by search query
    */
-  const filter_media_files_by_search_query = (files: MediaFile[]) => {
+  const filter_media_files_by_search_query = (files: MediaFile[] | null | undefined) => {
+    if (!Array.isArray(files)) {
+      console.warn('filter_media_files_by_search_query: files is not an array', files)
+      return []
+    }
+
     if (!searchQuery.trim()) {
       return files
     }
@@ -244,6 +274,10 @@ export function MediaSelector({
   }
 
   const filteredMediaFiles = filter_media_files_by_search_query(mediaFiles)
+
+  // Debug logs
+  console.log('RENDER - mediaFiles:', mediaFiles, 'Type:', typeof mediaFiles, 'IsArray:', Array.isArray(mediaFiles))
+  console.log('RENDER - filteredMediaFiles:', filteredMediaFiles, 'Type:', typeof filteredMediaFiles, 'IsArray:', Array.isArray(filteredMediaFiles))
 
   return (
     <Modal

@@ -77,9 +77,7 @@ export function SiteHeaderMantine({
           />
 
           <Group gap="xs" display={{ base: 'none', sm: 'flex' }}>
-            <Text fw={700} size="lg" c="red" style={{ lineHeight: 1 }}>
-              H
-            </Text>
+            <img src="/favicon.png" alt="" style={{ height: 24 }} />
             <Text fw={600} size="lg">
               {t('common.appName')}
             </Text>

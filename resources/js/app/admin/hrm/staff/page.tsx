@@ -17,6 +17,7 @@ import {
   LoadingOverlay,
   Pagination,
   Tooltip,
+  Anchor,
 } from '@mantine/core'
 import {
   IconPlus,
@@ -32,6 +33,7 @@ import {
   IconClock,
   IconBan,
 } from '@tabler/icons-react'
+import { useTranslation } from 'react-i18next'
 import { notifications } from '@mantine/notifications'
 import { modals } from '@mantine/modals'
 import api from '@/lib/api'
@@ -85,6 +87,7 @@ interface PaginatedResponse {
 }
 
 export default function StaffPage() {
+  const { t } = useTranslation()
   const { user: currentUser } = useAuthStore()
   const { hasPermission } = usePermissions()
 
@@ -117,8 +120,8 @@ export default function StaffPage() {
     } catch (error) {
       console.error('Failed to fetch staff:', error)
       notifications.show({
-        title: 'Error',
-        message: 'Failed to load staff. Please try again.',
+        title: t('common.error'),
+        message: t('hrm.staff.errorLoading'),
         color: 'red',
       })
     } finally {
@@ -157,24 +160,24 @@ export default function StaffPage() {
     // Prevent users from deleting themselves
     if (id === currentUser?.id) {
       notifications.show({
-        title: 'Action Not Allowed',
-        message: 'You cannot delete your own account.',
+        title: t('common.error'),
+        message: t('hrm.staff.deleteOwnAccount'),
         color: 'red',
       })
       return
     }
 
     modals.openConfirmModal({
-      title: 'Delete Staff',
+      title: t('hrm.staff.delete'),
       centered: true,
       children: (
         <Text className="text-sm md:text-base">
-          Are you sure you want to delete <strong>{name}</strong>? This action cannot be undone.
+          {t('hrm.staff.deleteConfirm', { name })}
         </Text>
       ),
       labels: {
-        confirm: 'Delete',
-        cancel: 'Cancel',
+        confirm: t('common.delete'),
+        cancel: t('common.cancel'),
       },
       confirmProps: { color: 'red' },
       onConfirm: async () => {
@@ -182,15 +185,15 @@ export default function StaffPage() {
           setDeletingStaffId(id)
           await api.delete(`/hrm/staff/${id}`)
           notifications.show({
-            title: 'Staff Deleted',
-            message: `${name} has been deleted successfully`,
+            title: t('hrm.staff.deleted'),
+            message: t('hrm.staff.deletedMessage', { name }),
             color: 'green',
           })
           fetchStaff(currentPage, searchQuery)
         } catch {
           notifications.show({
-            title: 'Error',
-            message: 'Failed to delete staff. Please try again.',
+            title: t('common.error'),
+            message: t('hrm.staff.errorDeleting'),
             color: 'red',
           })
         } finally {
@@ -238,8 +241,8 @@ export default function StaffPage() {
         <Box>
           <Group justify="space-between">
             <Box>
-              <Title order={1} className="text-lg md:text-xl lg:text-2xl">Staff</Title>
-              <Text c="dimmed" className="text-sm md:text-base">Manage your team members</Text>
+              <Title order={1} className="text-lg md:text-xl lg:text-2xl">{t('hrm.staff.title')}</Title>
+              <Text c="dimmed" className="text-sm md:text-base">{t('hrm.staff.subtitle')}</Text>
             </Box>
             <Group >
               <ActionIcon
@@ -256,7 +259,7 @@ export default function StaffPage() {
                   to="/hrm/staff/create"
                   leftSection={<IconPlus size={16} />}
                 >
-                  Add Staff
+                  {t('hrm.staff.add')}
                 </Button>
               )}
             </Group>
@@ -268,7 +271,7 @@ export default function StaffPage() {
           <Card withBorder p="md" radius="md">
             <Group  mb="xs">
               <IconUsers size={20} style={{ color: 'var(--mantine-color-blue-filled)' }} />
-              <Text className="text-xs md:text-sm" c="dimmed">Total Staff</Text>
+              <Text className="text-xs md:text-sm" c="dimmed">{t('hrm.dashboard.totalStaff')}</Text>
             </Group>
             <Text className="text-xl md:text-2xl lg:text-3xl" fw={700}>{totalStaff}</Text>
           </Card>
@@ -276,7 +279,7 @@ export default function StaffPage() {
           <Card withBorder p="md" radius="md">
             <Group  mb="xs">
               <IconBriefcase size={20} style={{ color: 'var(--mantine-color-green-filled)' }} />
-              <Text className="text-xs md:text-sm" c="dimmed">Active</Text>
+              <Text className="text-xs md:text-sm" c="dimmed">{t('hrm.dashboard.activeStaff')}</Text>
             </Group>
             <Text className="text-xl md:text-2xl lg:text-3xl" fw={700}>{activeStaff}</Text>
           </Card>
@@ -284,7 +287,7 @@ export default function StaffPage() {
           <Card withBorder p="md" radius="md">
             <Group  mb="xs">
               <IconClock size={20} style={{ color: 'var(--mantine-color-orange-filled)' }} />
-              <Text className="text-xs md:text-sm" c="dimmed">On Leave</Text>
+              <Text className="text-xs md:text-sm" c="dimmed">{t('hrm.dashboard.onLeave')}</Text>
             </Group>
             <Text className="text-xl md:text-2xl lg:text-3xl" fw={700}>{onLeaveStaff}</Text>
           </Card>
@@ -292,7 +295,7 @@ export default function StaffPage() {
           <Card withBorder p="md" radius="md">
             <Group  mb="xs">
               <IconBuilding size={20} style={{ color: 'var(--mantine-color-purple-filled)' }} />
-              <Text className="text-xs md:text-sm" c="dimmed">Departments</Text>
+              <Text className="text-xs md:text-sm" c="dimmed">{t('hrm.dashboard.departments')}</Text>
             </Group>
             <Text className="text-xl md:text-2xl lg:text-3xl" fw={700}>{departmentsCount}</Text>
           </Card>
@@ -302,7 +305,7 @@ export default function StaffPage() {
         <Group justify="space-between">
           <Group  style={{ flex: 1, maxWidth: '100%' }}>
             <TextInput
-              placeholder="Search staff..."
+              placeholder={t('hrm.staff.searchPlaceholder')}
               leftSection={<IconSearch size={16} />}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.currentTarget.value)}
@@ -319,21 +322,20 @@ export default function StaffPage() {
             <Table striped highlightOnHover>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Staff</Table.Th>
-                  <Table.Th>Department</Table.Th>
-                  <Table.Th>Position</Table.Th>
-                  <Table.Th>Role</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Joined</Table.Th>
-                  <Table.Th>Actions</Table.Th>
+                  <Table.Th>{t('hrm.staff.name')}</Table.Th>
+                  <Table.Th>{t('hrm.staff.department')}</Table.Th>
+                  <Table.Th>{t('hrm.staff.designation')}</Table.Th>
+                  <Table.Th>{t('hrm.staff.role')}</Table.Th>
+                  <Table.Th>{t('hrm.staff.status')}</Table.Th>
+                  <Table.Th>{t('hrm.staff.joiningDate')}</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {staff.length === 0 ? (
                   <Table.Tr>
-                    <Table.Td colSpan={7}>
+                    <Table.Td colSpan={6}>
                       <Box py="xl" ta="center">
-                        <Text c="dimmed">No staff found</Text>
+                        <Text c="dimmed">{t('hrm.staff.noStaffFound')}</Text>
                       </Box>
                     </Table.Td>
                   </Table.Tr>
@@ -343,6 +345,7 @@ export default function StaffPage() {
                       <Table.Td>
                         <Group >
                           <Avatar
+                            src={staffMember.staffProfile?.photo?.url || null}
                             alt={staffMember.name}
                             radius="xl"
                             className="text-sm md:text-base"
@@ -351,7 +354,15 @@ export default function StaffPage() {
                             {getInitials(staffMember.name)}
                           </Avatar>
                           <Box>
-                            <Text fw={600} className="text-sm md:text-base">{staffMember.name}</Text>
+                            <Anchor
+                              component={Link}
+                              to={`/hrm/staff/${staffMember.id}`}
+                              fw={600}
+                              className="text-sm md:text-base"
+                              c="red"
+                            >
+                              {staffMember.name}
+                            </Anchor>
                             {staffMember.email && <Text className="text-xs md:text-sm" c="dimmed">{staffMember.email}</Text>}
                             <Text className="text-xs md:text-sm" c="dimmed">{staffMember.phone}</Text>
                           </Box>
@@ -380,58 +391,11 @@ export default function StaffPage() {
                           variant="light"
                           className="text-sm md:text-base"
                         >
-                          {staffMember.isActive? 'Active':'InActive'}
+                          {staffMember.isActive ? t('hrm.staff.active') : t('hrm.staff.inactive')}
                         </Badge>
                       </Table.Td>
                       <Table.Td>
                         <Text className="text-sm md:text-base">{formatDate(staffMember.staffProfile?.joiningDate)}</Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Group >
-                          {/* View Button */}
-                          {hasPermission('hrm.staff.index') && (
-                            <ActionIcon
-                              variant="subtle"
-                              color="blue"
-                              component={Link}
-                              to={`/hrm/staff/${staffMember.id}`}
-                              className="text-sm md:text-base"
-                            >
-                              <IconEye size={16} />
-                            </ActionIcon>
-                          )}
-
-                          {/* Edit Button */}
-                          {hasPermission('hrm.staff.edit') && (
-                            <ActionIcon
-                              variant="subtle"
-                              color="gray"
-                              component={Link}
-                              to={`/hrm/staff/${staffMember.id}/edit`}
-                              className="text-sm md:text-base"
-                            >
-                              <IconPencil size={16} />
-                            </ActionIcon>
-                          )}
-
-                          {/* Delete Button */}
-                          {hasPermission('hrm.staff.delete') && (
-                            <Tooltip
-                              label={staffMember.id === currentUser?.id ? "You cannot delete your own account" : "Delete staff"}
-                            >
-                              <ActionIcon
-                                variant="subtle"
-                                color="red"
-                                className="text-sm md:text-base"
-                                loading={deletingStaffId === staffMember.id}
-                                disabled={staffMember.id === currentUser?.id}
-                                onClick={() => openDeleteModal(staffMember.id, staffMember.name)}
-                              >
-                                {staffMember.id === currentUser?.id ? <IconBan size={16} /> : <IconTrash size={16} />}
-                              </ActionIcon>
-                            </Tooltip>
-                          )}
-                        </Group>
                       </Table.Td>
                     </Table.Tr>
                   ))
@@ -445,7 +409,7 @@ export default function StaffPage() {
         <Stack  display={{ base: 'block', md: 'none' }}>
           {staff.length === 0 ? (
             <Card withBorder p="xl" ta="center" shadow="sm">
-              <Text c="dimmed">No staff found</Text>
+              <Text c="dimmed">{t('hrm.staff.noStaffFound')}</Text>
             </Card>
           ) : (
             staff.map((staffMember) => (
@@ -453,6 +417,7 @@ export default function StaffPage() {
                 <Group justify="space-between" mb="xs">
                   <Group >
                     <Avatar
+                      src={staffMember.staffProfile?.photo?.url || null}
                       alt={staffMember.name}
                       radius="xl"
                       className="text-base md:text-lg"
@@ -470,7 +435,7 @@ export default function StaffPage() {
                     variant="light"
                     className="text-sm md:text-base"
                   >
-                    {String(staffMember.isActive)}
+                    {staffMember.isActive ? t('hrm.staff.active') : t('hrm.staff.inactive')}
                   </Badge>
                 </Group>
 
@@ -483,79 +448,33 @@ export default function StaffPage() {
 
                 <SimpleGrid cols={2}  mb="xs">
                   <Box>
-                    <Text className="text-xs md:text-sm" c="dimmed">Department</Text>
+                    <Text className="text-xs md:text-sm" c="dimmed">{t('hrm.staff.department')}</Text>
                     {staffMember.staffProfile?.department ? (
                       <Badge className="text-xs md:text-sm" variant="light">{staffMember.staffProfile.department.name}</Badge>
                     ) : (
-                      <Text className="text-xs md:text-sm">N/A</Text>
+                      <Text className="text-xs md:text-sm">{t('common.notAvailable')}</Text>
                     )}
                   </Box>
                   <Box>
-                    <Text className="text-xs md:text-sm" c="dimmed">Position</Text>
-                    <Text className="text-xs md:text-sm">{staffMember.staffProfile?.designation || 'N/A'}</Text>
+                    <Text className="text-xs md:text-sm" c="dimmed">{t('hrm.staff.designation')}</Text>
+                    <Text className="text-xs md:text-sm">{staffMember.staffProfile?.designation || t('common.notAvailable')}</Text>
                   </Box>
                 </SimpleGrid>
 
                 <SimpleGrid cols={2} >
                   <Box>
-                    <Text className="text-xs md:text-sm" c="dimmed">Role</Text>
+                    <Text className="text-xs md:text-sm" c="dimmed">{t('hrm.staff.role')}</Text>
                     {staffMember.role ? (
                       <Badge className="text-xs md:text-sm" color="blue" variant="light">{staffMember.role.name}</Badge>
                     ) : (
-                      <Text className="text-xs md:text-sm">N/A</Text>
+                      <Text className="text-xs md:text-sm">{t('common.notAvailable')}</Text>
                     )}
                   </Box>
                   <Box>
-                    <Text className="text-xs md:text-sm" c="dimmed">Joined</Text>
+                    <Text className="text-xs md:text-sm" c="dimmed">{t('hrm.staff.joiningDate')}</Text>
                     <Text className="text-xs md:text-sm">{formatDate(staffMember.staffProfile?.joiningDate)}</Text>
                   </Box>
                 </SimpleGrid>
-
-                <Group  mt="xs">
-                  {/* View Button */}
-                  {hasPermission('hrm.staff.index') && (
-                    <Button
-                      variant="light"
-                      className="text-xs md:text-sm flex-1"
-                      component={Link}
-                      to={`/hrm/staff/${staffMember.id}`}
-                      leftSection={<IconEye size={14} />}
-                    >
-                      View
-                    </Button>
-                  )}
-
-                  {/* Edit Button */}
-                  {hasPermission('hrm.staff.edit') && (
-                    <ActionIcon
-                      variant="subtle"
-                      color="gray"
-                      component={Link}
-                      to={`/hrm/staff/${staffMember.id}/edit`}
-                      className="text-sm md:text-base"
-                    >
-                      <IconPencil size={16} />
-                    </ActionIcon>
-                  )}
-
-                  {/* Delete Button */}
-                  {hasPermission('hrm.staff.delete') && (
-                    <Tooltip
-                      label={staffMember.id === currentUser?.id ? "You cannot delete your own account" : "Delete staff"}
-                    >
-                      <ActionIcon
-                        variant="subtle"
-                        color="red"
-                        className="text-sm md:text-base"
-                        loading={deletingStaffId === staffMember.id}
-                        disabled={staffMember.id === currentUser?.id}
-                        onClick={() => openDeleteModal(staffMember.id, staffMember.name)}
-                      >
-                        {staffMember.id === currentUser?.id ? <IconBan size={16} /> : <IconTrash size={16} />}
-                      </ActionIcon>
-                    </Tooltip>
-                  )}
-                </Group>
               </Card>
             ))
           )}

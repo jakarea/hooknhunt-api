@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'steadfast' => [
+        'api_key' => env('STEADFAST_API_KEY', ''),
+        'secret_key' => env('STEADFAST_SECRET_KEY', ''),
+        'url' => env('STEADFAST_BASE_URL', 'https://portal.steadfast.com.bd/api/v1'),
+    ],
+
 ];

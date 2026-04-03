@@ -119,7 +119,8 @@
       "deleteConfirm": "Delete Category?",
       "deleteConfirmMessage": "Are you sure you want to delete {{name}}? This action cannot be undone.",
       "hasProductsError": "Cannot delete category containing products."
-    }
+    },
+    "childrenCategories": "Sub-categories"
   },
   "unitsPage": {
     "title": "Units",
@@ -252,8 +253,6 @@
     "retailNamePlaceholder": "Enter retail name",
     "wholesaleName": "Wholesale Name",
     "wholesaleNamePlaceholder": "Enter wholesale name",
-    "customName": "Custom Name",
-    "customNamePlaceholder": "Enter custom name",
     "category": "Category",
     "selectCategory": "Select category",
     "brand": "Brand",
@@ -350,6 +349,18 @@
     "enableWarrantyDescription": "Offer warranty for this product",
     "warrantyDetails": "Warranty Details",
     "warrantyDetailsPlaceholder": "Enter warranty details",
+    "validation": {
+      "descriptionTooShort": "Description must be at least 10 characters",
+      "productNameRequired": "Product name is required",
+      "categoryRequired": "Please select a category",
+      "brandRequired": "Please select a brand",
+      "descriptionRequired": "Product description is required",
+      "atLeastOneVariant": "At least one variant is required",
+      "variantNameRequired": "Variant name is required",
+      "retailPriceRequired": "Retail price is required",
+      "wholesalePriceRequired": "Wholesale price is required",
+      "purchaseCostRequired": "Purchase cost is required"
+    },
     "notification": {
       "saved": "Product saved successfully",
       "atLeastOneVariant": "At least one variant is required",

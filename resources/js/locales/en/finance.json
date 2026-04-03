@@ -194,6 +194,7 @@
     "transactionsPage": {
       "title": "All Transactions",
       "subtitle": "Complete transaction history across all accounts",
+      "accessDenied": "You don't have permission to view Transactions.",
       "export": "Export",
       "totalInflow": "Total Inflow",
       "totalOutflow": "Total Outflow",
@@ -245,7 +246,9 @@
         "exportSuccess": "Export Successful",
         "exportSuccessMessage": "Transactions exported to CSV",
         "errorLoading": "Failed to load transactions"
-      }
+      },
+      "accountLabel": "Account:",
+      "referenceLabel": "Ref:"
     },
     "expensesPage": {
       "title": "Expenses",

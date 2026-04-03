@@ -17,7 +17,7 @@ class CategoryController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Category::with('parent')
+        $query = Category::with('parent', 'image')
             ->withCount('products');
 
         if ($request->search) {
@@ -83,7 +83,7 @@ class CategoryController extends Controller
 
     public function show($id)
     {
-        return $this->sendSuccess(Category::with('children', 'parent')->findOrFail($id));
+        return $this->sendSuccess(Category::with('children', 'parent', 'image')->findOrFail($id));
     }
 
     public function update(Request $request, $id)

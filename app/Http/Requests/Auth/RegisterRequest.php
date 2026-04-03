@@ -10,7 +10,7 @@ class RegisterRequest extends ApiRequest
     {
         return [
             'name' => 'required|string|max:255',
-            'phone' => 'required|string|unique:users,phone|regex:/^01[3-9]\d{8}$/', // BD Phone Format
+            'phone' => 'required|string|regex:/^01[3-9]\d{8}$/', // BD Phone Format
             'email' => 'nullable|email|unique:users,email',
             'password' => 'required|string|min:6|confirmed', // password_confirmation field required
         ];
@@ -20,7 +20,6 @@ class RegisterRequest extends ApiRequest
     {
         return [
             'phone.regex' => 'Please provide a valid Bangladeshi phone number (e.g., 017xxxxxxxx).',
-            'phone.unique' => 'This phone number is already registered.',
         ];
     }
 }

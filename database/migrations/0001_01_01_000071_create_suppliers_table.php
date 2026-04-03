@@ -11,10 +11,10 @@ return new class extends Migration
         Schema::create('suppliers', function (Blueprint $table) {
             $table->id();
 
-            // Wallet fields (added 2026-02-19)
-            $table->decimal('wallet_balance', 10, 2)->default(0)->after('id'); // Tracks credit/debit in BDT
-            $table->decimal('credit_limit', 10, 2)->default(0)->after('wallet_balance'); // Maximum negative balance
-            $table->text('wallet_notes')->nullable()->after('credit_limit'); // Transaction history (JSON)
+            // Wallet fields
+            $table->decimal('wallet_balance', 10, 2)->default(0);
+            $table->decimal('credit_limit', 10, 2)->default(0);
+            $table->text('wallet_notes')->nullable();
 
             // Basic information
             $table->string('name');

@@ -76,15 +76,15 @@ class AccountController extends Controller
             ], 401);
         }
 
-        // Load customer profile and addresses
-        $user->load(['customerProfile', 'addresses']);
+        // Load role, customer profile and addresses
+        $user->load(['role', 'customerProfile', 'addresses']);
 
         // Transform user data for API response
         $userData = [
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
-            'role' => $user->role->name,
+            'role' => $user->role?->name,
             'phone_number' => $user->phone,
             'email_verified_at' => $user->email_verified_at?->toIso8601String(),
             'phone_verified_at' => $user->phone_verified_at?->toIso8601String(),
@@ -107,14 +107,21 @@ class AccountController extends Controller
             'addresses' => $user->addresses->map(function ($address) {
                 return [
                     'id' => $address->id,
-                    'type' => $address->type,
-                    'recipient_name' => $address->recipient_name,
+                    'label' => $address->label,
+                    'full_name' => $address->full_name,
                     'phone' => $address->phone,
-                    'address' => $address->address,
+                    'address_line1' => $address->address_line1,
+                    'address_line2' => $address->address_line2,
+                    'area' => $address->area,
                     'city' => $address->city,
                     'district' => $address->district,
+                    'thana' => $address->thana,
                     'postal_code' => $address->postal_code,
+                    'division' => $address->division,
+                    'country' => $address->country,
                     'is_default' => (bool) $address->is_default,
+                    'is_billing_address' => (bool) $address->is_billing_address,
+                    'is_shipping_address' => (bool) $address->is_shipping_address,
                 ];
             })->toArray(),
         ];
@@ -217,6 +224,8 @@ class AccountController extends Controller
                     'address_line2' => $address->address_line2,
                     'area' => $address->area,
                     'city' => $address->city,
+                    'district' => $address->district,
+                    'thana' => $address->thana,
                     'postal_code' => $address->postal_code,
                     'division' => $address->division,
                     'country' => $address->country,
@@ -303,6 +312,8 @@ class AccountController extends Controller
             'address_line2' => 'nullable|string|max:255',
             'area' => 'nullable|string|max:100',
             'city' => 'required|string|max:100',
+            'district' => 'nullable|string|max:100',
+            'thana' => 'nullable|string|max:100',
             'postal_code' => 'nullable|string|max:20',
             'division' => 'nullable|string|max:100',
             'country' => 'nullable|string|max:100',
@@ -357,6 +368,8 @@ class AccountController extends Controller
             'address_line2' => 'sometimes|nullable|string|max:255',
             'area' => 'sometimes|nullable|string|max:100',
             'city' => 'sometimes|string|max:100',
+            'district' => 'sometimes|nullable|string|max:100',
+            'thana' => 'sometimes|nullable|string|max:100',
             'postal_code' => 'sometimes|nullable|string|max:20',
             'division' => 'sometimes|nullable|string|max:100',
             'country' => 'sometimes|nullable|string|max:100',

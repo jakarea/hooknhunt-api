@@ -19,6 +19,9 @@ import EditProduct from "@/app/admin/catalog/products/[id]/edit/page"
 import Variants from "@/app/admin/catalog/variants/page"
 import VariantAttributes from "@/app/admin/catalog/variant-attributes/page"
 import Categories from "@/app/admin/catalog/categories/page"
+import CreateCategory from "@/app/admin/catalog/categories/create/page"
+import EditCategory from "@/app/admin/catalog/categories/[id]/edit/page"
+import CategoryDetail from "@/app/admin/catalog/categories/[id]/page"
 import Brands from "@/app/admin/catalog/brands/page"
 import Attributes from "@/app/admin/catalog/attributes/page"
 import Units from "@/app/admin/catalog/units/page"
@@ -140,6 +143,11 @@ import APISettings from "@/app/admin/settings/api/page"
 import Backup from "@/app/admin/settings/backup/page"
 import TaxSettings from "@/app/admin/settings/taxes/page"
 import WorkingHoursSettings from "@/app/admin/settings/working-hours/page"
+import WebsiteOrders from "@/app/admin/website/orders/page"
+import WebsiteOrderDetail from "@/app/admin/website/orders/[id]/page"
+import WebsiteSliders from "@/app/admin/website/sliders/page"
+import CreateSlider from "@/app/admin/website/sliders/create/page"
+import EditSlider from "@/app/admin/website/sliders/[id]/edit/page"
 
 import Login from "@/app/login/page"
 import ForgotPassword from "@/app/forgot-password/page"
@@ -184,6 +192,9 @@ function App() {
               <Route path="catalog/products" element={<Products />} />
               <Route path="catalog/variants" element={<Variants />} />
               <Route path="catalog/variant-attributes" element={<VariantAttributes />} />
+              <Route path="catalog/categories/create" element={<CreateCategory />} />
+              <Route path="catalog/categories/:id/edit" element={<EditCategory />} />
+              <Route path="catalog/categories/:id" element={<CategoryDetail />} />
               <Route path="catalog/categories" element={<Categories />} />
               <Route path="catalog/brands" element={<Brands />} />
               <Route path="catalog/attributes" element={<Attributes />} />
@@ -306,6 +317,12 @@ function App() {
               <Route path="settings/backup" element={<Backup />} />
               <Route path="settings/taxes" element={<TaxSettings />} />
               <Route path="settings/working-hours" element={<WorkingHoursSettings />} />
+              {/* Website Admin */}
+              <Route path="website/orders" element={<WebsiteOrders />} />
+              <Route path="website/orders/:id" element={<WebsiteOrderDetail />} />
+              <Route path="website/sliders" element={<WebsiteSliders />} />
+              <Route path="website/sliders/create" element={<CreateSlider />} />
+              <Route path="website/sliders/:id/edit" element={<EditSlider />} />
             </Route>
           </Route>
 

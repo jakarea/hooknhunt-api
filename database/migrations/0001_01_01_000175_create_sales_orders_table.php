@@ -14,7 +14,7 @@ return new class extends Migration
             $table->foreignId('customer_id')->constrained('customers');
             $table->foreignId('sold_by')->nullable()->constrained('users');
             $table->enum('channel', ['pos', 'retail_web', 'wholesale_web', 'daraz', 'app']);
-            $table->enum('status', ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'])->default('pending');
+            $table->enum('status', ['pending', 'draft', 'processing', 'on_hold', 'approved', 'on_shipping', 'shipped', 'delivered', 'completed', 'cancelled', 'returned', 'refunded'])->default('pending');
             $table->enum('payment_status', ['unpaid', 'paid', 'partial'])->default('unpaid');
             $table->decimal('sub_total', 12, 2);
             $table->decimal('discount_amount', 10, 2)->default(0);
@@ -23,15 +23,23 @@ return new class extends Migration
             $table->decimal('total_amount', 12, 2);
             $table->decimal('paid_amount', 12, 2)->default(0);
             $table->decimal('total_profit', 12, 2)->default(0);
+            $table->decimal('total_weight', 10, 2)->default(0);
             $table->string('courier_tracking_id')->nullable();
-            $table->string('external_order_id')->nullable()->index(); // Merged from external integrations
-            $table->string('external_source')->nullable(); // Merged from external integrations
-            $table->json('external_data')->nullable(); // Merged from external integrations
+            $table->string('consignment_id')->nullable();
+            $table->string('tracking_code')->nullable();
+            $table->boolean('sent_to_courier')->default(false);
+            $table->string('delivery_status')->nullable();
+            $table->string('external_order_id')->nullable()->index();
+            $table->string('external_source')->nullable();
+            $table->json('external_data')->nullable();
+            $table->timestamp('confirmed_at')->nullable();
             $table->timestamp('shipped_at')->nullable();
+            $table->timestamp('cancelled_at')->nullable();
+            $table->boolean('editing_locked')->default(false);
             $table->decimal('due_amount', 10, 2)->default(0);
             $table->text('note')->nullable();
             $table->timestamps();
-            $table->softDeletes(); // Soft delete - no data loss
+            $table->softDeletes();
         });
     }
 

@@ -25,13 +25,15 @@ import {
   Avatar,
   PasswordInput,
   Modal,
+  FileInput,
 } from '@mantine/core'
-import { IconChevronRight, IconDeviceFloppy, IconArrowLeft, IconSearch, IconCheck, IconX, IconRefresh, IconLock, IconUser, IconKey, IconMail, IconCoin } from '@tabler/icons-react'
+import { IconChevronRight, IconDeviceFloppy, IconArrowLeft, IconSearch, IconCheck, IconX, IconRefresh, IconLock, IconUser, IconKey, IconMail, IconCoin, IconUpload, IconId } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { modals } from '@mantine/modals'
 import api from '@/lib/api'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useAuthStore } from '@/stores/authStore'
+import { MediaSelector } from '@/components/media-selector'
 
   
 interface Permission {
@@ -100,6 +102,35 @@ export default function EditStaffPage() {
   const [bankName, setBankName] = useState('')
   const [bankBranch, setBankBranch] = useState('')
 
+  // Document states
+  const [profilePhotoId, setProfilePhotoId] = useState<number | null>(null)
+  const [nationalId, setNationalId] = useState<number | null>(null)
+  const [resume, setResume] = useState<number | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<{
+    profile_photo_id: { id: number; url: string; name: string } | null
+    national_id: { id: number; url: string; name: string } | null
+    resume: { id: number; url: string; name: string } | null
+  }>({
+    profile_photo_id: null,
+    national_id: null,
+    resume: null,
+  })
+
+  // Document preview state (for new uploads)
+  const [docPreviews, setDocPreviews] = useState<{
+    profile_photo_id: { file: File; url: string } | null
+    national_id: { file: File; url: string } | null
+    resume: { file: File; url: string } | null
+  }>({
+    profile_photo_id: null,
+    national_id: null,
+    resume: null,
+  })
+
+  // Media selector state
+  const [mediaSelectorOpened, setMediaSelectorOpened] = useState(false)
+  const [currentDocField, setCurrentDocField] = useState<string | null>(null)
+
   const [grantedPermissions, setGrantedPermissions] = useState<number[]>([])
   const [blockedPermissions, setBlockedPermissions] = useState<number[]>([])
   const [permissionSearch, setPermissionSearch] = useState('')
@@ -126,6 +157,32 @@ export default function EditStaffPage() {
     setDivision(value)
     setDistrict('')
     setThana('')
+  }
+
+  // Handle document file selection
+  const handleDocUpload = async (field: 'profile_photo_id' | 'national_id' | 'resume', file: File | null) => {
+    if (!file) {
+      setDocPreviews((prev) => ({ ...prev, [field]: null }))
+      if (field === 'profile_photo_id') setProfilePhotoId(null)
+      if (field === 'national_id') setNationalId(null)
+      if (field === 'resume') setResume(null)
+      return
+    }
+
+    // Create preview URL
+    const previewUrl = URL.createObjectURL(file)
+    setDocPreviews((prev) => ({ ...prev, [field]: { file, url: previewUrl } }))
+
+    // Clear the old selected file for this field
+    if (field === 'profile_photo_id') {
+      setSelectedFiles((prev) => ({ ...prev, profile_photo_id: null }))
+    }
+    if (field === 'national_id') {
+      setSelectedFiles((prev) => ({ ...prev, national_id: null }))
+    }
+    if (field === 'resume') {
+      setSelectedFiles((prev) => ({ ...prev, resume: null }))
+    }
   }
 
   const handleDistrictChange = (value: string) => {
@@ -240,6 +297,60 @@ export default function EditStaffPage() {
           setBankAccountNumber(userData.staffProfile.bankAccountNumber || '')
           setBankName(userData.staffProfile.bankName || '')
           setBankBranch(userData.staffProfile.bankBranch || '')
+
+          // Documents
+          setProfilePhotoId(userData.staffProfile.profilePhotoId || null)
+          setNationalId(userData.staffProfile.nationalId || null)
+          setResume(userData.staffProfile.resume || null)
+
+          // Load document file details
+          if (userData.staffProfile.profilePhotoId) {
+            try {
+              const photoRes = await api.get(`/media/files/${userData.staffProfile.profilePhotoId}`)
+              setSelectedFiles(prev => ({
+                ...prev,
+                profile_photo_id: {
+                  id: photoRes.data.data.id,
+                  url: photoRes.data.data.url,
+                  name: photoRes.data.data.originalFilename,
+                },
+              }))
+            } catch (e) {
+              console.error('Failed to load profile photo:', e)
+            }
+          }
+
+          if (userData.staffProfile.nationalId) {
+            try {
+              const nidRes = await api.get(`/media/files/${userData.staffProfile.nationalId}`)
+              setSelectedFiles(prev => ({
+                ...prev,
+                national_id: {
+                  id: nidRes.data.data.id,
+                  url: nidRes.data.data.url,
+                  name: nidRes.data.data.originalFilename,
+                },
+              }))
+            } catch (e) {
+              console.error('Failed to load national ID:', e)
+            }
+          }
+
+          if (userData.staffProfile.resume) {
+            try {
+              const resumeRes = await api.get(`/media/files/${userData.staffProfile.resume}`)
+              setSelectedFiles(prev => ({
+                ...prev,
+                resume: {
+                  id: resumeRes.data.data.id,
+                  url: resumeRes.data.data.url,
+                  name: resumeRes.data.data.originalFilename,
+                },
+              }))
+            } catch (e) {
+              console.error('Failed to load resume:', e)
+            }
+          }
         }
 
         // Fetch user permissions separately
@@ -332,6 +443,62 @@ export default function EditStaffPage() {
     }
   }
 
+  // Handle opening media selector for a specific document field
+  const handleOpenMediaSelector = (field: string) => {
+    setCurrentDocField(field)
+    setMediaSelectorOpened(true)
+  }
+
+  // Handle media file selection from media library
+  const handleMediaSelect = (mediaFile: any) => {
+    if (!currentDocField) return
+
+    const fieldMap: Record<string, any> = {
+      profile_photo_id: { state: setProfilePhotoId, selected: 'profile_photo_id' },
+      national_id: { state: setNationalId, selected: 'national_id' },
+      resume: { state: setResume, selected: 'resume' },
+    }
+
+    const mapping = fieldMap[currentDocField]
+    if (mapping) {
+      mapping.state(mediaFile.id)
+      setSelectedFiles((prev) => ({
+        ...prev,
+        [mapping.selected]: {
+          id: mediaFile.id,
+          url: mediaFile.url,
+          name: mediaFile.originalFilename || mediaFile.file_name,
+        },
+      }))
+    }
+
+    setMediaSelectorOpened(false)
+    setCurrentDocField(null)
+  }
+
+  // Handle clearing a document selection
+  const handleClearDocument = (field: string) => {
+    const fieldMap: Record<string, any> = {
+      profile_photo_id: { state: setProfilePhotoId, selected: 'profile_photo_id' },
+      national_id: { state: setNationalId, selected: 'national_id' },
+      resume: { state: setResume, selected: 'resume' },
+    }
+
+    const mapping = fieldMap[field]
+    if (mapping) {
+      mapping.state(null)
+      setSelectedFiles((prev) => ({
+        ...prev,
+        [mapping.selected]: null,
+      }))
+      // Also clear preview
+      setDocPreviews((prev) => ({
+        ...prev,
+        [field]: null,
+      }))
+    }
+  }
+
   // Handle save
   const handleSave = async () => {
     if (!validateForm()) {
@@ -341,6 +508,49 @@ export default function EditStaffPage() {
     setSaving(true)
 
     try {
+      // Upload documents first
+      const docUploads = {
+        profile_photo_id: profilePhotoId,
+        national_id: nationalId,
+        resume: resume,
+      }
+
+      // Upload profile photo
+      if (docPreviews.profile_photo_id?.file) {
+        const formData = new FormData()
+        formData.append('files[]', docPreviews.profile_photo_id.file)
+        const uploadRes = await api.post('/media/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        if (uploadRes.data?.data?.[0]?.id) {
+          docUploads.profile_photo_id = uploadRes.data.data[0].id
+        }
+      }
+
+      // Upload national ID
+      if (docPreviews.national_id?.file) {
+        const formData = new FormData()
+        formData.append('files[]', docPreviews.national_id.file)
+        const uploadRes = await api.post('/media/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        if (uploadRes.data?.data?.[0]?.id) {
+          docUploads.national_id = uploadRes.data.data[0].id
+        }
+      }
+
+      // Upload resume
+      if (docPreviews.resume?.file) {
+        const formData = new FormData()
+        formData.append('files[]', docPreviews.resume.file)
+        const uploadRes = await api.post('/media/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        if (uploadRes.data?.data?.[0]?.id) {
+          docUploads.resume = uploadRes.data.data[0].id
+        }
+      }
+
       // Prepare payload
       const payload: {
         name: string
@@ -369,6 +579,9 @@ export default function EditStaffPage() {
         bank_account_number: string | null
         bank_name: string | null
         bank_branch: string | null
+        profile_photo_id: number | null
+        national_id: number | null
+        resume: number | null
       } = {
         name,
         phone,
@@ -396,6 +609,9 @@ export default function EditStaffPage() {
         bank_account_number: bankAccountNumber || null,
         bank_name: bankName || null,
         bank_branch: bankBranch || null,
+        profile_photo_id: docUploads.profile_photo_id,
+        national_id: docUploads.national_id,
+        resume: docUploads.resume,
       }
 
       // Update user
@@ -1137,6 +1353,148 @@ export default function EditStaffPage() {
                   onChange={(e) => setBankBranch(e.currentTarget.value)}
                   className="text-base md:text-lg"
                 />
+              </SimpleGrid>
+            </Stack>
+          </Paper>
+
+          {/* Documents Section */}
+          <Paper withBorder p={{ base: 'md', md: 'xl' }} radius="lg" pos="relative">
+            <LoadingOverlay visible={saving} overlayProps={{ blur: 2 }} />
+            <Stack>
+              <Group gap="xs">
+                <IconUpload size={20} style={{ color: 'var(--mantine-color-blue-filled)' }} />
+                <Title order={3} className="text-base md:text-lg lg:text-xl">Documents</Title>
+                <Text size="xs" c="dimmed">(Upload documents)</Text>
+              </Group>
+              <SimpleGrid cols={{ base: 1, md: 3 }}>
+                {/* Profile Photo */}
+                <Stack gap="xs">
+                  <Text size="sm" fw={500}>Profile Photo</Text>
+                  {docPreviews.profile_photo_id ? (
+                    <Group gap="xs">
+                      <Avatar src={docPreviews.profile_photo_id.url} size={40} radius="xl" />
+                      <Text size="xs" style={{ flex: 1 }} lineClamp={1}>
+                        {docPreviews.profile_photo_id.file.name}
+                      </Text>
+                      <ActionIcon
+                        size="sm"
+                        color="red"
+                        variant="light"
+                        onClick={() => handleClearDocument('profile_photo_id')}
+                      >
+                        <IconX size={14} />
+                      </ActionIcon>
+                    </Group>
+                  ) : selectedFiles.profile_photo_id ? (
+                    <Group gap="xs">
+                      <Avatar src={selectedFiles.profile_photo_id.url} size={40} radius="xl" />
+                      <Text size="xs" style={{ flex: 1 }} lineClamp={1}>
+                        {selectedFiles.profile_photo_id.name}
+                      </Text>
+                      <ActionIcon
+                        size="sm"
+                        color="red"
+                        variant="light"
+                        onClick={() => handleClearDocument('profile_photo_id')}
+                      >
+                        <IconX size={14} />
+                      </ActionIcon>
+                    </Group>
+                  ) : (
+                    <FileInput
+                      accept="image/*"
+                      onChange={(file) => handleDocUpload('profile_photo_id', file)}
+                      leftSection={<IconUpload size={14} />}
+                      size="xs"
+                    />
+                  )}
+                </Stack>
+
+                {/* National ID */}
+                <Stack gap="xs">
+                  <Text size="sm" fw={500}>National ID</Text>
+                  {docPreviews.national_id ? (
+                    <Group gap="xs">
+                      <IconId size={24} />
+                      <Text size="xs" style={{ flex: 1 }} lineClamp={1}>
+                        {docPreviews.national_id.file.name}
+                      </Text>
+                      <ActionIcon
+                        size="sm"
+                        color="red"
+                        variant="light"
+                        onClick={() => handleClearDocument('national_id')}
+                      >
+                        <IconX size={14} />
+                      </ActionIcon>
+                    </Group>
+                  ) : selectedFiles.national_id ? (
+                    <Group gap="xs">
+                      <IconId size={24} />
+                      <Text size="xs" style={{ flex: 1 }} lineClamp={1}>
+                        {selectedFiles.national_id.name}
+                      </Text>
+                      <ActionIcon
+                        size="sm"
+                        color="red"
+                        variant="light"
+                        onClick={() => handleClearDocument('national_id')}
+                      >
+                        <IconX size={14} />
+                      </ActionIcon>
+                    </Group>
+                  ) : (
+                    <FileInput
+                      accept="image/*"
+                      onChange={(file) => handleDocUpload('national_id', file)}
+                      leftSection={<IconUpload size={14} />}
+                      size="xs"
+                    />
+                  )}
+                </Stack>
+
+                {/* Resume (PDF) */}
+                <Stack gap="xs">
+                  <Text size="sm" fw={500}>Resume (PDF)</Text>
+                  {docPreviews.resume ? (
+                    <Group gap="xs">
+                      <IconId size={24} />
+                      <Text size="xs" style={{ flex: 1 }} lineClamp={1}>
+                        {docPreviews.resume.file.name}
+                      </Text>
+                      <ActionIcon
+                        size="sm"
+                        color="red"
+                        variant="light"
+                        onClick={() => handleClearDocument('resume')}
+                      >
+                        <IconX size={14} />
+                      </ActionIcon>
+                    </Group>
+                  ) : selectedFiles.resume ? (
+                    <Group gap="xs">
+                      <IconId size={24} />
+                      <Text size="xs" style={{ flex: 1 }} lineClamp={1}>
+                        {selectedFiles.resume.name}
+                      </Text>
+                      <ActionIcon
+                        size="sm"
+                        color="red"
+                        variant="light"
+                        onClick={() => handleClearDocument('resume')}
+                      >
+                        <IconX size={14} />
+                      </ActionIcon>
+                    </Group>
+                  ) : (
+                    <FileInput
+                      accept="application/pdf"
+                      onChange={(file) => handleDocUpload('resume', file)}
+                      leftSection={<IconUpload size={14} />}
+                      size="xs"
+                    />
+                  )}
+                </Stack>
               </SimpleGrid>
             </Stack>
           </Paper>

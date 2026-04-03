@@ -35,12 +35,19 @@ class StaffProfile extends Model
         'bank_account_number',
         'bank_name',
         'bank_branch',
+        // Document uploads
+        'national_id',
+        'national_id_history',
+        'photo_history',
+        'resume',
     ];
 
     // Date casting
     protected $casts = [
         'dob' => 'date:Y-m-d', // Fixed timezone offset
         'joining_date' => 'date:Y-m-d', // Fixed timezone offset
+        'national_id_history' => 'array', // JSON cast for national ID history
+        'photo_history' => 'array', // JSON cast for photo history
     ];
 
     // Append accessors to JSON
@@ -68,5 +75,17 @@ class StaffProfile extends Model
     public function photo()
     {
         return $this->belongsTo(MediaFile::class, 'profile_photo_id');
+    }
+
+    // ন্যাশনাল আইড রিলেশন
+    public function nationalId()
+    {
+        return $this->belongsTo(MediaFile::class, 'national_id');
+    }
+
+    // রেজিউম রিলেশন
+    public function resumeMedia()
+    {
+        return $this->belongsTo(MediaFile::class, 'resume');
     }
 }

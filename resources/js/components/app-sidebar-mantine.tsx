@@ -7,7 +7,6 @@ import {
   IconUsersGroup,
   IconShield,
   IconSearch,
-  IconInnerShadowTop,
   IconChevronRight,
   IconCoin,
   IconShoppingCart,
@@ -20,6 +19,8 @@ import {
   IconCurrency,
   IconHistory,
   IconClock,
+  IconDeviceDesktop,
+  IconLayout,
 } from "@tabler/icons-react"
 import {
   Box,
@@ -33,9 +34,11 @@ import {
   ActionIcon,
   UnstyledButton,
   Collapse,
+  Badge,
 } from "@mantine/core"
 import { useMediaQuery } from "@mantine/hooks"
 import { useAuthStore } from "@/stores/authStore"
+import { useOrderBadgeStore } from "@/stores/orderBadgeStore"
 import { usePermissions } from "@/hooks/usePermissions"
 
 interface NavItem {
@@ -65,6 +68,12 @@ export function AppSidebarMantine({
   const isMobile = useMediaQuery("(max-width: 768px)")
   const user = useAuthStore((state) => state.user)
   const { permissions, permissionObjects, isSuperAdmin } = usePermissions()
+  const pendingCount = useOrderBadgeStore((s) => s.pendingCount)
+  const fetchPendingCount = useOrderBadgeStore((s) => s.fetchPendingCount)
+
+  React.useEffect(() => {
+    if (user) fetchPendingCount()
+  }, [user])
 
   const toggleSection = (label: string) => {
     setOpened((prev) => ({
@@ -290,6 +299,22 @@ export function AppSidebarMantine({
         icon: IconPhoto,
         items: [
           { title: t("cms.media"), url: "/cms/media" },
+        ],
+      },
+      {
+        label: t("nav.website"),
+        icon: IconDeviceDesktop,
+        items: [
+          {
+            title: t("nav.websiteOrders"),
+            icon: IconShoppingCart,
+            url: "/website/orders",
+          },
+          {
+            title: t("nav.websiteSliders"),
+            icon: IconLayout,
+            url: "/website/sliders",
+          },
         ],
       },
       {
@@ -567,6 +592,11 @@ export function AppSidebarMantine({
           key={index}
           label={item.title}
           leftSection={item.icon ? <item.icon style={{ width: rem(16), height: rem(16) }} /> : undefined}
+          rightSection={item.url === '/website/orders' && pendingCount > 0 ? (
+            <Badge size="sm" variant="filled" color="red" radius="xl" fz="xs">
+              {pendingCount}
+            </Badge>
+          ) : undefined}
           to={item.url || '/'}
           component={Link}
           active={isActive}
@@ -699,10 +729,7 @@ export function AppSidebarMantine({
         <Group justify="space-between">
           <Link to="/dashboard" style={{ textDecoration: 'none' }}>
             <Group gap="xs">
-              <IconInnerShadowTop size={28} className="text-red-600" />
-              <Text fw={800} size="xl" c="light-dark(var(--mantine-color-dark-0), var(--mantine-color-dark-0))">
-                {t("common.appName")}
-              </Text>
+              <img src="/hnh-logo.svg" alt="Hook & Hunt" style={{ height: rem(28) }} />
             </Group>
           </Link>
           {isMobile && (

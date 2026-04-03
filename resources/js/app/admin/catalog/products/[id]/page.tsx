@@ -94,7 +94,6 @@ interface ChannelSetting {
   id: number
   channel: 'RETAIL_WEB' | 'WHOLESALE_WEB' | 'DARAZ' | 'POS'
   isActive: boolean
-  customName?: string | null
   price?: number | null
 }
 
@@ -105,7 +104,6 @@ interface ProductVariant {
   channel: 'retail' | 'wholesale' | 'daraz' | 'pos'
   sku: string
   customSku?: string | null
-  customName?: string | null
   color?: string | null
   size?: string | null
   material?: string | null
@@ -190,80 +188,7 @@ export default function ProductDetailPage() {
         throw new Error('No data received')
       }
 
-      // Group/merge variants by variant_name (retail + wholesale channels)
-      if (productData.variants && Array.isArray(productData.variants)) {
-        const variantGroups = new Map<string, any>()
-
-        productData.variants.forEach((variant: any) => {
-          const name = variant.variantName || variant.variant_name || variant.customName || ''
-          const channel = variant.channel || ''
-
-          if (!variantGroups.has(name)) {
-            // First time seeing this variant - create merged entry
-            variantGroups.set(name, {
-              id: `merged-${name}`,
-              retail_id: null,
-              wholesale_id: null,
-              name: name,
-              customName: name,
-              variantName: name,
-              sku: '',
-              customSku: '',
-              purchaseCost: 0,
-              price: 0,
-              offerPrice: 0,
-              wholesalePrice: 0,
-              wholesaleOfferPrice: 0,
-              moq: 0,
-              wholesaleMoq: 0,
-              weight: 0,
-              stock: 0,
-              currentStock: 0,
-              stockAlertLevel: 5,
-              allowPreorder: false,
-              expectedDelivery: null,
-              isActive: true
-            })
-          }
-
-          const existing = variantGroups.get(name)!
-
-          // Merge channel-specific data
-          if (channel === 'retail') {
-            existing.retail_id = variant.id
-            existing.price = variant.price || 0
-            existing.offerPrice = variant.offerPrice || 0
-            existing.sku = variant.sku || ''
-            existing.customSku = variant.customSku || ''
-            // Use common fields from retail (should be same across channels)
-            existing.purchaseCost = variant.purchaseCost || 0
-            existing.weight = variant.weight || 0
-            existing.stock = variant.stock || 0
-            existing.currentStock = variant.currentStock || 0
-            existing.stockAlertLevel = variant.stockAlertLevel || 5
-            existing.allowPreorder = variant.allowPreorder || false
-            existing.expectedDelivery = variant.expectedDelivery || null
-            existing.isActive = variant.isActive ?? true
-          }
-
-          if (channel === 'wholesale') {
-            existing.wholesale_id = variant.id
-            existing.wholesalePrice = variant.price || 0
-            existing.wholesaleOfferPrice = variant.offerPrice || 0
-            existing.moq = variant.moq || 0
-            existing.wholesaleMoq = variant.moq || 0
-          }
-        })
-
-        // Only include variants that have BOTH channels (retail + wholesale)
-        const mergedVariants = Array.from(variantGroups.values()).filter(
-          (v: any) => v.retail_id && v.wholesale_id
-        )
-
-        // Replace variants with merged data
-        productData.variants = mergedVariants
-      }
-
+      // Variants come pre-paired from backend (retail + wholesale merged)
       setProduct(productData)
     } catch (err: unknown) {
       console.error('Failed to load product:', err)
@@ -321,13 +246,13 @@ export default function ProductDetailPage() {
     if (stock <= alertLevel) {
       return (
         <Badge color="orange" leftSection={<IconCube size={12} />}>
-          {t(`${ns}.detail.variants.lowStock`)} ({stock})
+          {stock} {t(`${ns}.detail.variants.lowStock`)}
         </Badge>
       )
     }
     return (
       <Badge color="teal" leftSection={<IconCube size={12} />}>
-        {t(`${ns}.detail.variants.inStock`)} ({stock})
+        {stock} {t(`${ns}.detail.variants.inStock`)}
       </Badge>
     )
   }, [t, ns])
@@ -382,7 +307,7 @@ export default function ProductDetailPage() {
         <Table.Td>
           <Stack gap="xs">
             <Text className="text-sm md:text-base" fw={500}>
-              {variant.customName || variant.variantName}
+              {variant.variantName}
             </Text>
             {!variant.isActive && (
               <Badge color="red" size="xs">
@@ -479,18 +404,18 @@ export default function ProductDetailPage() {
             <Box>
               <Text className="text-xs" c="dimmed">Retail</Text>
               <Stack gap={0}>
-                {variant.offerPrice && Number(variant.offerPrice) > 0 && Number(variant.offerPrice) < Number(variant.price) ? (
+                {variant.retailOfferPrice && Number(variant.retailOfferPrice) > 0 && Number(variant.retailOfferPrice) < Number(variant.retailPrice) ? (
                   <>
                     <Text className="text-xs" c="dimmed" td="line-through">
-                      ${Number(variant.price)?.toFixed(2)}
+                     ৳{Number(variant.retailPrice)?.toFixed(2)}
                     </Text>
                     <Text className="text-sm" c="red" fw={500}>
-                      ${Number(variant.offerPrice)?.toFixed(2)}
+                     ৳{Number(variant.retailOfferPrice)?.toFixed(2)}
                     </Text>
                   </>
                 ) : (
                   <Text className="text-sm md:text-base" fw={500}>
-                    ${Number(variant.price)?.toFixed(2) || '0.00'}
+                    ৳{Number(variant.retailPrice)?.toFixed(2) || '0.00'}
                   </Text>
                 )}
               </Stack>
@@ -502,15 +427,15 @@ export default function ProductDetailPage() {
                 {variant.wholesaleOfferPrice && Number(variant.wholesaleOfferPrice) > 0 && Number(variant.wholesaleOfferPrice) < Number(variant.wholesalePrice) ? (
                   <>
                     <Text className="text-xs" c="dimmed" td="line-through">
-                      ${Number(variant.wholesalePrice)?.toFixed(2)}
+                      ৳{Number(variant.wholesalePrice)?.toFixed(2)}
                     </Text>
                     <Text className="text-sm" c="green" fw={500}>
-                      ${Number(variant.wholesaleOfferPrice)?.toFixed(2)}
+                      ৳{Number(variant.wholesaleOfferPrice)?.toFixed(2)}
                     </Text>
                   </>
                 ) : (
                   <Text className="text-sm md:text-base" fw={500} c="green">
-                    ${Number(variant.wholesalePrice)?.toFixed(2) || '0.00'}
+                    ৳{Number(variant.wholesalePrice)?.toFixed(2) || '0.00'}
                   </Text>
                 )}
               </Stack>
@@ -519,13 +444,24 @@ export default function ProductDetailPage() {
         </Table.Td>
         <Table.Td ta="right">
           <Text className="text-sm md:text-base">
-            ${Number(variant.purchaseCost)?.toFixed(2) || '0.00'}
+            ৳{Number(variant.purchaseCost)?.toFixed(2) || '0.00'}
           </Text>
         </Table.Td>
         <Table.Td ta="right">
-          <Text className="text-sm md:text-base">
-            {(Number(variant.price || 0) - Number(variant.purchaseCost || 0)).toFixed(2)}
-          </Text>
+          <Stack gap="xs">
+            <Box>
+              <Text className="text-xs" c="dimmed">Retail ({Math.round(((Number(variant.retailOfferPrice || variant.retailPrice || 0) - Number(variant.purchaseCost || 0)) / (Number(variant.purchaseCost || 1))) * 100)}%)</Text>
+              <Text className="text-sm" fw={500} c="blue">
+                ৳{(Number(variant.retailOfferPrice || variant.retailPrice || 0) - Number(variant.purchaseCost || 0)).toFixed(2)} 
+              </Text>
+            </Box>
+            <Box>
+              <Text className="text-xs" c="dimmed">Wholesale ({Math.round(((Number(variant.wholesaleOfferPrice || variant.wholesalePrice || 0) - Number(variant.purchaseCost || 0)) / (Number(variant.purchaseCost || 1))) * 100)}%)</Text>
+              <Text className="text-sm" fw={500} c="green">
+                ৳{(Number(variant.wholesaleOfferPrice || variant.wholesalePrice || 0) - Number(variant.purchaseCost || 0)).toFixed(2)} 
+              </Text>
+            </Box>
+          </Stack>
         </Table.Td>
         <Table.Td>
           {getStockBadge(variant.currentStock || 0, variant.stockAlertLevel || 5)}
@@ -545,7 +481,7 @@ export default function ProductDetailPage() {
             <Stack gap={0} className="flex-1">
               <Group gap="xs" align="center" wrap="nowrap">
                 <Text className="text-sm md:text-base" fw={500}>
-                  {variant.customName || variant.variantName}
+                  {variant.variantName}
                 </Text>
                 {!variant.isActive && (
                   <Badge color="red" size="xs">
@@ -579,18 +515,18 @@ export default function ProductDetailPage() {
                 Retail Price
               </Text>
               <Stack gap={0}>
-                {variant.offerPrice && Number(variant.offerPrice) > 0 && Number(variant.offerPrice) < Number(variant.price) ? (
+                {variant.retailOfferPrice && Number(variant.retailOfferPrice) > 0 && Number(variant.retailOfferPrice) < Number(variant.retailPrice) ? (
                   <>
                     <Text className="text-xs" c="dimmed" td="line-through">
-                      ${Number(variant.price)?.toFixed(2)}
+                      ৳{Number(variant.retailPrice)?.toFixed(2)}
                     </Text>
                     <Text className="text-sm" c="red" fw={500}>
-                      ${Number(variant.offerPrice)?.toFixed(2)}
+                      ৳{Number(variant.retailOfferPrice)?.toFixed(2)}
                     </Text>
                   </>
                 ) : (
                   <Text className="text-sm" fw={500}>
-                    ${Number(variant.price)?.toFixed(2) || '0.00'}
+                    ৳{Number(variant.retailPrice)?.toFixed(2) || '0.00'}
                   </Text>
                 )}
               </Stack>
@@ -604,15 +540,15 @@ export default function ProductDetailPage() {
                 {variant.wholesaleOfferPrice && Number(variant.wholesaleOfferPrice) > 0 && Number(variant.wholesaleOfferPrice) < Number(variant.wholesalePrice) ? (
                   <>
                     <Text className="text-xs" c="dimmed" td="line-through">
-                      ${Number(variant.wholesalePrice)?.toFixed(2)}
+                      ৳{Number(variant.wholesalePrice)?.toFixed(2)}
                     </Text>
                     <Text className="text-sm" c="green" fw={500}>
-                      ${Number(variant.wholesaleOfferPrice)?.toFixed(2)}
+                      ৳{Number(variant.wholesaleOfferPrice)?.toFixed(2)}
                     </Text>
                   </>
                 ) : (
                   <Text className="text-sm" fw={500} c="green">
-                    ${Number(variant.wholesalePrice)?.toFixed(2) || '0.00'}
+                    ৳{Number(variant.wholesalePrice)?.toFixed(2) || '0.00'}
                   </Text>
                 )}
               </Stack>
@@ -622,7 +558,7 @@ export default function ProductDetailPage() {
                 {t(`${ns}.detail.variants.cost`) || 'Cost'}
               </Text>
               <Text className="text-sm" fw={500}>
-                ${Number(variant.purchaseCost)?.toFixed(2) || '0.00'}
+                ৳{Number(variant.purchaseCost)?.toFixed(2) || '0.00'}
               </Text>
             </Box>
             {(variant.moq && variant.moq > 1) && (
@@ -659,12 +595,12 @@ export default function ProductDetailPage() {
             )}
           </SimpleGrid>
 
-          {variant.offerPrice && Number(variant.offerPrice) > 0 && Number(variant.offerPrice) < Number(variant.price) && (
+          {variant.retailOfferPrice && Number(variant.retailOfferPrice) > 0 && Number(variant.retailOfferPrice) < Number(variant.retailPrice) && (
             <Group gap="xs" bg="red.0" p="xs" radius="sm">
               <IconDiscount size={16} className="text-red-600" />
               <Text className="text-xs" c="red">
-                Offer: ${(Number(variant.price) - Number(variant.offerPrice)).toFixed(2)} off
-                {variant.offerEnds && ` until ${new Date(variant.offerEnds).toLocaleDateString()}`}
+                Offer: ৳{(Number(variant.retailPrice) - Number(variant.retailOfferPrice)).toFixed(2)} off
+                {variant.retailOfferEnds && ` until ${new Date(variant.retailOfferEnds).toLocaleDateString()}`}
               </Text>
             </Group>
           )}
@@ -939,123 +875,6 @@ export default function ProductDetailPage() {
             )}
           </SimpleGrid>
 
-          {/* Description */}
-          {product.description && (
-            <Stack gap="xs" mt="md">
-              <Text className="text-sm md:text-base" fw={500} c="dimmed">
-                {t(`${ns}.detail.productInformation.description`)}
-              </Text>
-              <Box
-                className="text-sm md:text-base html-content"
-                dangerouslySetInnerHTML={{ __html: decodeHTMLEntities(product.description) }}
-                styles={{
-                  // Paragraphs
-                  '& p': {
-                    marginBottom: '0.5rem',
-                    lineHeight: '1.6',
-                  },
-                  // Lists
-                  '& ul': {
-                    listStyleType: 'disc',
-                    marginLeft: '1.5rem',
-                    marginBottom: '0.5rem',
-                    lineHeight: '1.6',
-                    paddingLeft: '1rem',
-                  },
-                  '& ol': {
-                    listStyleType: 'decimal',
-                    marginLeft: '1.5rem',
-                    marginBottom: '0.5rem',
-                    lineHeight: '1.6',
-                    paddingLeft: '1rem',
-                  },
-                  '& ul li': {
-                    marginLeft: '0.5rem',
-                    marginBottom: '0.25rem',
-                  },
-                  '& ol li': {
-                    marginLeft: '0.5rem',
-                    marginBottom: '0.25rem',
-                  },
-                  // Text formatting
-                  '& strong': {
-                    fontWeight: 600,
-                  },
-                  '& b': {
-                    fontWeight: 600,
-                  },
-                  '& em': {
-                    fontStyle: 'italic',
-                  },
-                  '& i': {
-                    fontStyle: 'italic',
-                  },
-                  // Headings
-                  '& h1': {
-                    fontSize: '1.25rem',
-                    fontWeight: 700,
-                    marginBottom: '0.5rem',
-                    lineHeight: '1.3',
-                    marginTop: '1rem',
-                  },
-                  '& h2': {
-                    fontSize: '1.125rem',
-                    fontWeight: 600,
-                    marginBottom: '0.5rem',
-                    lineHeight: '1.3',
-                    marginTop: '0.875rem',
-                  },
-                  '& h3': {
-                    fontSize: '1rem',
-                    fontWeight: 600,
-                    marginBottom: '0.5rem',
-                    lineHeight: '1.3',
-                    marginTop: '0.75rem',
-                  },
-                  '& h4': {
-                    fontSize: '0.9375rem',
-                    fontWeight: 600,
-                    marginBottom: '0.5rem',
-                    lineHeight: '1.3',
-                    marginTop: '0.625rem',
-                  },
-                  // Links
-                  '& a': {
-                    color: '#3b82f6',
-                    textDecoration: 'underline',
-                  },
-                  // Blockquotes
-                  '& blockquote': {
-                    borderLeft: '4px solid #e5e7eb',
-                    paddingLeft: '1rem',
-                    marginLeft: 0,
-                    marginBottom: '0.5rem',
-                    fontStyle: 'italic',
-                  },
-                  // Code
-                  '& code': {
-                    backgroundColor: '#f3f4f6',
-                    padding: '0.125rem 0.25rem',
-                    borderRadius: '0.25rem',
-                    fontFamily: 'monospace',
-                    fontSize: '0.875em',
-                  },
-                  '& pre': {
-                    backgroundColor: '#f3f4f6',
-                    padding: '0.75rem',
-                    borderRadius: '0.375rem',
-                    overflowX: 'auto',
-                    marginBottom: '0.5rem',
-                  },
-                  '& pre code': {
-                    backgroundColor: 'transparent',
-                    padding: 0,
-                  },
-                }}
-              />
-            </Stack>
-          )}
-
           {/* Video URL */}
           {product.videoUrl && (
             <Group gap="md" align="flex-start" mt="md">
@@ -1076,28 +895,6 @@ export default function ProductDetailPage() {
             </Group>
           )}
         </Paper>
-
-        {/* Product Highlights */}
-        {product.highlights && product.highlights.length > 0 && (
-          <Paper withBorder p="md" radius="md">
-            <Group gap="md" align="flex-start" mb="sm">
-              <Box className="bg-yellow-50 p-2 rounded-md">
-                <IconBulb size={24} className="text-yellow-600" />
-              </Box>
-              <Text fw={600} className="text-base md:text-lg">
-                {t(`${ns}.detail.highlights.title`) || 'Product Highlights'}
-              </Text>
-            </Group>
-            <Stack gap="xs" ml={46}>
-              {product.highlights.map((highlight, index) => (
-                <Group key={index} gap="xs" align="flex-start">
-                  <IconCheck size={16} className="text-green-600 mt-1" />
-                  <Text className="text-sm md:text-base">{highlight}</Text>
-                </Group>
-              ))}
-            </Stack>
-          </Paper>
-        )}
 
         {/* SEO Information */}
         {(product.seoTitle || product.seoDescription || (product.seoTags && product.seoTags.length > 0)) && (
@@ -1193,6 +990,145 @@ export default function ProductDetailPage() {
             <SimpleGrid cols={{ base: 2, sm: 3, md: 4, lg: 6 }} spacing="sm">
               {galleryImages}
             </SimpleGrid>
+          </Paper>
+        )}
+
+        {/* Product Highlights */}
+        {product.highlights && product.highlights.length > 0 && (
+          <Paper withBorder p="md" radius="md">
+            <Group gap="md" align="flex-start" mb="sm">
+              <Box className="bg-yellow-50 p-2 rounded-md">
+                <IconBulb size={24} className="text-yellow-600" />
+              </Box>
+              <Text fw={600} className="text-base md:text-lg">
+                {t(`${ns}.detail.highlights.title`) || 'Product Highlights'}
+              </Text>
+            </Group>
+            <Stack gap="xs" ml={46}>
+              {product.highlights.map((highlight, index) => (
+                <Group key={index} gap="xs" align="flex-start">
+                  <IconCheck size={16} className="text-green-600 mt-1" />
+                  <Text className="text-sm md:text-base">{highlight}</Text>
+                </Group>
+              ))}
+            </Stack>
+          </Paper>
+        )}
+
+        {/* Description */}
+        {product.description && (
+          <Paper withBorder p="md" radius="md">
+            <Text fw={600} className="text-base md:text-lg" mb="md">
+              {t(`${ns}.detail.productInformation.description`)}
+            </Text>
+            <Box
+              className="text-sm md:text-base html-content"
+              dangerouslySetInnerHTML={{ __html: decodeHTMLEntities(product.description) }}
+              styles={{
+                // Paragraphs
+                '& p': {
+                  marginBottom: '0.5rem',
+                  lineHeight: '1.6',
+                },
+                // Lists
+                '& ul': {
+                  listStyleType: 'disc',
+                  marginLeft: '1.5rem',
+                  marginBottom: '0.5rem',
+                  lineHeight: '1.6',
+                  paddingLeft: '1rem',
+                },
+                '& ol': {
+                  listStyleType: 'decimal',
+                  marginLeft: '1.5rem',
+                  marginBottom: '0.5rem',
+                  lineHeight: '1.6',
+                  paddingLeft: '1rem',
+                },
+                '& ul li': {
+                  marginLeft: '0.5rem',
+                  marginBottom: '0.25rem',
+                },
+                '& ol li': {
+                  marginLeft: '0.5rem',
+                  marginBottom: '0.25rem',
+                },
+                // Text formatting
+                '& strong': {
+                  fontWeight: 600,
+                },
+                '& b': {
+                  fontWeight: 600,
+                },
+                '& em': {
+                  fontStyle: 'italic',
+                },
+                '& i': {
+                  fontStyle: 'italic',
+                },
+                // Headings
+                '& h1': {
+                  fontSize: '1.25rem',
+                  fontWeight: 700,
+                  marginBottom: '0.5rem',
+                  lineHeight: '1.3',
+                  marginTop: '1rem',
+                },
+                '& h2': {
+                  fontSize: '1.125rem',
+                  fontWeight: 600,
+                  marginBottom: '0.5rem',
+                  lineHeight: '1.3',
+                  marginTop: '0.875rem',
+                },
+                '& h3': {
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  marginBottom: '0.5rem',
+                  lineHeight: '1.3',
+                  marginTop: '0.75rem',
+                },
+                '& h4': {
+                  fontSize: '0.9375rem',
+                  fontWeight: 600,
+                  marginBottom: '0.5rem',
+                  lineHeight: '1.3',
+                  marginTop: '0.625rem',
+                },
+                // Links
+                '& a': {
+                  color: '#3b82f6',
+                  textDecoration: 'underline',
+                },
+                // Blockquotes
+                '& blockquote': {
+                  borderLeft: '4px solid #e5e7eb',
+                  paddingLeft: '1rem',
+                  marginLeft: 0,
+                  marginBottom: '0.5rem',
+                  fontStyle: 'italic',
+                },
+                // Code
+                '& code': {
+                  backgroundColor: '#f3f4f6',
+                  padding: '0.125rem 0.25rem',
+                  borderRadius: '0.25rem',
+                  fontFamily: 'monospace',
+                  fontSize: '0.875em',
+                },
+                '& pre': {
+                  backgroundColor: '#f3f4f6',
+                  padding: '0.75rem',
+                  borderRadius: '0.375rem',
+                  overflowX: 'auto',
+                  marginBottom: '0.5rem',
+                },
+                '& pre code': {
+                  backgroundColor: 'transparent',
+                  padding: 0,
+                },
+              }}
+            />
           </Paper>
         )}
       </Stack>

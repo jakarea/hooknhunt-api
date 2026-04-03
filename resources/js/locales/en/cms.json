@@ -78,7 +78,21 @@
     "fileUpdated": "File Updated",
     "fileUpdatedMessage": "File details updated successfully",
     "updateFailed": "Update Failed",
-    "filesCount": "files"
+    "filesCount": "files",
+    "fileActions": "File Actions",
+    "view": "View",
+    "download": "Download",
+    "copyUrl": "Copy URL",
+    "deleteFile": "Delete File",
+    "deleteFileConfirm": "Are you sure you want to delete {{name}}?",
+    "fileDeleted": "File Deleted",
+    "fileDeletedMessage": "File deleted successfully",
+    "urlCopied": "URL Copied",
+    "urlCopiedMessage": "File URL copied to clipboard",
+    "errorCopyingUrl": "Failed to copy URL",
+    "downloadStarted": "Download Started",
+    "downloadStartedMessage": "File download started",
+    "bulkDownloadMessage": "Downloading {{count}} file(s)..."
   },
   "mediaSelector": {
     "title": "Media Library",

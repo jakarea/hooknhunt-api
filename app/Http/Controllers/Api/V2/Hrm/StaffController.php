@@ -29,7 +29,7 @@ class StaffController extends Controller
         }
 
         // Load staff - exclude customer roles (10 = Retail Customer, 11 = Wholesale Customer)
-        $query = User::with(['staffProfile.department', 'role'])
+        $query = User::with(['staffProfile.department', 'staffProfile.photo', 'role'])
             ->whereHas('role', function($q) {
                 $q->whereNotIn('id', [10, 11]); // Exclude customer roles
             });
@@ -80,6 +80,11 @@ class StaffController extends Controller
             'bank_account_number' => 'nullable|string|max:255',
             'bank_name' => 'nullable|string|max:255',
             'bank_branch' => 'nullable|string|max:255',
+
+            // Document uploads
+            'profile_photo_id' => 'nullable|exists:media_files,id',
+            'national_id' => 'nullable|exists:media_files,id',
+            'resume' => 'nullable|exists:media_files,id',
         ]);
 
         DB::beginTransaction();
@@ -102,6 +107,21 @@ class StaffController extends Controller
             $smsService = new AlphaSmsService();
             $smsMessage = "Welcome to Hook & Hunt! Your account has been created. Login Phone: {$user->phone} Password: {$generatedPassword}. Please change your password after first login.";
             $smsService->sendSms($smsMessage, $user->phone);
+
+            // 3.5. Move uploaded documents to Staff Documents folder and mark them
+            $staffFolder = \App\Models\MediaFolder::where('slug', 'staff-documents')->first();
+            $documentIds = array_filter([
+                $request->profile_photo_id,
+                $request->national_id,
+                $request->resume,
+            ]);
+
+            if ($staffFolder && !empty($documentIds)) {
+                \App\Models\MediaFile::whereIn('id', $documentIds)->update([
+                    'folder_id' => $staffFolder->id,
+                    'is_staff_document' => true,
+                ]);
+            }
 
             // 4. Create Staff Profile with Job Info
             StaffProfile::create([
@@ -128,6 +148,10 @@ class StaffController extends Controller
                 'bank_account_number' => $request->bank_account_number,
                 'bank_name' => $request->bank_name,
                 'bank_branch' => $request->bank_branch,
+                // Document uploads (initial upload, no history)
+                'profile_photo_id' => $request->profile_photo_id,
+                'national_id' => $request->national_id,
+                'resume' => $request->resume,
             ]);
 
             DB::commit();
@@ -146,6 +170,9 @@ class StaffController extends Controller
     {
         $staff = User::with([
             'staffProfile.department',
+            'staffProfile.photo',
+            'staffProfile.nationalId',
+            'staffProfile.resumeMedia',
             'role.permissions:id,name,slug,group_name',
             'directPermissions' => function ($query) {
                 $query->select('permissions.id', 'permissions.name', 'permissions.slug', 'permissions.group_name')
@@ -243,6 +270,11 @@ class StaffController extends Controller
             'bank_name' => 'nullable|string|max:255',
             'bank_branch' => 'nullable|string|max:255',
 
+            // Document uploads
+            'profile_photo_id' => 'nullable|exists:media_files,id',
+            'national_id' => 'nullable|exists:media_files,id',
+            'resume' => 'nullable|exists:media_files,id',
+
             // Password - optional
             'password' => 'nullable|string|min:6',
         ]);
@@ -286,10 +318,16 @@ class StaffController extends Controller
             ]);
 
             // updateOrCreate ব্যবহার করছি যাতে প্রোফাইল না থাকলে তৈরি হয়ে যায়
-            StaffProfile::updateOrCreate(
+            $profile = StaffProfile::updateOrCreate(
                 ['user_id' => $user->id],
                 $profileData
             );
+
+            // Handle document uploads with versioning
+            $this->handleDocumentUpload($profile, 'profile_photo_id', $request->input('profile_photo_id'));
+            $this->handleDocumentUpload($profile, 'national_id', $request->input('national_id'));
+            $this->handleDocumentUpload($profile, 'resume', $request->input('resume'));
+            $profile->save();
 
             DB::commit();
             return $this->sendSuccess($user->load('staffProfile'), 'Staff updated successfully');
@@ -667,5 +705,50 @@ class StaffController extends Controller
         }
 
         return $password;
+    }
+
+    /**
+     * Handle document upload with versioning
+     * Saves old documents to history, sets new document as current
+     */
+    private function handleDocumentUpload(StaffProfile $profile, string $field, ?int $newMediaFileId): void
+    {
+        if ($newMediaFileId === null) {
+            return; // No new file uploaded
+        }
+
+        // Move new document to Staff Documents folder and mark it
+        $staffFolder = \App\Models\MediaFolder::where('slug', 'staff-documents')->first();
+        if ($staffFolder) {
+            \App\Models\MediaFile::where('id', $newMediaFileId)->update([
+                'folder_id' => $staffFolder->id,
+                'is_staff_document' => true,
+            ]);
+        }
+
+        $historyField = match($field) {
+            'profile_photo_id' => 'photo_history',
+            'national_id' => 'national_id_history',
+            default => null
+        };
+
+        if ($historyField === null) {
+            // For resume (no history), just update
+            $profile->$field = $newMediaFileId;
+            return;
+        }
+
+        // Get current value
+        $currentValue = $profile->$field;
+
+        if ($currentValue !== null) {
+            // Save current to history
+            $history = $profile->$historyField ?? [];
+            $history[] = $currentValue;
+            $profile->$historyField = $history;
+        }
+
+        // Set new value
+        $profile->$field = $newMediaFileId;
     }
 }

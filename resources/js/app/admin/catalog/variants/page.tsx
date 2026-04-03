@@ -132,7 +132,7 @@ export default function VariantsPage() {
             productThumbnail: product.thumbnail,
             category: product.category,
             brand: product.brand,
-            variantName: variant.variantName || variant.customName || variant.name || '-',
+            variantName: variant.variantName || variant.name || '-',
             sku: variant.sku || variant.customSku || '-',
             channel: channel,
             price: parseFloat(String(variant.price || variant.retailPrice || variant.defaultRetailPrice || 0)),
@@ -326,10 +326,10 @@ export default function VariantsPage() {
               {/* Retail */}
               <Group justify="space-between">
                 <Text size="sm" fw={500}>Retail</Text>
-                <Text size="sm" fw={500} c="blue">${variant.retailSellingPrice.toFixed(2)}</Text>
+                <Text size="sm" fw={500} c="blue">৳{variant.retailSellingPrice.toFixed(2)}</Text>
               </Group>
               <Text size="xs" c={variant.retailProfitAmount >= 0 ? 'green' : 'red'} mt={-4}>
-                {variant.retailProfitAmount >= 0 ? '+' : ''}${Math.round(variant.retailProfitAmount)} ({Math.round(variant.retailProfitPercent)}%)
+                {variant.retailProfitAmount >= 0 ? '+' : ''}৳{Math.round(variant.retailProfitAmount)} ({Math.round(variant.retailProfitPercent)}%)
               </Text>
 
               {/* Wholesale */}
@@ -337,10 +337,10 @@ export default function VariantsPage() {
                 <>
                   <Group justify="space-between" mt="xs">
                     <Text size="sm" fw={500} c="green">Wholesale</Text>
-                    <Text size="sm" fw={500} c="green">${variant.wholesaleSellingPrice.toFixed(2)}</Text>
+                    <Text size="sm" fw={500} c="green">৳{variant.wholesaleSellingPrice.toFixed(2)}</Text>
                   </Group>
                   <Text size="xs" c={variant.wholesaleProfitAmount >= 0 ? 'green' : 'red'} mt={-4}>
-                    {variant.wholesaleProfitAmount >= 0 ? '+' : ''}${Math.round(variant.wholesaleProfitAmount)} ({Math.round(variant.wholesaleProfitPercent)}%)
+                    {variant.wholesaleProfitAmount >= 0 ? '+' : ''}৳{Math.round(variant.wholesaleProfitAmount)} ({Math.round(variant.wholesaleProfitPercent)}%)
                   </Text>
                 </>
               )}
@@ -506,26 +506,26 @@ export default function VariantsPage() {
                       <Table.Td>
                         <Stack gap={0}>
                           <Text className="text-sm md:text-base" fw={500} c="blue">
-                            ${variant.retailSellingPrice.toFixed(2)}
+                            ৳{variant.retailSellingPrice.toFixed(2)}
                           </Text>
                           <Text
                             size="xs"
                             c={variant.retailProfitAmount >= 0 ? 'green' : 'red'}
                           >
-                            {variant.retailProfitAmount >= 0 ? '+' : ''}${Math.round(variant.retailProfitAmount)} ({Math.round(variant.retailProfitPercent)}%)
+                            {variant.retailProfitAmount >= 0 ? '+' : ''}৳{Math.round(variant.retailProfitAmount)} ({Math.round(variant.retailProfitPercent)}%)
                           </Text>
                         </Stack>
                       </Table.Td>
                       <Table.Td>
                         <Stack gap={0}>
                           <Text className="text-sm md:text-base" fw={500} c="green">
-                            ${variant.wholesaleSellingPrice.toFixed(2)}
+                            ৳{variant.wholesaleSellingPrice.toFixed(2)}
                           </Text>
                           <Text
                             size="xs"
                             c={variant.wholesaleProfitAmount >= 0 ? 'green' : 'red'}
                           >
-                            {variant.wholesaleProfitAmount >= 0 ? '+' : ''}${Math.round(variant.wholesaleProfitAmount)} ({Math.round(variant.wholesaleProfitPercent)}%)
+                            {variant.wholesaleProfitAmount >= 0 ? '+' : ''}৳{Math.round(variant.wholesaleProfitAmount)} ({Math.round(variant.wholesaleProfitPercent)}%)
                           </Text>
                         </Stack>
                       </Table.Td>

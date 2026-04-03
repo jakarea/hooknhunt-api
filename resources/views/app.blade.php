@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Hook & Hunt - ERP</title>
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('pwa-192x192.png') }}" />
 
     {{-- Load Vite HMR in development --}}
     @if(app()->environment('local'))

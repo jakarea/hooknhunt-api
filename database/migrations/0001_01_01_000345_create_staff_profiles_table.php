@@ -17,11 +17,19 @@ return new class extends Migration
             // Profile photo
             $table->foreignId('profile_photo_id')->nullable()->constrained('media_files')->onDelete('set null');
 
+            // National ID (current) - stores old versions in history
+            $table->foreignId('national_id')->nullable()->constrained('media_files')->onDelete('set null');
+            $table->json('national_id_history')->nullable();
+            $table->json('photo_history')->nullable();
+
+            // Resume
+            $table->foreignId('resume')->nullable()->constrained('media_files')->onDelete('set null');
+
             // Bank account fields (added 2026-02-09)
-            $table->string('bank_account_name')->nullable()->after('profile_photo_id');
-            $table->string('bank_account_number')->nullable()->after('bank_account_name');
-            $table->string('bank_name')->nullable()->after('bank_account_number');
-            $table->string('bank_branch')->nullable()->after('bank_name');
+            $table->string('bank_account_name')->nullable();
+            $table->string('bank_account_number')->nullable();
+            $table->string('bank_name')->nullable();
+            $table->string('bank_branch')->nullable();
 
             // Address information
             $table->text('address')->nullable();

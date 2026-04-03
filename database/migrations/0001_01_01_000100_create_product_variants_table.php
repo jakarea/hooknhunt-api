@@ -11,8 +11,9 @@ return new class extends Migration
         Schema::create('product_variants', function (Blueprint $table) {
             $table->id();
             $table->foreignId('product_id')->constrained('products')->onDelete('cascade');
-            $table->string('variant_slug')->unique();
             $table->enum('channel', ['retail', 'wholesale', 'daraz', 'pos']);
+            $table->string('variant_slug');
+            $table->unique(['variant_slug', 'channel'], 'unique_variant_slug_channel');
             $table->string('sku')->unique();
             $table->string('custom_sku')->nullable();
             $table->string('variant_name')->nullable();
@@ -31,6 +32,7 @@ return new class extends Migration
             $table->integer('stock_alert_level')->default(5);
             $table->integer('allow_preorder')->default(false);
             $table->date('expected_delivery')->nullable();
+            $table->integer('stock')->default(0);
             $table->integer('moq')->default(1);
             $table->boolean('is_active')->default(true);
             $table->unique(['product_id', 'variant_name', 'channel'], 'unique_variant_name_per_product_channel');
