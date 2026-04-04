@@ -113,6 +113,11 @@ Route::group([
         Route::apiResource('brands', 'BrandController');
         Route::apiResource('attributes', 'AttributeController');
         Route::apiResource('products', 'ProductController');
+
+        // Discount/Coupon custom routes (must come BEFORE apiResource)
+        Route::post('discounts/bulk-generate', 'DiscountController@bulkGenerate');
+        Route::post('discounts/check-validity', 'DiscountController@checkValidity');
+        Route::post('discounts/{id}/toggle-status', 'DiscountController@toggleStatus');
         Route::apiResource('discounts', 'DiscountController');
     });
 
@@ -383,7 +388,6 @@ Route::group([
         Route::apiResource('support-tickets', 'TicketController');
         Route::apiResource('landing-pages', 'LandingPageController');
         Route::apiResource('menus', 'MenuController');
-        Route::apiResource('banners', 'BannerController');
         Route::post('payment/bkash/init/{order_id}', 'PaymentController@payWithBkash');
     });
 

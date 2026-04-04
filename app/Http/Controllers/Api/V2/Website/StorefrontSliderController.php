@@ -3,14 +3,14 @@
 namespace App\Http\Controllers\Api\V2\Website;
 
 use App\Http\Controllers\Controller;
-use App\Models\Website\WebsiteSlider;
+use App\Models\Website\Slider;
 use Illuminate\Http\JsonResponse;
 
 class StorefrontSliderController extends Controller
 {
     public function index(): JsonResponse
     {
-        $sliders = WebsiteSlider::where('is_active', true)
+        $sliders = Slider::where('is_active', true)
             ->orderBy('sort_order')
             ->get()
             ->map(fn($s) => [

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V2\Website;
 
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
+use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
@@ -237,6 +238,94 @@ class OrderController extends Controller
             ->firstOrFail();
 
         return $this->sendSuccess($this->transformOrder($salesOrder));
+    }
+
+    /**
+     * Add a thank-you product to an existing order.
+     * POST /api/v2/store/orders/{invoice_no}/add-thank-you
+     */
+    public function addThankYouProduct(Request $request, string $invoice_no): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_id' => 'required|integer|exists:products,id',
+        ]);
+
+        $product = Product::where('id', $validated['product_id'])
+            ->where('thank_you', true)
+            ->where('status', 'published')
+            ->first();
+
+        if (!$product) {
+            return $this->sendError('Product is not a valid thank-you product.', null, 422);
+        }
+
+        $order = SalesOrder::where('invoice_no', $invoice_no)
+            ->where('channel', 'retail_web')
+            ->whereIn('status', ['pending', 'processing', 'approved'])
+            ->first();
+
+        if (!$order) {
+            return $this->sendError('Order not found or cannot be modified.', null, 404);
+        }
+
+        // Only allow within 5 minutes of order creation
+        if ($order->created_at->diffInMinutes(now()) > 5) {
+            return $this->sendError('This action is no longer available.', null, 410);
+        }
+
+        // Check if this product is already in the order
+        $variant = ProductVariant::where('product_id', $product->id)
+            ->where('channel', 'retail')
+            ->where('is_active', true)
+            ->first();
+
+        if (!$variant) {
+            return $this->sendError('No active retail variant found for this product.', null, 422);
+        }
+
+        $alreadyExists = SalesOrderItem::where('sales_order_id', $order->id)
+            ->where('product_variant_id', $variant->id)
+            ->exists();
+
+        if ($alreadyExists) {
+            return $this->sendError('This product is already in the order.', null, 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            $unitPrice = $this->getEffectivePrice($variant);
+            $quantity = 1;
+
+            SalesOrderItem::create([
+                'sales_order_id'     => $order->id,
+                'product_variant_id' => $variant->id,
+                'quantity'           => $quantity,
+                'unit_price'         => $unitPrice,
+                'total_price'        => $unitPrice * $quantity,
+                'total_cost'         => (float) $variant->purchase_cost * $quantity,
+            ]);
+
+            // Update order total
+            $order->total_amount = (float) $order->total_amount + ($unitPrice * $quantity);
+            $order->due_amount = (float) $order->due_amount + ($unitPrice * $quantity);
+            $order->sub_total = (float) $order->sub_total + ($unitPrice * $quantity);
+            $order->save();
+
+            $order->load('items.variant.product.thumbnail');
+
+            DB::commit();
+
+            return $this->sendSuccess(
+                $this->transformOrder($order->fresh()->load('items.variant.product.thumbnail')),
+                'Thank you product added to order'
+            );
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Failed to add thank-you product to order', [
+                'error' => $e->getMessage(),
+            ]);
+            return $this->sendError('Failed to add product. Please try again.', $e->getMessage(), 500);
+        }
     }
 
     // -------------------------------------------------------

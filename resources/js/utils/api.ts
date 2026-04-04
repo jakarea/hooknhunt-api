@@ -3925,17 +3925,24 @@ export const updateProduct = async (id: number, data: {
   description?: string
   status?: 'draft' | 'published' | 'archived'
   videoUrl?: string
+  crossSale?: string
+  upSale?: string
+  thankYou?: boolean
 }) => {
-  const response = await api.put(`catalog/products/${id}`, {
-    name: data.name,
-    category_id: data.categoryId,
-    brand_id: data.brandId,
-    thumbnail_id: data.thumbnailId,
-    gallery_images: data.galleryImages,
-    description: data.description,
-    status: data.status,
-    video_url: data.videoUrl,
-  })
+  const payload: Record<string, unknown> = {}
+  if (data.name !== undefined) payload.name = data.name
+  if (data.categoryId !== undefined) payload.category_id = data.categoryId
+  if (data.brandId !== undefined) payload.brand_id = data.brandId
+  if (data.thumbnailId !== undefined) payload.thumbnail_id = data.thumbnailId
+  if (data.galleryImages !== undefined) payload.gallery_images = data.galleryImages
+  if (data.description !== undefined) payload.description = data.description
+  if (data.status !== undefined) payload.status = data.status
+  if (data.videoUrl !== undefined) payload.video_url = data.videoUrl
+  if (data.crossSale !== undefined) payload.crossSale = data.crossSale
+  if (data.upSale !== undefined) payload.upSale = data.upSale
+  if (data.thankYou !== undefined) payload.thankYou = data.thankYou
+
+  const response = await api.put(`catalog/products/${id}`, payload)
   return response.data
 }
 
@@ -4348,5 +4355,209 @@ export const getPurchaseOrderStatistics = async () => {
  */
 export const updateStatusHistoryComments = async (poId: number, historyId: number, comments: string) => {
   const response = await api.patch(`procurement/orders/${poId}/status-history/${historyId}/comments`, { comments })
+  return response.data
+}
+
+// ============================================
+// COUPONS / DISCOUNTS API METHODS
+// ============================================
+
+export type Coupon = {
+  id: number
+  code: string
+  description?: string | null
+  type: 'percentage' | 'fixed_amount'
+  amount: number
+  maxDiscountAmount?: number | null
+  minOrderAmount?: number | null
+  startsAt?: string | null
+  expiresAt?: string | null
+  maxUses?: number | null
+  usageLimitPerCustomer?: number | null
+  usedCount: number
+  isActive: boolean
+  isAutoApply: boolean
+  firstPurchaseOnly: boolean
+  productIds?: number[] | null
+  categoryIds?: number[] | null
+  customerIds?: number[] | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type CouponFilters = {
+  search?: string
+  is_active?: boolean
+  type?: 'percentage' | 'fixed_amount'
+  per_page?: number
+  page?: number
+}
+
+export type CouponFormData = {
+  code: string
+  description?: string | null
+  type: 'percentage' | 'fixed_amount'
+  amount: number
+  maxDiscountAmount?: number | null
+  minOrderAmount?: number | null
+  startsAt?: string | null
+  expiresAt?: string | null
+  maxUses?: number | null
+  usageLimitPerCustomer?: number | null
+  isActive?: boolean
+  isAutoApply?: boolean
+  firstPurchaseOnly?: boolean
+  productIds?: number[] | null
+  categoryIds?: number[] | null
+  customerIds?: number[] | null
+}
+
+export type BulkGenerateData = {
+  prefix: string
+  quantity: number
+} & Omit<CouponFormData, 'code'>
+
+/**
+ * Get coupons with optional filters
+ * GET /api/v2/catalog/discounts
+ */
+export const getCoupons = async (filters?: CouponFilters) => {
+  const params = new URLSearchParams()
+
+  if (filters?.search) params.append('search', filters.search)
+  if (filters?.type) params.append('type', filters.type)
+  if (filters?.is_active !== undefined) params.append('is_active', filters.is_active ? '1' : '0')
+  if (filters?.per_page) params.append('per_page', filters.per_page.toString())
+  if (filters?.page) params.append('page', filters.page.toString())
+
+  const response = await api.get(`catalog/discounts?${params}`)
+  return response.data
+}
+
+/**
+ * Get single coupon by ID
+ * GET /api/v2/catalog/discounts/{id}
+ */
+export const getCoupon = async (id: number) => {
+  const response = await api.get(`catalog/discounts/${id}`)
+  return response.data
+}
+
+/**
+ * Create a new coupon
+ * POST /api/v2/catalog/discounts
+ */
+export const createCoupon = async (data: CouponFormData) => {
+  const response = await api.post('catalog/discounts', {
+    code: data.code.toUpperCase(),
+    description: data.description,
+    type: data.type,
+    amount: data.amount,
+    max_discount_amount: data.maxDiscountAmount,
+    min_order_amount: data.minOrderAmount,
+    starts_at: data.startsAt,
+    expires_at: data.expiresAt,
+    max_uses: data.maxUses,
+    usage_limit_per_customer: data.usageLimitPerCustomer,
+    is_active: data.isActive ?? true,
+    is_auto_apply: data.isAutoApply ?? false,
+    first_purchase_only: data.firstPurchaseOnly ?? false,
+    product_ids: data.productIds,
+    category_ids: data.categoryIds,
+    customer_ids: data.customerIds,
+  })
+  return response.data
+}
+
+/**
+ * Update a coupon
+ * PUT /api/v2/catalog/discounts/{id}
+ */
+export const updateCoupon = async (id: number, data: Partial<CouponFormData>) => {
+  const payload: Record<string, unknown> = {}
+  if (data.code !== undefined) payload.code = data.code.toUpperCase()
+  if (data.description !== undefined) payload.description = data.description
+  if (data.type !== undefined) payload.type = data.type
+  if (data.amount !== undefined) payload.amount = data.amount
+  if (data.maxDiscountAmount !== undefined) payload.max_discount_amount = data.maxDiscountAmount
+  if (data.minOrderAmount !== undefined) payload.min_order_amount = data.minOrderAmount
+  if (data.startsAt !== undefined) payload.starts_at = data.startsAt
+  if (data.expiresAt !== undefined) payload.expires_at = data.expiresAt
+  if (data.maxUses !== undefined) payload.max_uses = data.maxUses
+  if (data.usageLimitPerCustomer !== undefined) payload.usage_limit_per_customer = data.usageLimitPerCustomer
+  if (data.isActive !== undefined) payload.is_active = data.isActive
+  if (data.isAutoApply !== undefined) payload.is_auto_apply = data.isAutoApply
+  if (data.firstPurchaseOnly !== undefined) payload.first_purchase_only = data.firstPurchaseOnly
+  if (data.productIds !== undefined) payload.product_ids = data.productIds
+  if (data.categoryIds !== undefined) payload.category_ids = data.categoryIds
+  if (data.customerIds !== undefined) payload.customer_ids = data.customerIds
+
+  const response = await api.put(`catalog/discounts/${id}`, payload)
+  return response.data
+}
+
+/**
+ * Delete a coupon
+ * DELETE /api/v2/catalog/discounts/{id}
+ */
+export const deleteCoupon = async (id: number) => {
+  const response = await api.delete(`catalog/discounts/${id}`)
+  return response.data
+}
+
+/**
+ * Bulk generate coupons
+ * POST /api/v2/catalog/discounts/bulk-generate
+ */
+export const bulkGenerateCoupons = async (data: BulkGenerateData) => {
+  const response = await api.post('catalog/discounts/bulk-generate', {
+    prefix: data.prefix.toUpperCase(),
+    quantity: data.quantity,
+    description: data.description,
+    type: data.type,
+    amount: data.amount,
+    max_discount_amount: data.maxDiscountAmount,
+    min_order_amount: data.minOrderAmount,
+    starts_at: data.startsAt,
+    expires_at: data.expiresAt,
+    max_uses: data.maxUses,
+    usage_limit_per_customer: data.usageLimitPerCustomer,
+    is_active: data.isActive ?? true,
+    is_auto_apply: data.isAutoApply ?? false,
+    first_purchase_only: data.firstPurchaseOnly ?? false,
+    product_ids: data.productIds,
+    category_ids: data.categoryIds,
+    customer_ids: data.customerIds,
+  })
+  return response.data
+}
+
+/**
+ * Check coupon validity against cart
+ * POST /api/v2/catalog/discounts/check-validity
+ */
+export const checkCouponValidity = async (data: {
+  code: string
+  cartTotal: number
+  userId?: number
+  cartProductIds?: number[]
+  cartCategoryIds?: number[]
+}) => {
+  const response = await api.post('catalog/discounts/check-validity', {
+    code: data.code.toUpperCase(),
+    cart_total: data.cartTotal,
+    user_id: data.userId,
+    cart_product_ids: data.cartProductIds,
+    cart_category_ids: data.cartCategoryIds,
+  })
+  return response.data
+}
+
+/**
+ * Toggle coupon active/inactive status
+ * POST /api/v2/catalog/discounts/{id}/toggle-status
+ */
+export const toggleCouponStatus = async (id: number) => {
+  const response = await api.post(`catalog/discounts/${id}/toggle-status`)
   return response.data
 }

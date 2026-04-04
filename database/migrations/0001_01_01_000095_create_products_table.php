@@ -29,6 +29,10 @@ return new class extends Migration
             $table->json('warranty_details')->nullable();
             $table->json('highlights')->nullable();
             $table->json('includes_in_box')->nullable();
+            $table->string('cross_sale')->nullable();
+            $table->string('up_sale')->nullable();
+            $table->boolean('thank_you')->default(false);
+            $table->boolean('hide')->default(false);
             $table->enum('status', ['draft', 'published', 'archived'])->default('draft');
             $table->timestamps();
             $table->softDeletes(); // Soft delete - no data loss

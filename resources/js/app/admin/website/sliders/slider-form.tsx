@@ -14,6 +14,7 @@ import {
 } from '@mantine/core'
 import { useNavigate } from 'react-router-dom'
 import { IconPhoto } from '@tabler/icons-react'
+import { useTranslation } from 'react-i18next'
 import { useMediaSelector } from '@/hooks/useMediaSelector'
 import { useSliderStore } from '@/stores/sliderStore'
 import type { SliderFormData, SliderMediaType } from '@/utils/websiteApi'
@@ -42,6 +43,7 @@ export function SliderForm({
   mode: 'create' | 'edit'
   initialData?: SliderFormData
 }) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { addSlider, editSlider, submitting } = useSliderStore()
   const { openSingleSelect } = useMediaSelector()
@@ -67,9 +69,9 @@ export function SliderForm({
 
   const validate = (): boolean => {
     const e: Record<string, string> = {}
-    if (!form.title.trim()) e.title = 'Title is required'
-    if (form.mediaType === 'image' && !form.imageUrl) e.imageUrl = 'Image is required'
-    if (form.mediaType === 'video' && !form.videoUrl?.trim()) e.videoUrl = 'Video URL is required'
+    if (!form.title.trim()) e.title = t('sliders.titleRequired')
+    if (form.mediaType === 'image' && !form.imageUrl) e.imageUrl = t('sliders.imageRequired')
+    if (form.mediaType === 'video' && !form.videoUrl?.trim()) e.videoUrl = t('sliders.videoUrlRequired')
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -91,16 +93,16 @@ export function SliderForm({
       <Stack gap="md">
         {/* Header */}
         <Group justify="space-between">
-          <Text size="lg" fw={700}>{mode === 'create' ? 'Create Slider' : 'Edit Slider'}</Text>
-          <Button variant="default" onClick={() => navigate('/website/sliders')}>Cancel</Button>
+          <Text size="lg" fw={700}>{mode === 'create' ? t('sliders.createSlider') : t('sliders.editSlider')}</Text>
+          <Button variant="default" onClick={() => navigate('/website/sliders')}>{t('sliders.cancel')}</Button>
         </Group>
 
         {/* Media Type */}
         <Select
-          label="Media Type"
+          label={t('sliders.mediaType')}
           data={[
-            { value: 'image', label: 'Image' },
-            { value: 'video', label: 'YouTube Video' },
+            { value: 'image', label: t('sliders.image') },
+            { value: 'video', label: t('sliders.youtubeVideo') },
           ]}
           value={form.mediaType}
           onChange={(v) => updateField('mediaType', (v as SliderMediaType) || 'image')}
@@ -109,13 +111,13 @@ export function SliderForm({
         {/* Image Upload */}
         {form.mediaType === 'image' && (
           <Box>
-            <Text size="sm" fw={500} mb={4}>Image</Text>
+            <Text size="sm" fw={500} mb={4}>{t('sliders.imageLabel')}</Text>
             {form.imageUrl ? (
               <Box pos="relative">
                 <Image src={form.imageUrl} h={180} radius="md" fit="cover" />
                 <Group mt="xs" gap="xs">
-                  <Button size="xs" variant="light" onClick={handleImageSelect}>Change</Button>
-                  <Button size="xs" variant="subtle" color="red" onClick={() => updateField('imageUrl', null)}>Remove</Button>
+                  <Button size="xs" variant="light" onClick={handleImageSelect}>{t('sliders.change')}</Button>
+                  <Button size="xs" variant="subtle" color="red" onClick={() => updateField('imageUrl', null)}>{t('sliders.remove')}</Button>
                 </Group>
               </Box>
             ) : (
@@ -127,7 +129,7 @@ export function SliderForm({
                 styles={{ inner: { flexDirection: 'column', gap: 8 } }}
               >
                 <IconPhoto size={28} />
-                <Text size="xs">Select Image</Text>
+                <Text size="xs">{t('sliders.selectImage')}</Text>
               </Button>
             )}
             {errors.imageUrl && <Text size="xs" c="red" mt={4}>{errors.imageUrl}</Text>}
@@ -137,8 +139,8 @@ export function SliderForm({
         {/* Video URL */}
         {form.mediaType === 'video' && (
           <TextInput
-            label="YouTube Video URL"
-            placeholder="https://youtube.com/watch?v=..."
+            label={t('sliders.youtubeUrl')}
+            placeholder={t('sliders.youtubeUrlPlaceholder')}
             value={form.videoUrl || ''}
             onChange={(e) => updateField('videoUrl', e.currentTarget.value)}
             error={errors.videoUrl}
@@ -147,15 +149,15 @@ export function SliderForm({
 
         {/* Content */}
         <TextInput
-          label="Capsule Title"
-          placeholder="e.g. New Arrival"
+          label={t('sliders.capsuleTitle')}
+          placeholder={t('sliders.capsuleTitlePlaceholder')}
           value={form.capsuleTitle || ''}
           onChange={(e) => updateField('capsuleTitle', e.currentTarget.value)}
         />
 
         <TextInput
-          label="Title"
-          placeholder="e.g. Explore the Wild"
+          label={t('sliders.titleLabel')}
+          placeholder={t('sliders.titlePlaceholder')}
           required
           value={form.title}
           onChange={(e) => updateField('title', e.currentTarget.value)}
@@ -163,32 +165,32 @@ export function SliderForm({
         />
 
         <TextInput
-          label="Subtitle"
-          placeholder="e.g. Premium fishing gear for every adventure"
+          label={t('sliders.subtitleLabel')}
+          placeholder={t('sliders.subtitlePlaceholder')}
           value={form.subTitle || ''}
           onChange={(e) => updateField('subTitle', e.currentTarget.value)}
         />
 
         <TagsInput
-          label="Features"
-          placeholder="Type and press Enter to add"
+          label={t('sliders.features')}
+          placeholder={t('sliders.featuresPlaceholder')}
           value={featuresTags}
           onChange={(tags) => updateField('features', tags.join(', '))}
         />
 
         {/* CTAs */}
-        <Text size="sm" fw={600} mt="xs">CTA Buttons</Text>
+        <Text size="sm" fw={600} mt="xs">{t('sliders.ctaButtons')}</Text>
 
         <SimpleGrid cols={2} spacing="xs">
           <TextInput
-            label="CTA 1 Label"
-            placeholder="Shop Now"
+            label={t('sliders.cta1Label')}
+            placeholder={t('sliders.cta1LabelPlaceholder')}
             value={form.cta1Label || ''}
             onChange={(e) => updateField('cta1Label', e.currentTarget.value)}
           />
           <TextInput
-            label="CTA 1 Link"
-            placeholder="/products"
+            label={t('sliders.cta1Link')}
+            placeholder={t('sliders.cta1LinkPlaceholder')}
             value={form.cta1Link || ''}
             onChange={(e) => updateField('cta1Link', e.currentTarget.value)}
           />
@@ -196,14 +198,14 @@ export function SliderForm({
 
         <SimpleGrid cols={2} spacing="xs">
           <TextInput
-            label="CTA 2 Label"
-            placeholder="Learn More"
+            label={t('sliders.cta2Label')}
+            placeholder={t('sliders.cta2LabelPlaceholder')}
             value={form.cta2Label || ''}
             onChange={(e) => updateField('cta2Label', e.currentTarget.value)}
           />
           <TextInput
-            label="CTA 2 Link"
-            placeholder="/about"
+            label={t('sliders.cta2Link')}
+            placeholder={t('sliders.cta2LinkPlaceholder')}
             value={form.cta2Link || ''}
             onChange={(e) => updateField('cta2Link', e.currentTarget.value)}
           />
@@ -211,16 +213,16 @@ export function SliderForm({
 
         {/* Active Toggle */}
         <Switch
-          label="Active"
+          label={t('sliders.active')}
           checked={form.isActive ?? true}
           onChange={(e) => updateField('isActive', e.currentTarget.checked)}
         />
 
         {/* Actions */}
         <Group justify="flex-end" mt="md">
-          <Button variant="default" onClick={() => navigate('/website/sliders')}>Cancel</Button>
+          <Button variant="default" onClick={() => navigate('/website/sliders')}>{t('sliders.cancel')}</Button>
           <Button loading={submitting} onClick={handleSubmit}>
-            {mode === 'create' ? 'Create' : 'Update'}
+            {mode === 'create' ? t('sliders.create') : t('sliders.update')}
           </Button>
         </Group>
       </Stack>

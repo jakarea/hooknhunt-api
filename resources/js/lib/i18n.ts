@@ -29,6 +29,10 @@ import navEn from '../locales/en/nav.json';
 import navBn from '../locales/bn/nav.json';
 import crmEn from '../locales/en/crm.json';
 import crmBn from '../locales/bn/crm.json';
+import slidersEn from '../locales/en/sliders.json';
+import slidersBn from '../locales/bn/sliders.json';
+import couponsEn from '../locales/en/coupons.json';
+import couponsBn from '../locales/bn/coupons.json';
 
 // মডিউল মার্জ করা
 const enTranslation = {
@@ -43,7 +47,9 @@ const enTranslation = {
   dashboard: dashboardEn,
   settings: settingsEn,
   cms: cmsEn,
-  crm: crmEn
+  crm: crmEn,
+  sliders: slidersEn,
+  coupons: couponsEn
 };
 
 const bnTranslation = {
@@ -58,7 +64,9 @@ const bnTranslation = {
   dashboard: dashboardBn,
   settings: settingsBn,
   cms: cmsBn,
-  crm: crmBn
+  crm: crmBn,
+  sliders: slidersBn,
+  coupons: couponsBn
 };
 
 i18n

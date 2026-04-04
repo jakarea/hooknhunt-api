@@ -44,9 +44,16 @@ Route::prefix('api')->group(function () {
     // Public Order Route (Place Order - works for both guests and authenticated users)
     Route::post('/orders', [OrderController::class, 'placeOrder']);
     Route::post('/orders/verify', [OrderController::class, 'verifyOrder']);
+    Route::post('/orders/{invoice_no}/thank-you', [OrderController::class, 'addThankYouProduct']);
+
+    // Thank You Products (public - for order confirmation page)
+    Route::get('/thank-you-products', [ProductController::class, 'thankYouProducts']);
 
     // Public Sliders (Storefront)
     Route::get('/sliders', [StorefrontSliderController::class, 'index']);
+
+    // Cross Sale Products for Cart (public)
+    Route::get('/cross-sale-products', [ProductController::class, 'crossSaleForCart']);
 
     // We will add public '/brands' routes here in a future step
     // We will add public '/pages' routes here in a future step (About, Contact, etc.)

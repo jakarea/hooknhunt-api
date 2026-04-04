@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -18,8 +18,12 @@ import {
   SimpleGrid,
   Title,
   Skeleton,
-  Tooltip,
   ActionIcon,
+  Modal,
+  TextInput,
+  Loader,
+  ScrollArea,
+  Switch,
 } from '@mantine/core'
 import {
   IconChevronRight,
@@ -49,9 +53,13 @@ import {
   IconInfoCircle,
   IconCheck,
   IconDiscount,
+  IconTrendingUp,
+  IconHeart,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
-import { getProduct } from '@/utils/api'
+import { getProduct, updateProduct, getProducts } from '@/utils/api'
+import { useCrossSaleStore } from '@/stores/crossSaleStore'
+import { useUpSaleStore } from '@/stores/upSaleStore'
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -123,6 +131,15 @@ interface ProductVariant {
   moq?: number | null
   isActive: boolean
   channelSettings?: ChannelSetting[]
+  // Paired channel fields (from show endpoint)
+  retailPrice?: number | string
+  retailOfferPrice?: number | string | null
+  retailOfferStarts?: string | null
+  retailOfferEnds?: string | null
+  wholesalePrice?: number | string
+  wholesaleOfferPrice?: number | string | null
+  wholesaleOfferStarts?: string | null
+  wholesaleOfferEnds?: string | null
 }
 
 interface ProductDetail {
@@ -146,6 +163,9 @@ interface ProductDetail {
   variants?: ProductVariant[] | null
   galleryImages?: number[] | null // Internal IDs
   galleryImagesUrls?: string[] | null // Public URLs for display
+  crossSaleProducts?: Array<{ id: number; name: string; slug: string; thumbnailUrl?: string | null }>
+  upSaleProducts?: Array<{ id: number; name: string; slug: string; thumbnailUrl?: string | null }>
+  thankYou?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -161,6 +181,58 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<ProductDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Cross-sale store
+  const {
+    modalOpen,
+    selectedIds,
+    products: modalProducts,
+    loading: modalLoading,
+    searchQuery,
+    openModal,
+    closeModal,
+    setSearchQuery,
+    fetchProducts,
+    toggleSelect,
+    save,
+  } = useCrossSaleStore()
+
+  // Debounced search for modal
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>(null)
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value)
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    searchTimer.current = setTimeout(() => fetchProducts(), 300)
+  }, [setSearchQuery, fetchProducts])
+
+  // Cross-sale count for display
+  const crossSaleCount = product?.crossSaleProducts?.length ?? 0
+
+  // Up-sale store
+  const {
+    modalOpen: upSaleModalOpen,
+    selectedIds: upSaleSelectedIds,
+    products: upSaleModalProducts,
+    loading: upSaleModalLoading,
+    searchQuery: upSaleSearchQuery,
+    openModal: openUpSaleModal,
+    closeModal: closeUpSaleModal,
+    setSearchQuery: setUpSaleSearchQuery,
+    fetchProducts: fetchUpSaleProducts,
+    toggleSelect: toggleUpSaleSelect,
+    save: saveUpSale,
+  } = useUpSaleStore()
+
+  // Debounced search for up-sale modal
+  const upSaleSearchTimer = useRef<ReturnType<typeof setTimeout>>(null)
+  const handleUpSaleSearchChange = useCallback((value: string) => {
+    setUpSaleSearchQuery(value)
+    if (upSaleSearchTimer.current) clearTimeout(upSaleSearchTimer.current)
+    upSaleSearchTimer.current = setTimeout(() => fetchUpSaleProducts(), 300)
+  }, [setUpSaleSearchQuery, fetchUpSaleProducts])
+
+  // Up-sale count
+  const upSaleCount = product?.upSaleProducts?.length ?? 0
 
   // Translation namespace prefix
   const ns = 'products'
@@ -190,6 +262,8 @@ export default function ProductDetailPage() {
 
       // Variants come pre-paired from backend (retail + wholesale merged)
       setProduct(productData)
+      console.log('[fetchProduct] crossSaleProducts:', productData.crossSaleProducts)
+      console.log('[fetchProduct] raw keys:', Object.keys(productData).filter(k => k.toLowerCase().includes('cross') || k.toLowerCase().includes('sale')))
     } catch (err: unknown) {
       console.error('Failed to load product:', err)
 
@@ -212,6 +286,73 @@ export default function ProductDetailPage() {
   useEffect(() => {
     fetchProduct()
   }, [fetchProduct])
+
+  // Toggle thank-you product status
+  const handleToggleThankYou = useCallback(async (checked: boolean) => {
+    if (!product) return
+    const previous = product.thankYou
+    setProduct({ ...product, thankYou: checked })
+    try {
+      await updateProduct(product.id, { thankYou: checked })
+      notifications.show({ title: 'Updated', message: checked ? 'Marked as thank-you product' : 'Removed thank-you flag', color: 'green' })
+    } catch {
+      setProduct({ ...product, thankYou: previous })
+      notifications.show({ title: 'Error', message: 'Failed to update', color: 'red' })
+    }
+  }, [product])
+
+  const handleRemoveCrossSale = useCallback(async (csId: number) => {
+    if (!product) return
+    const crossSaleStr = (product.crossSaleProducts ?? [])
+      .filter((p) => p.id !== csId)
+      .map((p) => p.id)
+      .join(',')
+
+    // Optimistic update — remove from local state immediately
+    const previousProducts = product.crossSaleProducts
+    setProduct({
+      ...product,
+      crossSaleProducts: previousProducts?.filter((p) => p.id !== csId) ?? [],
+    })
+
+    try {
+      await updateProduct(product.id, { crossSale: crossSaleStr })
+      notifications.show({ title: 'Removed', message: 'Cross-sale product removed', color: 'green' })
+      fetchProduct()
+    } catch (err) {
+      // Revert on failure
+      setProduct({ ...product, crossSaleProducts: previousProducts })
+      console.error('Failed to remove cross-sale:', err)
+      notifications.show({ title: 'Error', message: 'Failed to remove cross-sale product', color: 'red' })
+    }
+  }, [product, fetchProduct])
+
+  // Remove an up-sale product directly (optimistic update)
+  const handleRemoveUpSale = useCallback(async (usId: number) => {
+    if (!product) return
+    const upSaleStr = (product.upSaleProducts ?? [])
+      .filter((p) => p.id !== usId)
+      .map((p) => p.id)
+      .join(',')
+
+    // Optimistic update — remove from local state immediately
+    const previousProducts = product.upSaleProducts
+    setProduct({
+      ...product,
+      upSaleProducts: previousProducts?.filter((p) => p.id !== usId) ?? [],
+    })
+
+    try {
+      await updateProduct(product.id, { upSale: upSaleStr })
+      notifications.show({ title: 'Removed', message: 'Up-sale product removed', color: 'green' })
+      fetchProduct()
+    } catch (err) {
+      // Revert on failure
+      setProduct({ ...product, upSaleProducts: previousProducts })
+      console.error('Failed to remove up-sale:', err)
+      notifications.show({ title: 'Error', message: 'Failed to remove up-sale product', color: 'red' })
+    }
+  }, [product, fetchProduct])
 
   // PERFORMANCE: Memoized status configuration
   const statusConfig = useMemo<Record<string, { color: string; label: string }>>(() => ({
@@ -290,7 +431,7 @@ export default function ProductDetailPage() {
       { title: t(`${ns}.detail.breadcrumbs.dashboard`), href: '/dashboard' },
       { title: t(`${ns}.detail.breadcrumbs.catalog`), href: '/catalog' },
       { title: t(`${ns}.detail.breadcrumbs.products`), href: '/catalog/products' },
-      { title: product.name, href: `/catalog/products/${product.id}` },
+      { title: decodeHTMLEntities(product.name), href: `/catalog/products/${product.id}` },
     ].map((item, index) => (
       <Anchor href={item.href} key={index} className="text-sm md:text-base">
         {item.title}
@@ -1022,115 +1163,493 @@ export default function ProductDetailPage() {
               {t(`${ns}.detail.productInformation.description`)}
             </Text>
             <Box
-              className="text-sm md:text-base html-content"
+              className="text-sm md:text-base html-content wrap-break-word overflow-hidden product-description"
               dangerouslySetInnerHTML={{ __html: decodeHTMLEntities(product.description) }}
-              styles={{
-                // Paragraphs
-                '& p': {
-                  marginBottom: '0.5rem',
-                  lineHeight: '1.6',
-                },
-                // Lists
-                '& ul': {
-                  listStyleType: 'disc',
-                  marginLeft: '1.5rem',
-                  marginBottom: '0.5rem',
-                  lineHeight: '1.6',
-                  paddingLeft: '1rem',
-                },
-                '& ol': {
-                  listStyleType: 'decimal',
-                  marginLeft: '1.5rem',
-                  marginBottom: '0.5rem',
-                  lineHeight: '1.6',
-                  paddingLeft: '1rem',
-                },
-                '& ul li': {
-                  marginLeft: '0.5rem',
-                  marginBottom: '0.25rem',
-                },
-                '& ol li': {
-                  marginLeft: '0.5rem',
-                  marginBottom: '0.25rem',
-                },
-                // Text formatting
-                '& strong': {
-                  fontWeight: 600,
-                },
-                '& b': {
-                  fontWeight: 600,
-                },
-                '& em': {
-                  fontStyle: 'italic',
-                },
-                '& i': {
-                  fontStyle: 'italic',
-                },
-                // Headings
-                '& h1': {
-                  fontSize: '1.25rem',
-                  fontWeight: 700,
-                  marginBottom: '0.5rem',
-                  lineHeight: '1.3',
-                  marginTop: '1rem',
-                },
-                '& h2': {
-                  fontSize: '1.125rem',
-                  fontWeight: 600,
-                  marginBottom: '0.5rem',
-                  lineHeight: '1.3',
-                  marginTop: '0.875rem',
-                },
-                '& h3': {
-                  fontSize: '1rem',
-                  fontWeight: 600,
-                  marginBottom: '0.5rem',
-                  lineHeight: '1.3',
-                  marginTop: '0.75rem',
-                },
-                '& h4': {
-                  fontSize: '0.9375rem',
-                  fontWeight: 600,
-                  marginBottom: '0.5rem',
-                  lineHeight: '1.3',
-                  marginTop: '0.625rem',
-                },
-                // Links
-                '& a': {
-                  color: '#3b82f6',
-                  textDecoration: 'underline',
-                },
-                // Blockquotes
-                '& blockquote': {
-                  borderLeft: '4px solid #e5e7eb',
-                  paddingLeft: '1rem',
-                  marginLeft: 0,
-                  marginBottom: '0.5rem',
-                  fontStyle: 'italic',
-                },
-                // Code
-                '& code': {
-                  backgroundColor: '#f3f4f6',
-                  padding: '0.125rem 0.25rem',
-                  borderRadius: '0.25rem',
-                  fontFamily: 'monospace',
-                  fontSize: '0.875em',
-                },
-                '& pre': {
-                  backgroundColor: '#f3f4f6',
-                  padding: '0.75rem',
-                  borderRadius: '0.375rem',
-                  overflowX: 'auto',
-                  marginBottom: '0.5rem',
-                },
-                '& pre code': {
-                  backgroundColor: 'transparent',
-                  padding: 0,
-                },
-              }}
             />
           </Paper>
         )}
+
+        {/* Cross Sale Products Section */}
+        <Paper withBorder p="md" radius="md">
+          <Group justify="space-between" align="center" mb="md">
+            <Group gap="sm" align="center">
+              <IconShoppingBag size={22} className="text-violet-600" />
+              <Text fw={600} className="text-base md:text-lg">
+                Cross Sale Products ({crossSaleCount}/3)
+              </Text>
+            </Group>
+          </Group>
+
+          <Text c="dimmed" className="text-sm mb-4">
+            Products recommended as cross-sell when customers view this product. Max 3 products.
+          </Text>
+
+          <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="sm">
+            {/* Render existing cross-sale products */}
+            {product.crossSaleProducts?.map((cs) => (
+              <Paper
+                key={cs.id}
+                withBorder
+                p="sm"
+                radius="md"
+                className="hover:border-violet-300 transition-colors"
+              >
+                <Group gap="sm" align="flex-start" wrap="nowrap">
+                  <Box
+                    w={56}
+                    h={56}
+                    className="bg-gray-100 rounded-md overflow-hidden shrink-0"
+                  >
+                    {cs.thumbnailUrl ? (
+                      <Image
+                        src={cs.thumbnailUrl}
+                        alt={cs.name}
+                        w="100%"
+                        h="100%"
+                        fit="cover"
+                        radius="sm"
+                      />
+                    ) : (
+                      <Stack align="center" justify="center" h="100%">
+                        <IconPhoto size={20} className="text-gray-400" />
+                      </Stack>
+                    )}
+                  </Box>
+                  <Stack gap={2} className="flex-1 min-w-0">
+                    <Text className="text-sm" fw={500} lineClamp={1}>
+                      {cs.name}
+                    </Text>
+                    <Anchor
+                      className="text-xs"
+                      c="dimmed"
+                      href={`/catalog/products/${cs.id}`}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        navigate(`/catalog/products/${cs.id}`)
+                      }}
+                    >
+                      View product
+                    </Anchor>
+                  </Stack>
+                  <ActionIcon
+                    variant="subtle"
+                    color="red"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleRemoveCrossSale(cs.id)
+                    }}
+                  >
+                    <IconX size={14} />
+                  </ActionIcon>
+                </Group>
+              </Paper>
+            ))}
+
+            {/* Empty Add Slot */}
+            {crossSaleCount < 3 && (
+              <Paper
+                withBorder
+                p="md"
+                radius="md"
+                className="border-dashed border-2 border-gray-300 hover:border-violet-400 hover:bg-violet-50/30 transition-colors cursor-pointer"
+                onClick={() => openModal(product.id, product.crossSaleProducts?.map((p) => p.id) ?? [])}
+              >
+                <Stack align="center" justify="center" h="100%" py="sm">
+                  <Box className="bg-gray-100 rounded-full p-2">
+                    <IconPlus size={20} className="text-gray-500" />
+                  </Box>
+                  <Text className="text-xs md:text-sm" c="dimmed" fw={500}>
+                    Add Product
+                  </Text>
+                </Stack>
+              </Paper>
+            )}
+          </SimpleGrid>
+        </Paper>
+
+        {/* Cross Sale Product Selection Modal */}
+        <Modal
+          opened={modalOpen}
+          onClose={closeModal}
+          title="Select Cross Sale Products"
+          size="90%"
+          centered
+        >
+          <Stack gap="md">
+            <TextInput
+              placeholder="Search products by name..."
+              leftSection={<IconSearch size={16} />}
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.currentTarget.value)}
+            />
+
+            <Group gap="xs" align="center">
+              <Text className="text-sm" c="dimmed">
+                Selected: {selectedIds.length}/3
+              </Text>
+            </Group>
+
+            <ScrollArea mah={450}>
+              {modalLoading ? (
+                <Stack align="center" py="xl">
+                  <Loader size="md" />
+                  <Text c="dimmed" className="text-sm">Loading products...</Text>
+                </Stack>
+              ) : modalProducts.length === 0 ? (
+                <Stack align="center" py="xl">
+                  <IconPhoto size={40} className="text-gray-300" />
+                  <Text c="dimmed" className="text-sm">No products found</Text>
+                </Stack>
+              ) : (
+                <SimpleGrid cols={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing="sm">
+                  {modalProducts.map((p) => {
+                    const isSelected = selectedIds.includes(p.id)
+                    const isSelf = p.id === product.id
+                    const isDisabled = isSelf || (!isSelected && selectedIds.length >= 3)
+                    const variantCount = p.variants?.length ?? 0
+                    const wholesaleVariant = p.variants?.find((v: any) => v.channel === 'wholesale')
+                    const retailVariant = p.variants?.find((v: any) => v.channel === 'retail')
+                    const displayPrice = wholesaleVariant?.price ?? retailVariant?.price ?? p.variants?.[0]?.price
+
+                    return (
+                      <Paper
+                        key={p.id}
+                        withBorder
+                        p="sm"
+                        radius="md"
+                        className={`transition-colors ${
+                          isDisabled ? 'opacity-50 cursor-not-allowed' :
+                          isSelected ? 'border-violet-500 bg-violet-50 cursor-pointer' :
+                          'hover:border-gray-400 cursor-pointer'
+                        }`}
+                        onClick={() => !isDisabled && toggleSelect(p.id)}
+                      >
+                        <Group gap="sm" wrap="nowrap">
+                          <Box
+                            w={52}
+                            h={52}
+                            className="bg-gray-100 rounded-md overflow-hidden shrink-0"
+                          >
+                            {p.thumbnail?.fullUrl ? (
+                              <Image
+                                src={p.thumbnail.fullUrl}
+                                alt={p.name}
+                                w="100%"
+                                h="100%"
+                                fit="cover"
+                                radius="sm"
+                              />
+                            ) : (
+                              <Stack align="center" justify="center" h="100%">
+                                <IconPhoto size={20} className="text-gray-400" />
+                              </Stack>
+                            )}
+                          </Box>
+                          <Stack gap={2} className="flex-1 min-w-0">
+                            <Text className="text-sm" fw={500} lineClamp={1}>
+                              {p.name}
+                            </Text>
+                            <Group gap="xs" wrap="nowrap">
+                              {displayPrice != null && (
+                                <Text className="text-xs" fw={600} c="violet">
+                                  ৳{Number(displayPrice).toFixed(0)}
+                                </Text>
+                              )}
+                              <Badge size="xs" variant="light" color="gray" radius="sm">
+                                {variantCount} variant{variantCount !== 1 ? 's' : ''}
+                              </Badge>
+                            </Group>
+                            {p.category?.name && (
+                              <Text className="text-xs" c="dimmed">{p.category.name}</Text>
+                            )}
+                          </Stack>
+                          {isSelected && (
+                            <Badge color="violet" variant="filled" size="sm">
+                              <IconCheck size={12} />
+                            </Badge>
+                          )}
+                        </Group>
+                      </Paper>
+                    )
+                  })}
+                </SimpleGrid>
+              )}
+            </ScrollArea>
+
+            <Group justify="flex-end" mt="md">
+              <Button variant="default" onClick={closeModal}>
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  const ok = await save()
+                  if (ok) {
+                    closeModal()
+                    fetchProduct() // refresh page data
+                  }
+                }}
+              >
+                Save Selection
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
+
+        {/* Up Sale Products Section */}
+        <Paper withBorder p="md" radius="md">
+          <Group justify="space-between" align="center" mb="md">
+            <Group gap="sm" align="center">
+              <IconTrendingUp size={22} className="text-teal-600" />
+              <Text fw={600} className="text-base md:text-lg">
+                Up Sale Products ({upSaleCount}/3)
+              </Text>
+            </Group>
+          </Group>
+
+          <Text c="dimmed" className="text-sm mb-4">
+            Products suggested as upgrades or premium alternatives. Max 3 products.
+          </Text>
+
+          <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="sm">
+            {/* Render existing up-sale products */}
+            {product.upSaleProducts?.map((us) => (
+              <Paper
+                key={us.id}
+                withBorder
+                p="sm"
+                radius="md"
+                className="hover:border-teal-300 transition-colors"
+              >
+                <Group gap="sm" align="flex-start" wrap="nowrap">
+                  <Box
+                    w={56}
+                    h={56}
+                    className="bg-gray-100 rounded-md overflow-hidden shrink-0"
+                  >
+                    {us.thumbnailUrl ? (
+                      <Image
+                        src={us.thumbnailUrl}
+                        alt={us.name}
+                        w="100%"
+                        h="100%"
+                        fit="cover"
+                        radius="sm"
+                      />
+                    ) : (
+                      <Stack align="center" justify="center" h="100%">
+                        <IconPhoto size={20} className="text-gray-400" />
+                      </Stack>
+                    )}
+                  </Box>
+                  <Stack gap={2} className="flex-1 min-w-0">
+                    <Text className="text-sm" fw={500} lineClamp={1}>
+                      {us.name}
+                    </Text>
+                    <Anchor
+                      className="text-xs"
+                      c="dimmed"
+                      href={`/catalog/products/${us.id}`}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        navigate(`/catalog/products/${us.id}`)
+                      }}
+                    >
+                      View product
+                    </Anchor>
+                  </Stack>
+                  <ActionIcon
+                    variant="subtle"
+                    color="red"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleRemoveUpSale(us.id)
+                    }}
+                  >
+                    <IconX size={14} />
+                  </ActionIcon>
+                </Group>
+              </Paper>
+            ))}
+
+            {/* Empty Add Slot */}
+            {upSaleCount < 3 && (
+              <Paper
+                withBorder
+                p="md"
+                radius="md"
+                className="border-dashed border-2 border-gray-300 hover:border-teal-400 hover:bg-teal-50/30 transition-colors cursor-pointer"
+                onClick={() => openUpSaleModal(product.id, product.upSaleProducts?.map((p) => p.id) ?? [])}
+              >
+                <Stack align="center" justify="center" h="100%" py="sm">
+                  <Box className="bg-gray-100 rounded-full p-2">
+                    <IconPlus size={20} className="text-gray-500" />
+                  </Box>
+                  <Text className="text-xs md:text-sm" c="dimmed" fw={500}>
+                    Add Product
+                  </Text>
+                </Stack>
+              </Paper>
+            )}
+          </SimpleGrid>
+        </Paper>
+
+        {/* Up Sale Product Selection Modal */}
+        <Modal
+          opened={upSaleModalOpen}
+          onClose={closeUpSaleModal}
+          title="Select Up Sale Products"
+          size="90%"
+          centered
+        >
+          <Stack gap="md">
+            <TextInput
+              placeholder="Search products by name..."
+              leftSection={<IconSearch size={16} />}
+              value={upSaleSearchQuery}
+              onChange={(e) => handleUpSaleSearchChange(e.currentTarget.value)}
+            />
+
+            <Group gap="xs" align="center">
+              <Text className="text-sm" c="dimmed">
+                Selected: {upSaleSelectedIds.length}/3
+              </Text>
+            </Group>
+
+            <ScrollArea mah={450}>
+              {upSaleModalLoading ? (
+                <Stack align="center" py="xl">
+                  <Loader size="md" />
+                  <Text c="dimmed" className="text-sm">Loading products...</Text>
+                </Stack>
+              ) : upSaleModalProducts.length === 0 ? (
+                <Stack align="center" py="xl">
+                  <IconPhoto size={40} className="text-gray-300" />
+                  <Text c="dimmed" className="text-sm">No products found</Text>
+                </Stack>
+              ) : (
+                <SimpleGrid cols={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing="sm">
+                  {upSaleModalProducts.map((p) => {
+                    const isSelected = upSaleSelectedIds.includes(p.id)
+                    const isSelf = p.id === product.id
+                    const isDisabled = isSelf || (!isSelected && upSaleSelectedIds.length >= 3)
+                    const variantCount = p.variants?.length ?? 0
+                    const wholesaleVariant = p.variants?.find((v: any) => v.channel === 'wholesale')
+                    const retailVariant = p.variants?.find((v: any) => v.channel === 'retail')
+                    const displayPrice = wholesaleVariant?.price ?? retailVariant?.price ?? p.variants?.[0]?.price
+
+                    return (
+                      <Paper
+                        key={p.id}
+                        withBorder
+                        p="sm"
+                        radius="md"
+                        className={`transition-colors ${
+                          isDisabled ? 'opacity-50 cursor-not-allowed' :
+                          isSelected ? 'border-teal-500 bg-teal-50 cursor-pointer' :
+                          'hover:border-gray-400 cursor-pointer'
+                        }`}
+                        onClick={() => !isDisabled && toggleUpSaleSelect(p.id)}
+                      >
+                        <Group gap="sm" wrap="nowrap">
+                          <Box
+                            w={52}
+                            h={52}
+                            className="bg-gray-100 rounded-md overflow-hidden shrink-0"
+                          >
+                            {p.thumbnail?.fullUrl ? (
+                              <Image
+                                src={p.thumbnail.fullUrl}
+                                alt={p.name}
+                                w="100%"
+                                h="100%"
+                                fit="cover"
+                                radius="sm"
+                              />
+                            ) : (
+                              <Stack align="center" justify="center" h="100%">
+                                <IconPhoto size={20} className="text-gray-400" />
+                              </Stack>
+                            )}
+                          </Box>
+                          <Stack gap={2} className="flex-1 min-w-0">
+                            <Text className="text-sm" fw={500} lineClamp={1}>
+                              {p.name}
+                            </Text>
+                            <Group gap="xs" wrap="nowrap">
+                              {displayPrice != null && (
+                                <Text className="text-xs" fw={600} c="teal">
+                                  ৳{Number(displayPrice).toFixed(0)}
+                                </Text>
+                              )}
+                              <Badge size="xs" variant="light" color="gray" radius="sm">
+                                {variantCount} variant{variantCount !== 1 ? 's' : ''}
+                              </Badge>
+                            </Group>
+                            {p.category?.name && (
+                              <Text className="text-xs" c="dimmed">{p.category.name}</Text>
+                            )}
+                          </Stack>
+                          {isSelected && (
+                            <Badge color="teal" variant="filled" size="sm">
+                              <IconCheck size={12} />
+                            </Badge>
+                          )}
+                        </Group>
+                      </Paper>
+                    )
+                  })}
+                </SimpleGrid>
+              )}
+            </ScrollArea>
+
+            <Group justify="flex-end" mt="md">
+              <Button variant="default" onClick={closeUpSaleModal}>
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  const ok = await saveUpSale()
+                  if (ok) {
+                    closeUpSaleModal()
+                    fetchProduct()
+                  }
+                }}
+              >
+                Save Selection
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
+
+        {/* Thank You Product Toggle */}
+        <Paper withBorder p="md" radius="md">
+          <Group justify="space-between" align="center">
+            <Group gap="sm" align="center">
+              <Box className="bg-pink-50 p-2 rounded-md">
+                <IconHeart size={22} className="text-pink-600" />
+              </Box>
+              <div>
+                <Text fw={600} className="text-base md:text-lg">
+                  Thank You Product
+                </Text>
+                <Text c="dimmed" className="text-xs">
+                  Mark this product to be shown on order confirmation page
+                </Text>
+              </div>
+            </Group>
+            <Switch
+              checked={product.thankYou ?? false}
+              onChange={(event) => handleToggleThankYou(event.currentTarget.checked)}
+              size="md"
+              onLabel="Yes"
+              offLabel="No"
+            />
+          </Group>
+        </Paper>
       </Stack>
     </Box>
   )

@@ -96,6 +96,62 @@ class ProductController extends Controller
     }
 
     /**
+     * Get cross-sale products for cart page.
+     * Accepts comma-separated cross-sale IDs and cart product IDs.
+     * Returns unique cross-sale products not already in the cart.
+     * GET /api/v2/store/cross-sale-products
+     */
+    public function crossSaleForCart(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'cross_sale_ids' => 'required|string',
+            'cart_ids'       => 'nullable|string',
+        ]);
+
+        $crossSaleIds = array_map('intval', explode(',', $validated['cross_sale_ids']));
+        $cartIds = array_map('intval', explode(',', $validated['cart_ids'] ?? ''));
+
+        // Remove cart items from cross-sale suggestions
+        $uniqueIds = array_values(array_unique(array_diff($crossSaleIds, $cartIds)));
+
+        if (empty($uniqueIds)) {
+            return $this->sendSuccess([]);
+        }
+
+        $products = Product::with(['thumbnail'])
+            ->whereIn('id', $uniqueIds)
+            ->where('status', 'published')
+            ->get()
+            ->sortBy(fn($p) => array_search($p->id, $uniqueIds))
+            ->values();
+
+        $products->transform(fn($p) => $this->transformCompactProduct($p));
+
+        return $this->sendSuccess($products);
+    }
+
+    /**
+     * Get products marked as thank-you products (retail only).
+     * GET /api/v2/store/products/thank-you
+     */
+    public function thankYouProducts(Request $request): JsonResponse
+    {
+        $limit = $request->input('limit', 12);
+
+        $products = Product::with(['category', 'brand', 'thumbnail'])
+            ->where('status', 'published')
+            ->where('thank_you', true)
+            ->whereHas('variants', fn($q) => $q->where('channel', 'retail')->where('is_active', true))
+            ->orderBy('created_at', 'desc')
+            ->limit($limit)
+            ->get();
+
+        $products->transform(fn($product) => $this->transformProduct($product));
+
+        return $this->sendSuccess($products);
+    }
+
+    /**
      * Get the highest discount amount across retail variants.
      */
     private function getMaxDiscount(Product $product): float
@@ -208,6 +264,49 @@ class ProductController extends Controller
                 'name' => $product->brand->name,
             ] : null,
             'variants'         => $product->variants->map(fn($v) => $this->transformVariant($v))->values()->toArray(),
+            'crossSaleProducts' => $this->transformLinkedProducts($product->cross_sale),
+            'upSaleProducts'    => $this->transformLinkedProducts($product->up_sale),
+            'isThankYou'        => (bool) $product->thank_you,
+        ];
+    }
+
+    /**
+     * Transform comma-separated product IDs into a list of compact product data.
+     */
+    private function transformLinkedProducts(?string $ids): array
+    {
+        if (empty($ids)) return [];
+
+        $idArray = array_map('intval', explode(',', $ids));
+
+        return Product::with(['thumbnail'])
+            ->whereIn('id', $idArray)
+            ->where('status', 'published')
+            ->get()
+            ->sortBy(fn($p) => array_search($p->id, $idArray))
+            ->values()
+            ->map(fn($p) => $this->transformCompactProduct($p))
+            ->toArray();
+    }
+
+    /**
+     * Compact product transform for cross-sale / up-sale / thank-you.
+     * Returns: title, slug, thumbnail, retailPrice, retailOfferPrice
+     */
+    private function transformCompactProduct(Product $p): array
+    {
+        $retailVariant = $p->variants()
+            ->where('channel', 'retail')
+            ->where('is_active', true)
+            ->first();
+
+        return [
+            'id'               => $p->id,
+            'title'            => $p->retail_name ?? $p->name,
+            'slug'             => $p->slug,
+            'thumbnail'        => $this->transformMedia($p->thumbnail),
+            'retailPrice'      => $retailVariant ? (float) $retailVariant->price : 0,
+            'retailOfferPrice' => $retailVariant ? (float) $retailVariant->offer_price : 0,
         ];
     }
 

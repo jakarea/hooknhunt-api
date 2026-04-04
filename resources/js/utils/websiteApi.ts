@@ -337,7 +337,7 @@ export const formatCurrency = (amount: number | string | undefined | null): stri
 
 export type SliderMediaType = 'image' | 'video'
 
-export type WebsiteSlider = {
+export type Slider = {
   id: number
   mediaType: SliderMediaType
   imageUrl: string | null

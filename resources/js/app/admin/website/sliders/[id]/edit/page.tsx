@@ -1,11 +1,13 @@
 import * as React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Box, Text, LoadingOverlay } from '@mantine/core'
+import { useTranslation } from 'react-i18next'
 import { useSliderStore } from '@/stores/sliderStore'
 import { SliderForm } from '../../slider-form'
 import type { SliderFormData } from '@/utils/websiteApi'
 
 export default function EditSliderPage() {
+  const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { sliders, fetchSliders, loading } = useSliderStore()
@@ -31,7 +33,7 @@ export default function EditSliderPage() {
   if (notFound) {
     return (
       <Box p="xl" ta="center">
-        <Text c="dimmed">Slider not found</Text>
+        <Text c="dimmed">{t('sliders.sliderNotFound')}</Text>
         <Text
           size="sm"
           c="blue"
@@ -39,7 +41,7 @@ export default function EditSliderPage() {
           mt="xs"
           onClick={() => navigate('/website/sliders')}
         >
-          Back to sliders
+          {t('sliders.backToSliders')}
         </Text>
       </Box>
     )

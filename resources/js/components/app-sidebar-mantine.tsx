@@ -118,6 +118,7 @@ export function AppSidebarMantine({
               { title: t("products.attributes"), url: "/catalog/attributes" },
               { title: t("products.units"), url: "/catalog/units" },
               { title: t("products.printLabels"), url: "/catalog/print-labels" },
+              { title: t("nav.coupons"), url: "/catalog/coupons" },
             ],
           },
       //     {
@@ -311,7 +312,7 @@ export function AppSidebarMantine({
             url: "/website/orders",
           },
           {
-            title: t("nav.websiteSliders"),
+            title: t("nav.Sliders"),
             icon: IconLayout,
             url: "/website/sliders",
           },

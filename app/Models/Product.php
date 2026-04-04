@@ -24,6 +24,8 @@ class Product extends Model
         'brand_id',
         'thumbnail_id',
         'gallery_images',
+        'cross_sale',
+        'up_sale',
         'description',
         'short_description',
         'video_url',
@@ -35,6 +37,7 @@ class Product extends Model
         'warranty_details',
         'highlights',
         'includes_in_box',
+        'thank_you',
     ];
 
     protected $casts = [
@@ -43,10 +46,11 @@ class Product extends Model
         'highlights' => 'array', // JSON Column for product highlights
         'includes_in_box' => 'array', // JSON Column for items included in box
         'warranty_enabled' => 'boolean',
+        'thank_you' => 'boolean',
     ];
 
     // Automatically append gallery images URLs to JSON response
-    protected $appends = ['gallery_images_urls'];
+    protected $appends = ['gallery_images_urls', 'cross_sale_products', 'up_sale_products'];
 
     // 1. Relation with Category
     public function category()
@@ -93,7 +97,50 @@ class Product extends Model
         return MediaFile::whereIn('id', $this->gallery_images)->get();
     }
 
-    // 7. Accessors for channel-specific names (no fallback - return null if not set)
+    // 7. Accessor for Cross Sale Products
+    // Parses comma-separated IDs and returns lightweight product data
+    public function getCrossSaleProductsAttribute()
+    {
+        if (empty($this->cross_sale)) return [];
+
+        $ids = array_map('intval', explode(',', $this->cross_sale));
+
+        return Product::with('thumbnail')
+            ->whereIn('id', $ids)
+            ->get()
+            ->sortBy(fn($p) => array_search($p->id, $ids))
+            ->values()
+            ->map(fn($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'slug' => $p->slug,
+                'thumbnailUrl' => $p->thumbnail?->full_url,
+            ])
+            ->toArray();
+    }
+
+    // 8. Accessor for Up Sale Products
+    public function getUpSaleProductsAttribute()
+    {
+        if (empty($this->up_sale)) return [];
+
+        $ids = array_map('intval', explode(',', $this->up_sale));
+
+        return Product::with('thumbnail')
+            ->whereIn('id', $ids)
+            ->get()
+            ->sortBy(fn($p) => array_search($p->id, $ids))
+            ->values()
+            ->map(fn($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'slug' => $p->slug,
+                'thumbnailUrl' => $p->thumbnail?->full_url,
+            ])
+            ->toArray();
+    }
+
+    // 9. Accessors for channel-specific names (no fallback - return null if not set)
     public function getRetailNameAttribute()
     {
         return $this->attributes['retail_name'] ?? null;

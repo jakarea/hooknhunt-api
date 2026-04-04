@@ -446,7 +446,10 @@ class ProductController extends Controller
             'wholesaleName' => 'nullable|string',
             'category' => 'sometimes|required|exists:categories,id',
             'brand' => 'nullable|exists:brands,id',
-            'status' => 'in:draft,published,archived'
+            'status' => 'in:draft,published,archived',
+            'crossSale' => 'nullable|string',
+            'upSale' => 'nullable|string',
+            'thankYou' => 'nullable|boolean',
         ]);
 
         $product = Product::findOrFail($id);
@@ -479,6 +482,9 @@ class ProductController extends Controller
                 'warranty_details' => $request->has('warrantyDetails') ? $request->warrantyDetails : $product->warranty_details,
                 'highlights' => $request->highlights ?? $product->highlights,
                 'includes_in_box' => $request->includesInTheBox ?? $product->includes_in_box,
+                'cross_sale' => $request->has('crossSale') ? $request->crossSale : $product->cross_sale,
+                'up_sale' => $request->has('upSale') ? $request->upSale : $product->up_sale,
+                'thank_you' => $request->has('thankYou') ? $request->thankYou : $product->thank_you,
             ]);
 
             // Handle variants update

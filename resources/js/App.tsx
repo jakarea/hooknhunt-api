@@ -26,6 +26,7 @@ import Brands from "@/app/admin/catalog/brands/page"
 import Attributes from "@/app/admin/catalog/attributes/page"
 import Units from "@/app/admin/catalog/units/page"
 import PrintLabels from "@/app/admin/catalog/print-labels/page"
+import Coupons from "@/app/admin/catalog/coupons/page"
 import PurchaseOrders from "@/app/admin/procurement/orders/page"
 import CreatePO from "@/app/admin/procurement/create/page"
 import PurchaseOrderDetails from "@/app/admin/procurement/orders/[id]/page"
@@ -119,7 +120,6 @@ import CustomReports from "@/app/admin/finance/reports/custom/page"
 import FinanceAudit from "@/app/admin/finance/audit/page"
 import Tickets from "@/app/admin/support/tickets/page"
 import SupportCategories from "@/app/admin/support/categories/page"
-import Banners from "@/app/admin/cms/banners/page"
 import Menus from "@/app/admin/cms/menus/page"
 import CMSPages from "@/app/admin/cms/pages/page"
 import Blog from "@/app/admin/cms/blog/page"
@@ -145,7 +145,7 @@ import TaxSettings from "@/app/admin/settings/taxes/page"
 import WorkingHoursSettings from "@/app/admin/settings/working-hours/page"
 import WebsiteOrders from "@/app/admin/website/orders/page"
 import WebsiteOrderDetail from "@/app/admin/website/orders/[id]/page"
-import WebsiteSliders from "@/app/admin/website/sliders/page"
+import Sliders from "@/app/admin/website/sliders/page"
 import CreateSlider from "@/app/admin/website/sliders/create/page"
 import EditSlider from "@/app/admin/website/sliders/[id]/edit/page"
 
@@ -200,6 +200,7 @@ function App() {
               <Route path="catalog/attributes" element={<Attributes />} />
               <Route path="catalog/units" element={<Units />} />
               <Route path="catalog/print-labels" element={<PrintLabels />} />
+              <Route path="catalog/coupons" element={<Coupons />} />
               <Route path="procurement/orders" element={<PurchaseOrders />} />
               <Route path="procurement/create" element={<CreatePO />} />
               <Route path="procurement/orders/:id" element={<PurchaseOrderDetails />} />
@@ -294,7 +295,6 @@ function App() {
               <Route path="finance/reports/general-ledger" element={<GeneralLedger />} />
               <Route path="support/tickets" element={<Tickets />} />
               <Route path="support/categories" element={<SupportCategories />} />
-              <Route path="cms/banners" element={<Banners />} />
               <Route path="cms/menus" element={<Menus />} />
               <Route path="cms/pages" element={<CMSPages />} />
               <Route path="cms/blog" element={<Blog />} />
@@ -320,7 +320,7 @@ function App() {
               {/* Website Admin */}
               <Route path="website/orders" element={<WebsiteOrders />} />
               <Route path="website/orders/:id" element={<WebsiteOrderDetail />} />
-              <Route path="website/sliders" element={<WebsiteSliders />} />
+              <Route path="website/sliders" element={<Sliders />} />
               <Route path="website/sliders/create" element={<CreateSlider />} />
               <Route path="website/sliders/:id/edit" element={<EditSlider />} />
             </Route>

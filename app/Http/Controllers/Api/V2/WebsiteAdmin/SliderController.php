@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api\V2\WebsiteAdmin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Website\WebsiteSlider;
+use App\Models\Website\Slider;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -11,7 +11,7 @@ class SliderController extends Controller
 {
     public function index(): JsonResponse
     {
-        $sliders = WebsiteSlider::orderBy('sort_order')->get();
+        $sliders = Slider::orderBy('sort_order')->get();
 
         return response()->json([
             'success' => true,
@@ -36,10 +36,10 @@ class SliderController extends Controller
             'is_active' => 'boolean',
         ]);
 
-        $maxSort = WebsiteSlider::max('sort_order') ?? 0;
+        $maxSort = Slider::max('sort_order') ?? 0;
         $validated['sort_order'] = $maxSort + 1;
 
-        $slider = WebsiteSlider::create($validated);
+        $slider = Slider::create($validated);
 
         return response()->json([
             'success' => true,
@@ -47,7 +47,7 @@ class SliderController extends Controller
         ], 201);
     }
 
-    public function show(WebsiteSlider $slider): JsonResponse
+    public function show(Slider $slider): JsonResponse
     {
         return response()->json([
             'success' => true,
@@ -55,7 +55,7 @@ class SliderController extends Controller
         ]);
     }
 
-    public function update(Request $request, WebsiteSlider $slider): JsonResponse
+    public function update(Request $request, Slider $slider): JsonResponse
     {
         $validated = $request->validate([
             'media_type' => 'sometimes|in:image,video',
@@ -80,7 +80,7 @@ class SliderController extends Controller
         ]);
     }
 
-    public function destroy(WebsiteSlider $slider): JsonResponse
+    public function destroy(Slider $slider): JsonResponse
     {
         $slider->delete();
 
@@ -94,12 +94,12 @@ class SliderController extends Controller
     {
         $validated = $request->validate([
             'items' => 'required|array',
-            'items.*.id' => 'required|exists:website_sliders,id',
+            'items.*.id' => 'required|exists:sliders,id',
             'items.*.sort_order' => 'required|integer',
         ]);
 
         foreach ($validated['items'] as $item) {
-            WebsiteSlider::where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
+            Slider::where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
         }
 
         return response()->json([

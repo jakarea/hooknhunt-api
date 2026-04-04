@@ -4,9 +4,9 @@ namespace App\Models\Website;
 
 use Illuminate\Database\Eloquent\Model;
 
-class WebsiteSlider extends Model
+class Slider extends Model
 {
-    protected $table = 'website_sliders';
+    protected $table = 'sliders';
 
     protected $fillable = [
         'media_type',
