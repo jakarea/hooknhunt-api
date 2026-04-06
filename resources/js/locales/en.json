@@ -423,7 +423,7 @@
       "generatedVariants": "Generated {{count}} variant(s) from {{types}} variant type(s)",
       "defaultValues": "Default Values for New Variants",
       "autoCalculationTip": "Enter Purchase Cost to auto-calculate Retail Price (+50%) and Wholesale Price (+20%)",
-      "applyToAll": "Apply to All",
+      "applyToAll": "Apply",
       "variantNamePlaceholder": "Size, Color...",
       "price": "Price",
       "retailPrice": "Retail Price",

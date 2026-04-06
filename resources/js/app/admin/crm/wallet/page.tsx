@@ -32,6 +32,7 @@ import {
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import api from '@/lib/api'
+import { usePermissions } from '@/hooks/usePermissions'
 import { modals } from '@mantine/modals'
 import { useDebouncedValue } from '@mantine/hooks'
 
@@ -238,6 +239,19 @@ interface PaginatedResponse<T> {
 }
 
 export default function WalletPage() {
+  const { hasPermission } = usePermissions()
+
+  if (!hasPermission('crm.wallet.index')) {
+    return (
+      <Stack p="xl">
+        <Paper withBorder p="xl" shadow="sm" ta="center">
+          <Title order={3}>Access Denied</Title>
+          <Text c="dimmed">You don't have permission to view this page.</Text>
+        </Paper>
+      </Stack>
+    )
+  }
+
   const [searchQuery, setSearchQuery] = useState('')
   const [balanceFilter, setBalanceFilter] = useState<string | null>('all')
   const [activeTab, setActiveTab] = useState<'wallets' | 'transactions'>('wallets')

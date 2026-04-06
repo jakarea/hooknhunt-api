@@ -889,16 +889,16 @@ export default function CreateProductPage() {
         id: newId,
         retail_id: null,
         wholesale_id: null,
-        name: defaultValues.name || '',
-        price: defaultValues.price,
-        wholesalePrice: defaultValues.wholesalePrice,
-        purchaseCost: defaultValues.purchaseCost,
-        specialPrice: defaultValues.specialPrice,
-        wholesaleOfferPrice: defaultValues.wholesaleOfferPrice,
-        wholesaleMoq: defaultValues.wholesaleMoq,
-        weight: defaultValues.weight,
-        stock: defaultValues.stock,
-        sellerSku: defaultValues.sellerSku
+        name: '',
+        price: 0,
+        wholesalePrice: 0,
+        purchaseCost: 0,
+        specialPrice: undefined,
+        wholesaleOfferPrice: undefined,
+        wholesaleMoq: 0,
+        weight: 0,
+        stock: 0,
+        sellerSku: ''
       }
     ])
   }
@@ -932,16 +932,17 @@ export default function CreateProductPage() {
   const handleApplyDefaultsToAll = () => {
     setVariants(variants.map(v => ({
       ...v,
-      ...(defaultValues.name ? { name: defaultValues.name } : {}),
-      price: defaultValues.price,
-      wholesalePrice: defaultValues.wholesalePrice,
-      purchaseCost: defaultValues.purchaseCost,
-      specialPrice: defaultValues.specialPrice,
-      wholesaleOfferPrice: defaultValues.wholesaleOfferPrice,
-      wholesaleMoq: defaultValues.wholesaleMoq,
-      weight: defaultValues.weight,
-      stock: defaultValues.stock,
-      sellerSku: defaultValues.sellerSku
+      // Only apply defaults to empty/zero fields — leave existing data untouched
+      ...(defaultValues.name && !v.name.trim() ? { name: defaultValues.name } : {}),
+      ...(defaultValues.sellerSku && !v.sellerSku.trim() ? { sellerSku: defaultValues.sellerSku } : {}),
+      ...(!v.purchaseCost ? { purchaseCost: defaultValues.purchaseCost } : {}),
+      ...(!v.price ? { price: defaultValues.price } : {}),
+      ...(!v.wholesalePrice ? { wholesalePrice: defaultValues.wholesalePrice } : {}),
+      ...(v.specialPrice === undefined || v.specialPrice === 0 ? { specialPrice: defaultValues.specialPrice } : {}),
+      ...(v.wholesaleOfferPrice === undefined || v.wholesaleOfferPrice === 0 ? { wholesaleOfferPrice: defaultValues.wholesaleOfferPrice } : {}),
+      ...(!v.wholesaleMoq ? { wholesaleMoq: defaultValues.wholesaleMoq } : {}),
+      ...(!v.weight ? { weight: defaultValues.weight } : {}),
+      ...(!v.stock ? { stock: defaultValues.stock } : {}),
     })))
 
     notifications.show({
@@ -1064,14 +1065,14 @@ export default function CreateProductPage() {
           wholesale_id: v.wholesale_id || null,
           name: v.name,
           sellerSku: v.sellerSku || null,
-          purchaseCost: parseFloat(v.purchaseCost.toString()),
-          retailPrice: parseFloat(v.price.toString()),
-          wholesalePrice: parseFloat(v.wholesalePrice.toString()),
-          retailOfferPrice: v.specialPrice ? parseFloat(v.specialPrice.toString()) : null,
-          wholesaleOfferPrice: v.wholesaleOfferPrice ? parseFloat(v.wholesaleOfferPrice.toString()) : null,
-          wholesaleMoq: parseInt(v.wholesaleMoq.toString()),
-          weight: parseFloat(v.weight.toString()),
-          stock: parseInt(v.stock.toString())
+          purchaseCost: Math.round(parseFloat(v.purchaseCost.toString()) * 100) / 100,
+          retailPrice: Math.round(parseFloat(v.price.toString()) * 100) / 100,
+          wholesalePrice: Math.round(parseFloat(v.wholesalePrice.toString()) * 100) / 100,
+          retailOfferPrice: v.specialPrice ? Math.round(parseFloat(v.specialPrice.toString()) * 100) / 100 : null,
+          wholesaleOfferPrice: v.wholesaleOfferPrice ? Math.round(parseFloat(v.wholesaleOfferPrice.toString()) * 100) / 100 : null,
+          wholesaleMoq: Math.round(parseFloat(v.wholesaleMoq.toString())),
+          weight: Math.round(parseFloat(v.weight.toString())),
+          stock: Math.round(parseFloat(v.stock.toString()))
         }))
       }
 

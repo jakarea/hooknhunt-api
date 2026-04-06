@@ -28,9 +28,23 @@ import { modals } from '@mantine/modals'
 import { notifications } from '@mantine/notifications'
 import { useDebouncedValue } from '@mantine/hooks'
 import { getBrands, createBrand, updateBrand, deleteBrand, type Brand } from '@/utils/api'
+import { usePermissions } from '@/hooks/usePermissions'
 
 export default function BrandsPage() {
   const { t } = useTranslation()
+  const { hasPermission } = usePermissions()
+
+  if (!hasPermission('catalog.brands.index')) {
+    return (
+      <Stack p="xl">
+        <Paper withBorder p="xl" shadow="sm" ta="center">
+          <Text fw={700} size="lg">Access Denied</Text>
+          <Text c="dimmed">You don't have permission to view this page.</Text>
+        </Paper>
+      </Stack>
+    )
+  }
+
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [brands, setBrands] = useState<Brand[]>([])

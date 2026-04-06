@@ -38,6 +38,7 @@ import {
   deleteAttribute,
   type Attribute,
 } from '@/utils/api'
+import { usePermissions } from '@/hooks/usePermissions'
 
 // Attribute type options for the select dropdown
 const ATTRIBUTE_TYPES = [
@@ -58,6 +59,19 @@ const getTypeLabel = (type: Attribute['type'], t: (key: string) => string) => {
 
 export default function AttributesPage() {
   const { t } = useTranslation()
+  const { hasPermission } = usePermissions()
+
+  if (!hasPermission('catalog.attributes.index')) {
+    return (
+      <Stack p="xl">
+        <Paper withBorder p="xl" shadow="sm" ta="center">
+          <Text fw={700} size="lg">Access Denied</Text>
+          <Text c="dimmed">You don't have permission to view this page.</Text>
+        </Paper>
+      </Stack>
+    )
+  }
+
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [attributes, setAttributes] = useState<Attribute[]>([])

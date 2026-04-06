@@ -285,7 +285,7 @@
     "addVariant": "Add Variant",
     "defaultValues": "Default Values for New Variants",
     "defaultValuesDescription": "These values will be applied to all newly generated variants",
-    "applyToAll": "Apply to All",
+    "applyToAll": "Apply",
     "autoCalculationTip": "Enter Purchase Cost to auto-calculate Retail Price (+50%) and Wholesale Price (+20%)",
     "productSettings": "Product Settings",
     "includesInTheBox": "What's Included in the Box",

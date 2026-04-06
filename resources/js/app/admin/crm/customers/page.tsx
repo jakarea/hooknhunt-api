@@ -26,6 +26,7 @@ import { modals } from '@mantine/modals'
 import { notifications } from '@mantine/notifications'
 import { useTranslation } from 'react-i18next'
 import api from '@/lib/api'
+import { usePermissions } from '@/hooks/usePermissions'
 import { DatesProvider, DateInput } from '@mantine/dates'
 import '@mantine/dates/styles.css'
 import dayjs from 'dayjs'
@@ -65,6 +66,18 @@ interface PaginatedResponse {
 
 export default function CustomersPage() {
   const { t } = useTranslation()
+  const { hasPermission } = usePermissions()
+
+  if (!hasPermission('crm.customers.index')) {
+    return (
+      <Stack p="xl">
+        <Paper withBorder p="xl" shadow="sm" ta="center">
+          <Title order={3}>Access Denied</Title>
+          <Text c="dimmed">You don't have permission to view this page.</Text>
+        </Paper>
+      </Stack>
+    )
+  }
 
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)

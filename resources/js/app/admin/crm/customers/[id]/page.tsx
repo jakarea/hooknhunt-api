@@ -39,6 +39,7 @@ import {
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import api from '@/lib/api'
+import { usePermissions } from '@/hooks/usePermissions'
 
 // Types based on backend API response
 interface User {
@@ -108,6 +109,19 @@ interface ApiResponse {
 
 export default function CustomerDetailsPage() {
   const { id } = useParams<{ id: string }>()
+  const { hasPermission } = usePermissions()
+
+  if (!hasPermission('crm.customers.index')) {
+    return (
+      <Stack p="xl">
+        <Paper withBorder p="xl" shadow="sm" ta="center">
+          <Title order={3}>Access Denied</Title>
+          <Text c="dimmed">You don't have permission to view this page.</Text>
+        </Paper>
+      </Stack>
+    )
+  }
+
   const [loading, setLoading] = useState(true)
   const [customer, setCustomer] = useState<User | null>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'wallet' | 'activity'>('overview')

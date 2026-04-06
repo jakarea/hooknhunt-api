@@ -39,6 +39,7 @@ import {
 import { notifications } from '@mantine/notifications'
 import { DateInput } from '@mantine/dates'
 import api from '@/lib/api'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface Lead {
   id: number
@@ -115,6 +116,18 @@ const activityTypes = [
 export default function EditLeadPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { hasPermission } = usePermissions()
+
+  if (!hasPermission('crm.leads.edit')) {
+    return (
+      <Stack p="xl">
+        <Paper withBorder p="xl" shadow="sm" ta="center">
+          <Title order={3}>Access Denied</Title>
+          <Text c="dimmed">You don't have permission to view this page.</Text>
+        </Paper>
+      </Stack>
+    )
+  }
 
   // State
   const [loading, setLoading] = useState(true)

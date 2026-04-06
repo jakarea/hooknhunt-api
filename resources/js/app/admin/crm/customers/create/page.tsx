@@ -34,6 +34,7 @@ import {
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import api from '@/lib/api'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface FormData {
   // Basic Info
@@ -90,6 +91,18 @@ interface FieldErrors {
 
 export default function CreateCustomerPage() {
   const navigate = useNavigate()
+  const { hasPermission } = usePermissions()
+
+  if (!hasPermission('crm.customers.create')) {
+    return (
+      <Stack p="xl">
+        <Paper withBorder p="xl" shadow="sm" ta="center">
+          <Title order={3}>Access Denied</Title>
+          <Text c="dimmed">You don't have permission to view this page.</Text>
+        </Paper>
+      </Stack>
+    )
+  }
 
   // State
   const [submitting, setSubmitting] = useState(false)

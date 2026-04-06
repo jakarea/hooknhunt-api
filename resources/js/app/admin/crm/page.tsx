@@ -34,6 +34,7 @@ import {
 import { notifications } from '@mantine/notifications'
 import { useTranslation } from 'react-i18next'
 import api from '@/lib/api'
+import { usePermissions } from '@/hooks/usePermissions'
 import dayjs from 'dayjs'
 
 interface CRMStats {
@@ -86,6 +87,19 @@ interface RecentActivity {
 
 export default function CRMDashboardPage() {
   const { t } = useTranslation()
+  const { hasPermission } = usePermissions()
+
+  if (!hasPermission('crm.leads.index')) {
+    return (
+      <Stack p="xl">
+        <Paper withBorder p="xl" shadow="sm" ta="center">
+          <Title order={3}>Access Denied</Title>
+          <Text c="dimmed">You don't have permission to view this page.</Text>
+        </Paper>
+      </Stack>
+    )
+  }
+
   const [stats, setStats] = useState<CRMStats | null>(null)
   const [loading, setLoading] = useState(true)
 

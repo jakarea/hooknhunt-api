@@ -1,5 +1,12 @@
+import { usePermissions } from '@/hooks/usePermissions'
 
 export default function Page() {
+  const { hasPermission } = usePermissions()
+
+  if (!hasPermission('crm.campaigns.index')) {
+    return <div style={{ padding: '2rem', textAlign: 'center' }}><h3>Access Denied</h3><p>You don't have permission to view this page.</p></div>
+  }
+
   return (
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">

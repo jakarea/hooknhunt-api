@@ -16,12 +16,7 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,           // 1. Roles must be seeded first
             AdminSeeder::class,          // 2. Create Super Admin user (depends on roles)
             UserSeeder::class,           // 3. Other Users (depends on roles)
-            // Add more seeders here as needed
-            // PermissionSeeder::class,   // 4. Permissions (depends on roles) - file renamed to no-use-PermissionSeeder.php
-            HRMPermissionSeeder::class,  // 5. HRM Permissions
-            CRMPermissionSeeder::class, // 6. CRM Permissions
-            FinancePermissionSeeder::class, // 7. Finance Permissions
-            // ... other seeders
+            PermissionTableSeeder::class, // 4. All Permissions (truncates & re-seeds)
         ]);
     }
 }

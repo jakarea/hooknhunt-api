@@ -22,9 +22,9 @@ class MediaPermissionSeeder extends Seeder
                         'permissions' => [
                             ['label' => 'View Media Library', 'key' => 'cms_media_view', 'slug' => 'cms.media.view'],
                             ['label' => 'Create Folders', 'key' => 'cms_media_folders_create', 'slug' => 'cms.media.folders.create'],
+                            ['label' => 'Upload Files', 'key' => 'cms_media_files_upload', 'slug' => 'cms.media.files.upload'],
                             ['label' => 'Edit Folders', 'key' => 'cms_media_folders_edit', 'slug' => 'cms.media.folders.edit'],
                             ['label' => 'Delete Folders', 'key' => 'cms_media_folders_delete', 'slug' => 'cms.media.folders.delete'],
-                            ['label' => 'Upload Files', 'key' => 'cms_media_files_upload', 'slug' => 'cms.media.files.upload'],
                             ['label' => 'Delete Files', 'key' => 'cms_media_files_delete', 'slug' => 'cms.media.files.delete'],
                             ['label' => 'Move Files', 'key' => 'cms_media_files_move', 'slug' => 'cms.media.files.move'],
                         ],

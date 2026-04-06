@@ -45,7 +45,6 @@ class FinancePermissionSeeder extends Seeder
                             ['label' => 'Transfer Funds', 'key' => 'finance_banks_transfer', 'slug' => 'finance.banks.transfer'],
                         ],
                     ],
-                    // ==================== NEWLY ADDED: Currencies Module ====================
                     [
                         'name' => 'Currencies',
                         'permissions' => [
@@ -103,11 +102,10 @@ class FinancePermissionSeeder extends Seeder
                         'permissions' => [
                             ['label' => 'View Daily Reports', 'key' => 'finance_daily_reports_view', 'slug' => 'finance.daily-reports.index'],
                             ['label' => 'Generate Daily Report', 'key' => 'finance_daily_reports_generate', 'slug' => 'finance.daily-reports.generate'],
-                            ['label' => 'Regenerate Daily Report', 'key' => 'finance_daily_reports_regenerate', 'slug' => 'finance.daily-reports.regenerate'],
                             ['label' => 'Delete Daily Report', 'key' => 'finance_daily_reports_delete', 'slug' => 'finance.daily-reports.delete'],
+                            ['label' => 'Regenerate Daily Report', 'key' => 'finance_daily_reports_regenerate', 'slug' => 'finance.daily-reports.regenerate'],
                         ],
                     ],
-                    // ==================== NEWLY ADDED: Budgeting & Planning Module ====================
                     [
                         'name' => 'Budgets',
                         'permissions' => [
@@ -147,7 +145,6 @@ class FinancePermissionSeeder extends Seeder
                             ['label' => 'Reopen Fiscal Year', 'key' => 'finance_fiscal_years_reopen', 'slug' => 'finance.fiscal-years.reopen'],
                         ],
                     ],
-                    // ==================== NEWLY ADDED: Fixed Assets Module ====================
                     [
                         'name' => 'Fixed Assets',
                         'permissions' => [
@@ -158,7 +155,6 @@ class FinancePermissionSeeder extends Seeder
                             ['label' => 'Dispose Fixed Asset', 'key' => 'finance_fixed_assets_dispose', 'slug' => 'finance.fixed-assets.dispose'],
                         ],
                     ],
-                    // ==================== NEWLY ADDED: Cheque/PDC Management Module ====================
                     [
                         'name' => 'Cheques/PDC',
                         'permissions' => [
@@ -172,7 +168,6 @@ class FinancePermissionSeeder extends Seeder
                             ['label' => 'Cancel Cheque', 'key' => 'finance_cheques_cancel', 'slug' => 'finance.cheques.cancel'],
                         ],
                     ],
-                    // ==================== NEWLY ADDED: VAT/Tax Ledger Module ====================
                     [
                         'name' => 'VAT/Tax Ledger',
                         'permissions' => [
@@ -184,7 +179,6 @@ class FinancePermissionSeeder extends Seeder
                             ['label' => 'Mark as Filed', 'key' => 'finance_vat_tax_mark_filed', 'slug' => 'finance.vat-tax.mark-filed'],
                         ],
                     ],
-                    // ==================== NEWLY ADDED: Journal Entries Module ====================
                     [
                         'name' => 'Journal Entries',
                         'permissions' => [
@@ -195,7 +189,6 @@ class FinancePermissionSeeder extends Seeder
                             ['label' => 'Reverse Journal Entry', 'key' => 'finance_journal_reverse', 'slug' => 'finance.journal-entries.reverse'],
                         ],
                     ],
-                    // ==================== NEWLY ADDED: Accounts Payable/Receivable Module ====================
                     [
                         'name' => 'Accounts Payable',
                         'permissions' => [
@@ -214,7 +207,6 @@ class FinancePermissionSeeder extends Seeder
                             ['label' => 'Delete Accounts Receivable', 'key' => 'finance_ar_delete', 'slug' => 'finance.accounts-receivable.delete'],
                         ],
                     ],
-                    // ==================== NEWLY ADDED: Bank Reconciliations Module ====================
                     [
                         'name' => 'Bank Reconciliations',
                         'permissions' => [
@@ -226,7 +218,6 @@ class FinancePermissionSeeder extends Seeder
                             ['label' => 'Reset Bank Reconciliation', 'key' => 'finance_reconciliations_reset', 'slug' => 'finance.bank-reconciliations.reset'],
                         ],
                     ],
-                    // ==================== NEWLY ADDED: Advanced Financial Reports Module ====================
                     [
                         'name' => 'Advanced Reports',
                         'permissions' => [
@@ -238,7 +229,6 @@ class FinancePermissionSeeder extends Seeder
                             ['label' => 'Export Advanced Report', 'key' => 'finance_advanced_reports_export', 'slug' => 'finance.reports.custom.export'],
                         ],
                     ],
-                    // ==================== NEWLY ADDED: Finance Audit Trail Module ====================
                     [
                         'name' => 'Audit Trail',
                         'permissions' => [

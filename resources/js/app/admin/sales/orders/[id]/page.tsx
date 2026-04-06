@@ -19,7 +19,9 @@ import {
   Alert,
   Divider,
   Progress,
+  Center,
 } from '@mantine/core'
+import { usePermissions } from '@/hooks/usePermissions'
 import {
   IconChevronRight,
   IconArrowLeft,
@@ -181,6 +183,19 @@ const mockOrder = {
 }
 
 export default function OrderDetailsPage() {
+  const { hasPermission } = usePermissions()
+
+  if (!hasPermission('sales.orders.index')) {
+    return (
+      <Center p="xl">
+        <Stack align="center" gap="sm">
+          <Title order={3}>Access Denied</Title>
+          <Text c="dimmed">You don't have permission to view this page.</Text>
+        </Stack>
+      </Center>
+    )
+  }
+
   const order = mockOrder
 
   const [loading, setLoading] = useState(false)

@@ -33,9 +33,23 @@ import {
   deleteUnit,
   type Unit,
 } from '@/utils/api'
+import { usePermissions } from '@/hooks/usePermissions'
 
 export default function UnitsPage() {
   const { t } = useTranslation()
+  const { hasPermission } = usePermissions()
+
+  if (!hasPermission('system.settings.index')) {
+    return (
+      <Stack p="xl">
+        <Paper withBorder p="xl" shadow="sm" ta="center">
+          <Text fw={700} size="lg">Access Denied</Text>
+          <Text c="dimmed">You don't have permission to view this page.</Text>
+        </Paper>
+      </Stack>
+    )
+  }
+
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [units, setUnits] = useState<Unit[]>([])

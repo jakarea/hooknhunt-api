@@ -69,9 +69,11 @@ class CRMPermissionSeeder extends Seeder
                         'name' => 'Wallet',
                         'permissions' => [
                             ['label' => 'View Wallet', 'key' => 'crm_wallet_view', 'slug' => 'crm.wallet.index'],
+                            ['label' => 'View Wallet Transactions', 'key' => 'crm_wallet_transactions', 'slug' => 'crm.wallet.transactions'],
+                            ['label' => 'View Wallet Stats', 'key' => 'crm_wallet_stats', 'slug' => 'crm.wallet.stats'],
                             ['label' => 'Add Wallet Balance', 'key' => 'crm_wallet_add', 'slug' => 'crm.wallet.add'],
                             ['label' => 'Deduct Wallet Balance', 'key' => 'crm_wallet_deduct', 'slug' => 'crm.wallet.deduct'],
-                            ['label' => 'View Wallet Transactions', 'key' => 'crm_wallet_transactions', 'slug' => 'crm.wallet.transactions'],
+                            ['label' => 'Toggle Wallet Freeze', 'key' => 'crm_wallet_toggle_freeze', 'slug' => 'crm.wallet.toggle-freeze'],
                         ],
                     ],
                     [
