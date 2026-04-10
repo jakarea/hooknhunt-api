@@ -218,6 +218,8 @@ class ProductController extends Controller
                 'name' => $validated['productName'],
                 'retail_name' => $validated['retailName'] ?? $validated['productName'],
                 'wholesale_name' => $validated['wholesaleName'] ?? null,
+                'retail_name_bn' => $validated['retailNameBn'] ?? null,
+                'wholesale_name_bn' => $validated['wholesaleNameBn'] ?? null,
                 'slug' => SlugHelper::generateUniqueSlug($validated['productName'], 'products', 'slug'),
                 'category_id' => $validated['category'],
                 'brand_id' => $validated['brand'],
@@ -226,8 +228,11 @@ class ProductController extends Controller
                 'warranty_enabled' => $validated['enableWarranty'],
                 'warranty_details' => $validated['warrantyDetails'],
                 'description' => $validated['description'],
+                'description_bn' => $validated['descriptionBn'] ?? null,
                 'highlights' => $validated['highlights'],
+                'highlights_bn' => $validated['highlightsBn'] ?? null,
                 'includes_in_box' => $validated['includesInTheBox'],
+                'includes_in_box_bn' => $validated['includesInTheBoxBn'] ?? null,
                 'seo_title' => $validated['seoTitle'],
                 'seo_description' => $validated['seoDescription'],
                 'seo_tags' => $validated['seoTags'] ? explode(',', $validated['seoTags']) : null,
@@ -247,6 +252,7 @@ class ProductController extends Controller
                     'channel' => 'retail',
                     'variant_slug' => SlugHelper::generateVariantSlug($product->slug, $variant['name'], 'retail'),
                     'variant_name' => $variant['name'],
+                    'thumbnail' => $variant['thumbnail'] ?? null,
                     'sku' => $baseSku . '-R-' . rand(1000, 9999),
                     'custom_sku' => $variant['sellerSku'],
                     'purchase_cost' => $variant['purchaseCost'],
@@ -268,6 +274,7 @@ class ProductController extends Controller
                     'channel' => 'wholesale',
                     'variant_slug' => SlugHelper::generateVariantSlug($product->slug, $variant['name'], 'wholesale'),
                     'variant_name' => $variant['name'],
+                    'thumbnail' => $variant['thumbnail'] ?? null,
                     'sku' => $baseSku . '-W-' . rand(1000, 9999),
                     'custom_sku' => $variant['sellerSku'],
                     'purchase_cost' => $variant['purchaseCost'],
@@ -447,6 +454,9 @@ class ProductController extends Controller
             'category' => 'sometimes|required|exists:categories,id',
             'brand' => 'nullable|exists:brands,id',
             'status' => 'in:draft,published,archived',
+            'featuredImage' => 'nullable|integer|exists:media_files,id',
+            'galleryImages' => 'nullable|array|max:6',
+            'galleryImages.*' => 'integer|exists:media_files,id',
             'crossSale' => 'nullable|string',
             'upSale' => 'nullable|string',
             'thankYou' => 'nullable|boolean',
@@ -462,26 +472,68 @@ class ProductController extends Controller
                 $newSlug = SlugHelper::generateUniqueSlug($request->productName, 'products', 'slug');
             }
 
+            // Prepare includes_in_box: frontend may send comma-separated string or array
+            $includesInTheBox = $product->includes_in_box;
+            if ($request->has('includesInTheBox')) {
+                $val = $request->includesInTheBox;
+                if (is_string($val) && $val !== '') {
+                    $includesInTheBox = array_map('trim', explode(',', $val));
+                } elseif (is_array($val)) {
+                    $includesInTheBox = $val;
+                } elseif ($val === '' || $val === null) {
+                    $includesInTheBox = null;
+                }
+            }
+
+            // Prepare seo_tags: frontend sends comma-separated string
+            $seoTags = $product->seo_tags;
+            if ($request->has('seoTags')) {
+                $val = $request->seoTags;
+                if (is_string($val) && $val !== '') {
+                    $seoTags = array_map('trim', explode(',', $val));
+                } elseif ($val === '' || $val === null) {
+                    $seoTags = null;
+                }
+            }
+
+            // Prepare warranty_details: column is JSON, must store valid JSON or null
+            $warrantyDetails = $product->warranty_details;
+            if ($request->has('warrantyDetails')) {
+                $val = $request->warrantyDetails;
+                $warrantyDetails = ($val !== '' && $val !== null) ? $val : null;
+            }
+
+            // Prepare includes_in_box_bn: column is NOT NULL, use empty string as fallback
+            $includesInTheBoxBn = $product->includes_in_box_bn ?? '';
+            if ($request->has('includesInTheBoxBn')) {
+                $includesInTheBoxBn = $request->includesInTheBoxBn ?? '';
+            }
+
             // Update product fields - map camelCase to snake_case
             $product->update([
                 'name' => $request->productName ?? $product->name,
                 'retail_name' => $request->retailName ?? ($request->productName ?? $product->retail_name),
                 'wholesale_name' => $request->wholesaleName ?? $product->wholesale_name,
+                'retail_name_bn' => $request->has('retailNameBn') ? $request->retailNameBn : $product->retail_name_bn,
+                'wholesale_name_bn' => $request->has('wholesaleNameBn') ? $request->wholesaleNameBn : $product->wholesale_name_bn,
                 'slug' => $newSlug,
                 'category_id' => $request->category ?? $product->category_id,
                 'brand_id' => $request->brand ?? $product->brand_id,
-                'thumbnail_id' => $request->featuredImage ?? $product->thumbnail_id,
-                'gallery_images' => $request->galleryImages ?? $product->gallery_images,
+                'thumbnail_id' => $request->has('featuredImage') ? $request->featuredImage : $product->thumbnail_id,
+                'gallery_images' => $request->has('galleryImages') ? $request->galleryImages : $product->gallery_images,
                 'description' => $request->description ?? $product->description,
+                'description_bn' => $request->has('descriptionBn') ? $request->descriptionBn : $product->description_bn,
                 'video_url' => $request->videoUrl ?? $product->video_url,
                 'seo_title' => $request->seoTitle ?? $product->seo_title,
                 'seo_description' => $request->seoDescription ?? $product->seo_description,
-                'seo_tags' => $request->seoTags ?? $product->seo_tags,
+                'seo_tags' => $seoTags,
                 'status' => $request->status ?? $product->status,
                 'warranty_enabled' => $request->has('enableWarranty') ? $request->boolean('enableWarranty') : $product->warranty_enabled,
-                'warranty_details' => $request->has('warrantyDetails') ? $request->warrantyDetails : $product->warranty_details,
+                'warranty_details' => $warrantyDetails,
                 'highlights' => $request->highlights ?? $product->highlights,
-                'includes_in_box' => $request->includesInTheBox ?? $product->includes_in_box,
+                'highlights_bn' => $request->has('highlightsBn') ? $request->highlightsBn : $product->highlights_bn,
+                'includes_in_box' => $includesInTheBox,
+                'includes_in_box_bn' => $includesInTheBoxBn,
                 'cross_sale' => $request->has('crossSale') ? $request->crossSale : $product->cross_sale,
                 'up_sale' => $request->has('upSale') ? $request->upSale : $product->up_sale,
                 'thank_you' => $request->has('thankYou') ? $request->thankYou : $product->thank_you,
@@ -498,6 +550,7 @@ class ProductController extends Controller
                     // Common fields (same for both channels)
                     $commonFields = [
                         'variant_name' => $variantData['name'],
+                        'thumbnail' => $variantData['thumbnail'] ?? null,
                         'purchase_cost' => $variantData['purchaseCost'] ?? 0,
                         'weight' => $variantData['weight'] ?? 0,
                         'stock' => $variantData['stock'] ?? 0,
@@ -518,7 +571,7 @@ class ProductController extends Controller
                             'variant_slug' => $newRetailVariantSlug,
                             'sku' => $variantData['sellerSku'] ?? $retailVariant->sku,
                             'price' => $variantData['retailPrice'] ?? 0,
-                            'offer_price' => $variantData['retailOfferPrice'] ?? null,
+                            'offer_price' => $variantData['retailOfferPrice'] ?? 0,
                         ]));
                     }
 
@@ -534,7 +587,7 @@ class ProductController extends Controller
                         $wholesaleUpdateData = [
                             'variant_slug' => $newWholesaleVariantSlug,
                             'price' => $variantData['wholesalePrice'] ?? 0,
-                            'offer_price' => $variantData['wholesaleOfferPrice'] ?? null,
+                            'offer_price' => $variantData['wholesaleOfferPrice'] ?? 0,
                         ];
 
                         // Only update MOQ if it's explicitly provided (allow 0, but use current value if not provided)

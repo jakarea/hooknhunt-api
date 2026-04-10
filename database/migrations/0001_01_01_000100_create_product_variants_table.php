@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('sku')->unique();
             $table->string('custom_sku')->nullable();
             $table->string('variant_name')->nullable();
+            $table->string('thumbnail')->nullable();
             $table->string('size')->nullable();
             $table->string('color')->nullable();
             $table->string('material')->nullable();

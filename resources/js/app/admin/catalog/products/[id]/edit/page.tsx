@@ -41,13 +41,19 @@ import {
   IconCoin,
   IconShoppingBag,
   IconLoader,
-  IconArrowLeft
+  IconArrowLeft,
+  IconSparkles
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
-import { getCategories, getBrands, getProduct, type Category, type Brand } from '@/utils/api'
+import { getCategories, getBrands, getProduct, type Category, type Brand, type MediaFile } from '@/utils/api'
 import { useMediaSelector } from '@/hooks/useMediaSelector'
 import { useUIStore } from '@/stores/uiStore'
 import { apiMethods } from '@/lib/api'
+import Quill from 'quill'
+import 'quill/dist/quill.snow.css'
+import { DndContext, closestCenter, type DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { SortableContext, useSortable, horizontalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -58,6 +64,64 @@ interface GalleryImage {
   mediaId: number
   url: string
   order: number
+}
+
+// Sortable Gallery Image (drag & drop)
+function SortableGalleryImage({
+  image,
+  index,
+  onRemove,
+}: {
+  image: GalleryImage
+  index: number
+  onRemove: (id: string) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: image.id })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    cursor: 'grab',
+    position: 'relative' as const,
+  }
+
+  return (
+    <Box ref={setNodeRef} style={style} {...attributes} {...listeners} w={80}>
+      <Paper shadow="sm" p={4} withBorder>
+        <Image
+          src={image.url}
+          alt={`Gallery ${index + 1}`}
+          height={80}
+          radius="md"
+          fit="cover"
+        />
+      </Paper>
+      <Badge
+        pos="absolute"
+        top={4}
+        left={4}
+        size="sm"
+        variant="filled"
+        color="gray"
+      >
+        {index + 1}
+      </Badge>
+      <ActionIcon
+        pos="absolute"
+        top={4}
+        right={4}
+        color="red"
+        variant="filled"
+        size="sm"
+        onClick={(e: React.MouseEvent) => {
+          e.stopPropagation()
+          onRemove(image.id)
+        }}
+      >
+        <IconTrash size={12} />
+      </ActionIcon>
+    </Box>
+  )
 }
 
 interface ProductVariant {
@@ -75,6 +139,7 @@ interface ProductVariant {
   weight: number
   stock: number
   sellerSku: string
+  thumbnail?: string | null
 }
 
 // ============================================================================
@@ -115,6 +180,9 @@ export default function EditProductPage() {
   // Form state
   const [productName, setProductName] = useState('')
   const [wholesaleName, setWholesaleName] = useState('')
+  const [retailNameBn, setRetailNameBn] = useState('')
+  const [wholesaleNameBn, setWholesaleNameBn] = useState('')
+  const [includesInTheBoxBn, setIncludesInTheBoxBn] = useState('')
   const [category, setCategory] = useState<string | null>(null)
   const [brand, setBrand] = useState<string | null>(null)
   const [status, setStatus] = useState('draft')
@@ -125,7 +193,10 @@ export default function EditProductPage() {
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState<string | null>(null)
   const [description, setDescription] = useState('')
   const [highlightsList, setHighlightsList] = useState<string[]>([])
-  const [includesInTheBox, setIncludesInTheBox] = useState<string[]>([])
+  const [descriptionBn, setDescriptionBn] = useState('')
+  const [highlightsBn, setHighlightsBn] = useState<string[]>([])
+  const [descLang, setDescLang] = useState<'en' | 'bn'>('en')
+  const [includesInTheBox, setIncludesInTheBox] = useState('')
 
   // SEO state
   const [seoTitle, setSeoTitle] = useState('')
@@ -136,10 +207,32 @@ export default function EditProductPage() {
   const descriptionQuillRef = useRef<any>(null)
   const highlightsQuillRef = useRef<any>(null)
   const includesInTheBoxQuillRef = useRef<any>(null)
+  const descriptionBnQuillRef = useRef<any>(null)
+  const highlightsBnQuillRef = useRef<any>(null)
 
   // Media state
   const [featuredImage, setFeaturedImage] = useState<{ mediaId: number; url: string } | null>(null)
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([])
+
+  // DnD sensors for gallery reordering
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  )
+
+  const handleGalleryDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    setGalleryImages((prev) => {
+      const oldIndex = prev.findIndex((img) => img.id === active.id)
+      const newIndex = prev.findIndex((img) => img.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return prev
+      const updated = [...prev]
+      const [moved] = updated.splice(oldIndex, 1)
+      updated.splice(newIndex, 0, moved)
+      return updated.map((img, idx) => ({ ...img, order: idx }))
+    })
+  }
 
   // Variants state
   const [variants, setVariants] = useState<ProductVariant[]>([])
@@ -158,6 +251,20 @@ export default function EditProductPage() {
     sellerSku: ''
   })
 
+  // Auto-calculate retail and wholesale prices when purchase cost changes
+  useEffect(() => {
+    if (defaultValues.purchaseCost > 0) {
+      const retailPrice = defaultValues.purchaseCost * 1.5 // 50% more
+      const wholesalePrice = defaultValues.purchaseCost * 1.2 // 20% more
+
+      setDefaultValues(prev => ({
+        ...prev,
+        price: retailPrice,
+        wholesalePrice: wholesalePrice
+      }))
+    }
+  }, [defaultValues.purchaseCost])
+
   // API data state
   const [categories, setCategories] = useState<Category[]>([])
   const [brands, setBrands] = useState<Brand[]>([])
@@ -171,35 +278,149 @@ export default function EditProductPage() {
   // QUIOR EDITOR INITIALIZATION
   // ============================================================================
 
-  useEffect(() => {
-    // Load Quill from CDN
-    const loadQuill = async () => {
-      if (typeof window !== 'undefined' && !(window as any).Quill) {
-        // Load Quill CSS
-        const quillCss = document.createElement('link')
-        quillCss.rel = 'stylesheet'
-        quillCss.href = 'https://cdn.quilljs.com/1.3.6/quill.snow.css'
-        document.head.appendChild(quillCss)
-
-        // Load Quill JS
-        const quillScript = document.createElement('script')
-        quillScript.src = 'https://cdn.quilljs.com/1.3.6/quill.min.js'
-        quillScript.async = true
-        document.head.appendChild(quillScript)
-      }
-    }
-
-    loadQuill()
-  }, [])
-
   // Initialize Quill editors after product data is loaded
   useEffect(() => {
     if (isLoading) return
 
-    const initializeQuillEditors = () => {
-      if (typeof window === 'undefined' || !(window as any).Quill) return
+    const initializeQuillEditors = async () => {
+      // Try to load image resize module (optional)
+      try {
+        const ImageResize = (await import('quill-image-resize-module') as any).default
+        Quill.register('modules/imageResize', ImageResize)
+      } catch (e) {
+        console.warn('Image resize module not loaded:', e)
+      }
 
-      const Quill = (window as any).Quill
+      // Add custom CSS for Quill editor heights and dark mode
+      const styleId = 'quill-custom-heights-v2'
+      const existingStyle = document.getElementById(styleId)
+      if (existingStyle) {
+        existingStyle.remove()
+      }
+      const style = document.createElement('style')
+      style.id = styleId
+      style.innerHTML = `
+          #description-editor .ql-editor {
+            min-height: 400px;
+            max-height: 800px;
+            overflow-y: auto;
+            resize: vertical;
+          }
+
+          #description-bn-editor .ql-editor {
+            min-height: 400px;
+            max-height: 800px;
+            overflow-y: auto;
+            resize: vertical;
+          }
+
+          #highlights-editor .ql-editor {
+            min-height: 200px;
+            max-height: 800px;
+            overflow-y: auto;
+            resize: vertical;
+          }
+
+          #highlights-bn-editor .ql-editor {
+            min-height: 200px;
+            max-height: 800px;
+            overflow-y: auto;
+            resize: vertical;
+          }
+
+          /* Hide numbered list button from highlights editor */
+          #highlights-editor .ql-list[value="ordered"] {
+            display: none !important;
+          }
+
+          /* Hide indent/outdent buttons to prevent nested lists */
+          #highlights-editor .ql-indent {
+            display: none !important;
+          }
+
+          #highlights-editor .ql-outdent {
+            display: none !important;
+          }
+
+          /* Dark mode support */
+          [data-mantine-color-scheme="dark"] #description-editor .ql-toolbar,
+          [data-mantine-color-scheme="dark"] #description-bn-editor .ql-toolbar,
+          [data-mantine-color-scheme="dark"] #highlights-editor .ql-toolbar,
+          [data-mantine-color-scheme="dark"] #highlights-bn-editor .ql-toolbar {
+            background-color: #2C2E33;
+            border-color: #45474E;
+          }
+
+          [data-mantine-color-scheme="dark"] #description-editor .ql-container,
+          [data-mantine-color-scheme="dark"] #description-bn-editor .ql-container,
+          [data-mantine-color-scheme="dark"] #highlights-editor .ql-container,
+          [data-mantine-color-scheme="dark"] #highlights-bn-editor .ql-container {
+            background-color: #25262B;
+            border-color: #45474E;
+            color: #C1C2C5;
+          }
+
+          [data-mantine-color-scheme="dark"] #description-editor .ql-editor.ql-blank::before,
+          [data-mantine-color-scheme="dark"] #description-bn-editor .ql-editor.ql-blank::before,
+          [data-mantine-color-scheme="dark"] #highlights-editor .ql-editor.ql-blank::before,
+          [data-mantine-color-scheme="dark"] #highlights-bn-editor .ql-editor.ql-blank::before {
+            color: #6c6c6c;
+          }
+
+          [data-mantine-color-scheme="dark"] #description-editor .ql-stroke,
+          [data-mantine-color-scheme="dark"] #description-bn-editor .ql-stroke,
+          [data-mantine-color-scheme="dark"] #highlights-editor .ql-stroke,
+          [data-mantine-color-scheme="dark"] #highlights-bn-editor .ql-stroke {
+            stroke: #C1C2C5;
+          }
+
+          [data-mantine-color-scheme="dark"] #description-editor .ql-fill,
+          [data-mantine-color-scheme="dark"] #description-bn-editor .ql-fill,
+          [data-mantine-color-scheme="dark"] #highlights-editor .ql-fill,
+          [data-mantine-color-scheme="dark"] #highlights-bn-editor .ql-fill {
+            fill: #C1C2C5;
+          }
+
+          [data-mantine-color-scheme="dark"] #description-editor .ql-picker,
+          [data-mantine-color-scheme="dark"] #description-bn-editor .ql-picker,
+          [data-mantine-color-scheme="dark"] #highlights-editor .ql-picker,
+          [data-mantine-color-scheme="dark"] #highlights-bn-editor .ql-picker {
+            color: #C1C2C5;
+          }
+
+          [data-mantine-color-scheme="dark"] #description-editor .ql-picker-options,
+          [data-mantine-color-scheme="dark"] #description-bn-editor .ql-picker-options,
+          [data-mantine-color-scheme="dark"] #highlights-editor .ql-picker-options,
+          [data-mantine-color-scheme="dark"] #highlights-bn-editor .ql-picker-options {
+            background-color: #25262B;
+            border-color: #45474E;
+            color: #C1C2C5;
+          }
+
+          [data-mantine-color-scheme="dark"] #description-editor .ql-picker-item:hover,
+          [data-mantine-color-scheme="dark"] #description-bn-editor .ql-picker-item:hover,
+          [data-mantine-color-scheme="dark"] #highlights-editor .ql-picker-item:hover,
+          [data-mantine-color-scheme="dark"] #highlights-bn-editor .ql-picker-item:hover {
+            background-color: #373A40;
+          }
+
+          [data-mantine-color-scheme="dark"] #description-editor .ql-picker-item.ql-selected,
+          [data-mantine-color-scheme="dark"] #description-bn-editor .ql-picker-item.ql-selected,
+          [data-mantine-color-scheme="dark"] #highlights-editor .ql-picker-item.ql-selected,
+          [data-mantine-color-scheme="dark"] #highlights-bn-editor .ql-picker-item.ql-selected {
+            background-color: #228BE6;
+            color: white;
+          }
+
+          [data-mantine-color-scheme="dark"] #description-editor a,
+          [data-mantine-color-scheme="dark"] #description-bn-editor a,
+          [data-mantine-color-scheme="dark"] #highlights-editor a,
+          [data-mantine-color-scheme="dark"] #highlights-bn-editor a {
+            color: #228BE6;
+          }
+
+        `
+      document.head.appendChild(style)
 
       // Description Editor
       const descriptionContainer = document.getElementById('description-editor')
@@ -207,18 +428,47 @@ export default function EditProductPage() {
         const quill1 = new Quill('#description-editor', {
           theme: 'snow',
           placeholder: 'Enter product description...',
+          formats: [
+            'bold', 'italic', 'underline',
+            'header',
+            'list', 'bullet',
+            'align',
+            'link', 'image'
+          ],
           modules: {
+            imageResize: {
+              parchment: Quill.import('parchment')
+            },
             toolbar: [
-              [{ 'header': [1, 2, 3, false] }],
               ['bold', 'italic', 'underline'],
+              [{ 'header': [2, 3, 4, 5, 6, false] }],
               [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+              [{ 'align': [] }, { 'align': 'center' }],
+              ['link', 'image'],
               ['clean']
             ]
           }
         })
+
+        const toolbar = quill1.getModule('toolbar')
+        if (toolbar) {
+          toolbar.addHandler('image', () => {
+            openSingleSelect((mediaFile: MediaFile) => {
+              const range = quill1.getSelection(true)
+              quill1.insertEmbed(range.index, 'image', mediaFile.url)
+            })
+          })
+        }
+
         quill1.root.innerHTML = description
         quill1.on('text-change', () => {
+          clearError('description')
           setDescription(quill1.root.innerHTML)
+        })
+        quill1.on('selection-change', (range: any) => {
+          if (range && collapseSidebarIfNeeded) {
+            collapseSidebarIfNeeded()
+          }
         })
         descriptionQuillRef.current = quill1
       } else if (descriptionQuillRef.current && description) {
@@ -228,66 +478,212 @@ export default function EditProductPage() {
       // Highlights Editor
       const highlightsContainer = document.getElementById('highlights-editor')
       if (highlightsContainer && !highlightsQuillRef.current) {
+        let isProgrammaticUpdate = false
         const quill2 = new Quill('#highlights-editor', {
           theme: 'snow',
           placeholder: '• Add key product highlights, features, or benefits...',
           modules: {
             toolbar: [
               [{ 'list': 'bullet' }],
-              ['bold', 'italic'],
               ['clean']
             ]
           }
         })
-        // Initialize with bullet list format
-        quill2.on('text-change', () => {
+
+        const parseListItems = (html: string): string[] => {
+          const temp = document.createElement('div')
+          temp.innerHTML = html
+          const items: string[] = []
+          temp.querySelectorAll('li').forEach((li) => {
+            const text = li.textContent?.trim() || ''
+            if (text) items.push(text)
+          })
+          return items
+        }
+
+        const arrayToListHtml = (items: string[]): string => {
+          const nonEmpty = items.filter(item => item.trim() !== '')
+          if (nonEmpty.length === 0) return ''
+          return `<ul>${nonEmpty.map(item => `<li>${item}</li>`).join('')}</ul>`
+        }
+
+        const updateHighlightsState = () => {
+          if (isProgrammaticUpdate) return
           const html = quill2.root.innerHTML
-          const text = quill2.getText().trim()
-          const lines = text.split('\n').filter(line => line.trim())
-          setHighlightsList(lines)
+          const items = parseListItems(html)
+          if (items.length > 10) {
+            notifications.show({
+              title: 'Maximum Limit Reached',
+              message: 'You can only add up to 10 highlights.',
+              color: 'yellow'
+            })
+            const truncated = items.slice(0, 10)
+            setHighlightsList(truncated)
+            isProgrammaticUpdate = true
+            quill2.root.innerHTML = arrayToListHtml(truncated)
+            setTimeout(() => { isProgrammaticUpdate = false }, 0)
+          } else {
+            setHighlightsList(items)
+          }
+        }
+
+        if (highlightsList.length > 0) {
+          isProgrammaticUpdate = true
+          quill2.root.innerHTML = arrayToListHtml(highlightsList)
+          setTimeout(() => { isProgrammaticUpdate = false }, 0)
+        } else {
+          setTimeout(() => {
+            isProgrammaticUpdate = true
+            quill2.format('list', 'bullet')
+            setTimeout(() => { isProgrammaticUpdate = false }, 0)
+          }, 100)
+        }
+
+        quill2.on('text-change', (_delta: any, _old: any, source: any) => {
+          if (source === 'user') updateHighlightsState()
+        })
+        quill2.root.addEventListener('input', () => updateHighlightsState())
+        quill2.on('selection-change', (range: any) => {
+          if (range && range.length === 0) {
+            const format = quill2.getFormat()
+            if (!format.list) quill2.format('list', 'bullet')
+            if (collapseSidebarIfNeeded) collapseSidebarIfNeeded()
+          }
         })
         highlightsQuillRef.current = quill2
-
-        // Set initial content if highlights exist
-        if (highlightsList.length > 0) {
-          const initialHtml = highlightsList.map(h => `<li>${h}</li>`).join('')
-          quill2.root.innerHTML = `<ul>${initialHtml}</ul>`
+      } else if (highlightsQuillRef.current && highlightsList.length > 0) {
+        // Update existing editor with loaded highlights
+        const existingHtml = highlightsQuillRef.current.root.innerHTML
+        const existingItems: string[] = []
+        const tempDiv = document.createElement('div')
+        tempDiv.innerHTML = existingHtml
+        tempDiv.querySelectorAll('li').forEach((li) => {
+          const text = li.textContent?.trim() || ''
+          if (text) existingItems.push(text)
+        })
+        // Only update if content differs
+        if (JSON.stringify(existingItems) !== JSON.stringify(highlightsList)) {
+          const nonEmpty = highlightsList.filter(item => item.trim() !== '')
+          if (nonEmpty.length > 0) {
+            highlightsQuillRef.current.root.innerHTML = `<ul>${nonEmpty.map(item => `<li>${item}</li>`).join('')}</ul>`
+          }
         }
       }
 
-      // Includes in the Box Editor
-      const includesInTheBoxContainer = document.getElementById('includes-in-the-box-editor')
-      if (includesInTheBoxContainer && !includesInTheBoxQuillRef.current) {
-        const quill3 = new Quill('#includes-in-the-box-editor', {
+      // Bangla Description Editor
+      const descriptionBnContainer = document.getElementById('description-bn-editor')
+      if (descriptionBnContainer && !descriptionBnQuillRef.current && descriptionBn) {
+        const quillBn1 = new Quill('#description-bn-editor', {
           theme: 'snow',
-          placeholder: '• List items included in the package...',
+          placeholder: 'পণ্যের বিস্তারিত বিবরণ লিখুন...',
           modules: {
+            imageResize: {
+              parchment: Quill.import('parchment')
+            },
             toolbar: [
-              [{ 'list': 'bullet' }],
-              ['bold', 'italic'],
+              ['bold', 'italic', 'underline'],
+              [{ 'header': [2, 3, 4, 5, 6, false] }],
+              [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+              [{ 'align': [] }, { 'align': 'center' }],
+              ['link', 'image'],
               ['clean']
             ]
           }
         })
-        quill3.on('text-change', () => {
-          const html = quill3.root.innerHTML
-          const text = quill3.getText().trim()
-          const lines = text.split('\n').filter(line => line.trim())
-          setIncludesInTheBox(lines)
-        })
-        includesInTheBoxQuillRef.current = quill3
 
-        // Set initial content if includes exist
-        if (includesInTheBox.length > 0) {
-          const initialHtml = includesInTheBox.map(item => `<li>${item}</li>`).join('')
-          quill3.root.innerHTML = `<ul>${initialHtml}</ul>`
+        const toolbarBn1 = quillBn1.getModule('toolbar')
+        if (toolbarBn1) {
+          toolbarBn1.addHandler('image', () => {
+            openSingleSelect((mediaFile: MediaFile) => {
+              const range = quillBn1.getSelection(true)
+              quillBn1.insertEmbed(range.index, 'image', mediaFile.url)
+            })
+          })
         }
+
+        quillBn1.root.innerHTML = descriptionBn
+        quillBn1.on('text-change', () => {
+          setDescriptionBn(quillBn1.root.innerHTML)
+        })
+        quillBn1.on('selection-change', (range: any) => {
+          if (range && collapseSidebarIfNeeded) collapseSidebarIfNeeded()
+        })
+        descriptionBnQuillRef.current = quillBn1
+      } else if (descriptionBnQuillRef.current && descriptionBn) {
+        descriptionBnQuillRef.current.root.innerHTML = descriptionBn
+      }
+
+      // Bangla Highlights Editor
+      const highlightsBnContainer = document.getElementById('highlights-bn-editor')
+      if (highlightsBnContainer && !highlightsBnQuillRef.current) {
+        let isProgrammaticUpdateBn = false
+        const quillBn2 = new Quill('#highlights-bn-editor', {
+          theme: 'snow',
+          placeholder: '• পণ্যের মূল বৈশিষ্ট্য বুলেট পয়েন্ট হিসেবে লিখুন...',
+          modules: {
+            toolbar: [
+              [{ 'list': 'bullet' }],
+              ['clean']
+            ]
+          }
+        })
+
+        const parseListItemsBn = (html: string): string[] => {
+          const temp = document.createElement('div')
+          temp.innerHTML = html
+          const items: string[] = []
+          temp.querySelectorAll('li').forEach((li) => {
+            const text = li.textContent?.trim() || ''
+            if (text) items.push(text)
+          })
+          return items
+        }
+
+        const updateHighlightsBnState = () => {
+          if (isProgrammaticUpdateBn) return
+          const html = quillBn2.root.innerHTML
+          const items = parseListItemsBn(html)
+          if (items.length > 10) {
+            const truncated = items.slice(0, 10)
+            setHighlightsBn(truncated)
+            isProgrammaticUpdateBn = true
+            quillBn2.root.innerHTML = `<ul>${truncated.map(item => `<li>${item}</li>`).join('')}</ul>`
+            setTimeout(() => { isProgrammaticUpdateBn = false }, 0)
+          } else {
+            setHighlightsBn(items)
+          }
+        }
+
+        if (highlightsBn.length > 0) {
+          isProgrammaticUpdateBn = true
+          quillBn2.root.innerHTML = `<ul>${highlightsBn.map(item => `<li>${item}</li>`).join('')}</ul>`
+          setTimeout(() => { isProgrammaticUpdateBn = false }, 0)
+        } else {
+          setTimeout(() => {
+            isProgrammaticUpdateBn = true
+            quillBn2.format('list', 'bullet')
+            setTimeout(() => { isProgrammaticUpdateBn = false }, 0)
+          }, 100)
+        }
+
+        quillBn2.on('text-change', (_delta: any, _old: any, source: any) => {
+          if (source === 'user') updateHighlightsBnState()
+        })
+        quillBn2.root.addEventListener('input', () => updateHighlightsBnState())
+        quillBn2.on('selection-change', (range: any) => {
+          if (range && range.length === 0) {
+            const format = quillBn2.getFormat()
+            if (!format.list) quillBn2.format('list', 'bullet')
+            if (collapseSidebarIfNeeded) collapseSidebarIfNeeded()
+          }
+        })
+        highlightsBnQuillRef.current = quillBn2
       }
     }
 
     // Small delay to ensure DOM is ready
     setTimeout(initializeQuillEditors, 100)
-  }, [isLoading, description, highlightsList, includesInTheBox])
+  }, [isLoading, description, highlightsList, descriptionBn, highlightsBn])
 
   // Cleanup Quill editors on unmount
   useEffect(() => {
@@ -300,6 +696,12 @@ export default function EditProductPage() {
       }
       if (includesInTheBoxQuillRef.current) {
         includesInTheBoxQuillRef.current = null
+      }
+      if (descriptionBnQuillRef.current) {
+        descriptionBnQuillRef.current = null
+      }
+      if (highlightsBnQuillRef.current) {
+        highlightsBnQuillRef.current = null
       }
     }
   }, [])
@@ -315,10 +717,6 @@ export default function EditProductPage() {
           getCategories(),
           getBrands()
         ])
-
-        // DEBUG: Log the API responses
-        console.log('📋 Categories Response:', categoriesData)
-        console.log('🏷️ Brands Response:', brandsData)
 
         // Handle categories response
         if (Array.isArray(categoriesData)) {
@@ -345,9 +743,6 @@ export default function EditProductPage() {
             setBrands(brandsArray)
           }
         }
-
-        console.log('✅ Loaded Categories:', categories.length)
-        console.log('✅ Loaded Brands:', brands.length)
 
       } catch (error) {
         console.error('Failed to fetch data:', error)
@@ -381,11 +776,6 @@ export default function EditProductPage() {
           throw new Error('Product not found')
         }
 
-        // DEBUG: Log the actual product data structure
-        console.log('📦 Product Data:', productData)
-        console.log('📦 Category:', productData.category, productData.categoryId)
-        console.log('📦 Brand:', productData.brand, productData.brandId)
-
         // Populate form fields - Handle both nested objects and IDs
         setProductName(productData.name || productData.baseName || productData.retailName || '')
         setWholesaleName(productData.wholesaleName || '')
@@ -404,18 +794,14 @@ export default function EditProductPage() {
         setWarrantyDetails(productData.warrantyDetails || '')
 
         // Preorder settings are stored in variants, check first variant
-        console.log('🔍 All variants:', productData.variants)
         const firstRetailVariant = productData.variants?.find((v: any) => {
           const channel = v.channel || ''
-          console.log('Checking variant:', v, 'channel:', channel, 'is retail:', channel.toLowerCase() === 'retail')
           return channel.toLowerCase() === 'retail'
         })
-        console.log('✅ Found retail variant:', firstRetailVariant)
 
         if (firstRetailVariant) {
           setEnablePreorder(!!firstRetailVariant.allowPreorder)
           setExpectedDeliveryDate(firstRetailVariant.expectedDelivery || null)
-          console.log('✅ Set preorder:', !!firstRetailVariant.allowPreorder, 'delivery:', firstRetailVariant.expectedDelivery)
         } else {
           setEnablePreorder(false)
           setExpectedDeliveryDate(null)
@@ -432,7 +818,25 @@ export default function EditProductPage() {
         setDescription(description)
 
         setHighlightsList(productData.highlights || [])
-        setIncludesInTheBox(productData.inTheBox || productData.includes_in_the_box || [])
+        setIncludesInTheBox(Array.isArray(productData.inTheBox || productData.includes_in_the_box)
+          ? (productData.inTheBox || productData.includes_in_the_box).join(', ')
+          : (productData.inTheBox || productData.includes_in_the_box || ''))
+
+        // Bangla fields
+        setRetailNameBn(productData.retailNameBn || productData.retail_name_bn || '')
+        setWholesaleNameBn(productData.wholesaleNameBn || productData.wholesale_name_bn || '')
+
+        // Decode HTML entities in bangla description
+        let descriptionBn = productData.descriptionBn || productData.description_bn || ''
+        if (descriptionBn) {
+          const textareaBn = document.createElement('textarea')
+          textareaBn.innerHTML = descriptionBn
+          descriptionBn = textareaBn.value
+        }
+        setDescriptionBn(descriptionBn)
+
+        setHighlightsBn(productData.highlightsBn || productData.highlights_bn || [])
+        setIncludesInTheBoxBn(productData.includesInTheBoxBn || productData.includes_in_box_bn || '')
 
         // SEO
         setSeoTitle(productData.seoTitle || productData.metaTitle || '')
@@ -444,7 +848,7 @@ export default function EditProductPage() {
           const thumb = productData.thumbnail || productData.featuredImage
           setFeaturedImage({
             mediaId: thumb.id,
-            url: thumb.fullUrl || thumb.url
+            url: thumb.full_url || thumb.url
           })
         }
 
@@ -496,7 +900,8 @@ export default function EditProductPage() {
                   wholesaleOfferPrice: 0,
                   wholesaleMoq: 6,
                   weight: 0,
-                  stock: 0
+                  stock: 0,
+                  thumbnail: null
                 })
               }
 
@@ -521,7 +926,6 @@ export default function EditProductPage() {
             })
 
             const mergedVariants = Array.from(variantGroups.values())
-            console.log('🔄 Merged Variants:', mergedVariants)
             setVariants(mergedVariants)
           } else {
             // Direct mapping - variants don't have channels
@@ -539,9 +943,9 @@ export default function EditProductPage() {
               wholesaleOfferPrice: variant.wholesale_offer_price || variant.wholesaleOfferPrice || 0,
               wholesaleMoq: variant.wholesale_moq || variant.wholesaleMoq || variant.moq || 6,
               weight: variant.weight || 0,
-              stock: variant.current_stock || variant.stock || 0
+              stock: variant.current_stock || variant.stock || 0,
+              thumbnail: variant.thumbnail || null
             }))
-            console.log('📦 Direct Variants:', mappedVariants)
             setVariants(mappedVariants)
           }
         }
@@ -608,19 +1012,14 @@ export default function EditProductPage() {
   // ============================================================================
 
   // Featured image handler
-  const handleSelectFeaturedImage = useCallback(async () => {
-    try {
-      const result = await openSingleSelect()
-      if (result) {
-        setFeaturedImage({
-          mediaId: result.id,
-          url: result.fullUrl || result.url
-        })
-        clearError('featuredImage')
-      }
-    } catch (error) {
-      console.error('Failed to select image:', error)
-    }
+  const handleSelectFeaturedImage = useCallback(() => {
+    openSingleSelect((mediaFile: MediaFile) => {
+      setFeaturedImage({
+        mediaId: mediaFile.id,
+        url: mediaFile.url
+      })
+      clearError('featuredImage')
+    })
   }, [openSingleSelect])
 
   const handleRemoveFeaturedImage = useCallback(() => {
@@ -628,22 +1027,19 @@ export default function EditProductPage() {
   }, [])
 
   // Gallery images handler
-  const handleSelectGalleryImages = useCallback(async () => {
-    try {
-      const results = await openMultipleSelect()
-      if (results && results.length > 0) {
-        const newImages: GalleryImage[] = results.map((media, index) => ({
+  const handleSelectGalleryImages = useCallback(() => {
+    openMultipleSelect((mediaFiles: MediaFile[]) => {
+      if (mediaFiles && mediaFiles.length > 0) {
+        const newImages: GalleryImage[] = mediaFiles.map((media, index) => ({
           id: `new-${Date.now()}-${index}`,
           mediaId: media.id,
-          url: media.fullUrl || media.url,
+          url: media.url,
           order: galleryImages.length + index
         }))
         setGalleryImages(prev => [...prev, ...newImages])
         clearError('galleryImages')
       }
-    } catch (error) {
-      console.error('Failed to select images:', error)
-    }
+    })
   }, [openMultipleSelect, galleryImages.length])
 
   const handleRemoveGalleryImage = useCallback((imageId: string) => {
@@ -663,7 +1059,8 @@ export default function EditProductPage() {
       wholesaleMoq: defaultValues.wholesaleMoq,
       weight: defaultValues.weight,
       stock: defaultValues.stock,
-      sellerSku: defaultValues.sellerSku
+      sellerSku: defaultValues.sellerSku,
+      thumbnail: null
     }
     setVariants(prev => [...prev, newVariant])
     clearError('variants')
@@ -696,18 +1093,26 @@ export default function EditProductPage() {
   }, [])
 
   const handleApplyDefaultsToAll = useCallback(() => {
+    const pc = typeof defaultValues.purchaseCost === 'number' ? defaultValues.purchaseCost : parseFloat(String(defaultValues.purchaseCost)) || 0
+    const rp = typeof defaultValues.price === 'number' ? defaultValues.price : parseFloat(String(defaultValues.price)) || 0
+    const wp = typeof defaultValues.wholesalePrice === 'number' ? defaultValues.wholesalePrice : parseFloat(String(defaultValues.wholesalePrice)) || 0
+    const sop = typeof defaultValues.specialPrice === 'number' ? defaultValues.specialPrice : undefined
+    const wop = typeof defaultValues.wholesaleOfferPrice === 'number' ? defaultValues.wholesaleOfferPrice : undefined
+    const w = typeof defaultValues.weight === 'number' ? defaultValues.weight : parseFloat(String(defaultValues.weight)) || 0
+
     setVariants(prev => prev.map(v => ({
       ...v,
-      ...(defaultValues.name ? { name: defaultValues.name } : {}),
-      price: defaultValues.price,
-      wholesalePrice: defaultValues.wholesalePrice,
-      purchaseCost: defaultValues.purchaseCost,
-      specialPrice: defaultValues.specialPrice,
-      wholesaleOfferPrice: defaultValues.wholesaleOfferPrice,
-      wholesaleMoq: defaultValues.wholesaleMoq,
-      weight: defaultValues.weight,
-      stock: defaultValues.stock,
-      sellerSku: defaultValues.sellerSku
+      // Only apply defaults to empty/zero fields — leave existing data untouched
+      ...(defaultValues.name && !v.name.trim() ? { name: defaultValues.name } : {}),
+      ...(defaultValues.sellerSku && !v.sellerSku.trim() ? { sellerSku: defaultValues.sellerSku } : {}),
+      ...(!v.purchaseCost ? { purchaseCost: pc } : {}),
+      ...(!v.price ? { price: rp } : {}),
+      ...(!v.wholesalePrice ? { wholesalePrice: wp } : {}),
+      ...(v.specialPrice === undefined || v.specialPrice === 0 ? { specialPrice: sop } : {}),
+      ...(v.wholesaleOfferPrice === undefined || v.wholesaleOfferPrice === 0 ? { wholesaleOfferPrice: wop } : {}),
+      ...(!v.wholesaleMoq ? { wholesaleMoq: defaultValues.wholesaleMoq } : {}),
+      ...(!v.weight ? { weight: w } : {}),
+      ...(!v.stock ? { stock: defaultValues.stock } : {}),
     })))
 
     notifications.show({
@@ -785,6 +1190,8 @@ export default function EditProductPage() {
         productName,
         retailName: productName,
         wholesaleName,
+        retailNameBn: retailNameBn || undefined,
+        wholesaleNameBn: wholesaleNameBn || undefined,
         category: parseInt(category!),
         brand: parseInt(brand!),
         status,
@@ -794,8 +1201,11 @@ export default function EditProductPage() {
         enablePreorder,
         expectedDeliveryDate,
         description,
+        descriptionBn: descriptionBn || undefined,
         highlights: highlightsList.filter(h => h.trim()).length > 0 ? highlightsList : null,
-        includesInTheBox: includesInTheBox.filter(h => h.trim()).length > 0 ? includesInTheBox : null,
+        highlightsBn: highlightsBn.filter(h => h.trim()).length > 0 ? highlightsBn : null,
+        includesInTheBox: includesInTheBox.trim() ? includesInTheBox.trim() : null,
+        includesInTheBoxBn: includesInTheBoxBn.trim() ? includesInTheBoxBn.trim() : null,
         seoTitle,
         seoDescription,
         seoTags,
@@ -813,13 +1223,10 @@ export default function EditProductPage() {
           wholesaleOfferPrice: v.wholesaleOfferPrice ? parseFloat(v.wholesaleOfferPrice.toString()) : null,
           wholesaleMoq: parseInt(v.wholesaleMoq.toString()),
           weight: parseFloat(v.weight.toString()),
-          stock: parseInt(v.stock.toString())
+          stock: parseInt(v.stock.toString()),
+          thumbnail: v.thumbnail || null
         }))
       }
-
-      // DEBUG: Log payload before sending
-      console.log('📤 Sending to API:', { productName, wholesaleName })
-      console.log('📦 Full payload:', payload)
 
       // Call API - PUT for update
       const response = await apiMethods.put(`/catalog/products/${id}`, payload)
@@ -877,6 +1284,8 @@ export default function EditProductPage() {
   }, [
     productName,
     wholesaleName,
+    retailNameBn,
+    wholesaleNameBn,
     category,
     brand,
     status,
@@ -886,8 +1295,11 @@ export default function EditProductPage() {
     enablePreorder,
     expectedDeliveryDate,
     description,
+    descriptionBn,
     highlightsList,
+    highlightsBn,
     includesInTheBox,
+    includesInTheBoxBn,
     seoTitle,
     seoDescription,
     seoTags,
@@ -916,12 +1328,6 @@ export default function EditProductPage() {
         label: brand.name
       }))
     : []
-
-  // DEBUG: Log the dropdown options
-  console.log('🔽 Category Options:', categoryOptions)
-  console.log('🔽 Brand Options:', brandOptions)
-  console.log('🔽 Selected Category:', category)
-  console.log('🔽 Selected Brand:', brand)
 
   // ============================================================================
   // LOADING STATE
@@ -983,30 +1389,62 @@ export default function EditProductPage() {
                     </Group>
                     <Divider />
 
-                    <TextInput
-                      id="productName"
-                      label={t('catalog.productsCreate.retailName') || 'Retail Name'}
-                      placeholder={t('catalog.productsCreate.retailNamePlaceholder') || 'Enter retail name'}
-                      value={productName}
-                      onChange={(value) => {
-                        clearError('productName')
-                        setProductName(typeof value === 'string' ? value : value?.currentTarget?.value || '')
-                      }}
-                      onFocus={collapseSidebarIfNeeded}
-                      required
-                      error={errors.productName}
-                    />
+                    <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                      <Box>
+                        <TextInput
+                          id="productName"
+                          label={t('catalog.productsCreate.retailName') || 'Retail Name'}
+                          placeholder={t('catalog.productsCreate.retailNamePlaceholder') || 'Enter retail name'}
+                          value={productName}
+                          onChange={(value) => {
+                            clearError('productName')
+                            setProductName(typeof value === 'string' ? value : value?.currentTarget?.value || '')
+                          }}
+                          onFocus={collapseSidebarIfNeeded}
+                          required
+                          error={errors.productName}
+                        />
+                        <Group justify="flex-end" mt={4}>
+                          <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
+                            Enhance with AI
+                          </Button>
+                        </Group>
+                      </Box>
+                      <Box>
+                        <TextInput
+                          label={t('catalog.productsCreate.retailNameBn') || 'Retail Name Bangla'}
+                          placeholder="খুচরা নাম লিখুন"
+                          value={retailNameBn}
+                          onChange={(e) => setRetailNameBn(e.currentTarget.value)}
+                          onFocus={collapseSidebarIfNeeded}
+                        />
+                        <Group justify="flex-end" mt={4}>
+                          <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
+                            Enhance with AI
+                          </Button>
+                        </Group>
+                      </Box>
+                    </SimpleGrid>
 
-                    <TextInput
-                      label={t('catalog.productsCreate.wholesaleName') || 'Wholesale Name'}
-                      placeholder={t('catalog.productsCreate.wholesaleNamePlaceholder') || 'Enter wholesale name'}
-                      value={wholesaleName}
-                      onChange={(value) => setWholesaleName(typeof value === 'string' ? value : value?.currentTarget?.value || '')}
-                      onFocus={collapseSidebarIfNeeded}
-                      maxLength={255}
-                      required
-                      error={errors.wholesaleName}
-                    />
+                    <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                      <TextInput
+                        label={t('catalog.productsCreate.wholesaleName') || 'Wholesale Name'}
+                        placeholder={t('catalog.productsCreate.wholesaleNamePlaceholder') || 'Enter wholesale name'}
+                        value={wholesaleName}
+                        onChange={(value) => setWholesaleName(typeof value === 'string' ? value : value?.currentTarget?.value || '')}
+                        onFocus={collapseSidebarIfNeeded}
+                        maxLength={255}
+                        required
+                        error={errors.wholesaleName}
+                      />
+                      <TextInput
+                        label={t('catalog.productsCreate.wholesaleNameBn') || 'Wholesale Name Bangla'}
+                        placeholder="পাইকারি নাম লিখুন"
+                        value={wholesaleNameBn}
+                        onChange={(e) => setWholesaleNameBn(e.currentTarget.value)}
+                        onFocus={collapseSidebarIfNeeded}
+                      />
+                    </SimpleGrid>
 
                     <SimpleGrid cols={{ base: 1, sm: 2 }}>
                       <Select
@@ -1023,7 +1461,7 @@ export default function EditProductPage() {
                         required
                         searchable
                         disabled={categoriesLoading}
-                        nothingFoundMessage="No categories found"
+                        nothingFoundMessage={t('catalog.categoriesPage.noCategoriesFound') || 'No categories found'}
                         clearable
                         error={errors.category}
                       />
@@ -1041,7 +1479,7 @@ export default function EditProductPage() {
                         required
                         searchable
                         disabled={brandsLoading}
-                        nothingFoundMessage="No brands found"
+                        nothingFoundMessage={t('catalog.brandsPage.noBrandsFound') || 'No brands found'}
                         clearable
                         error={errors.brand}
                       />
@@ -1071,9 +1509,10 @@ export default function EditProductPage() {
                       <Paper
                         withBorder
                         p="xl"
-                        className="border-dashed items-center justify-center"
+                        className="border-dashed"
                         h={200}
                         display="flex"
+                        style={{ alignItems: 'center', justifyContent: 'center' }}
                       >
                         <Stack align="center" gap="sm">
                           <IconPhoto size={48} className="text-gray-400" />
@@ -1143,9 +1582,10 @@ export default function EditProductPage() {
                       <Paper
                         withBorder
                         p="xl"
-                        className="border-dashed items-center justify-center"
-                        h={50}
+                        className="border-dashed"
+                        h={150}
                         display="flex"
+                        style={{ alignItems: 'center', justifyContent: 'center' }}
                       >
                         <Stack align="center" gap="sm">
                           <IconPhoto size={32} className="text-gray-400" />
@@ -1154,49 +1594,27 @@ export default function EditProductPage() {
                         </Stack>
                       </Paper>
                     ) : (
-                      <Box
-                        style={{
-                          display: 'flex',
-                          gap: '12px',
-                          flexWrap: 'wrap',
-                          justifyContent: 'flex-start'
-                        }}
+                      <DndContext
+                        sensors={dndSensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleGalleryDragEnd}
                       >
-                        {galleryImages.map((image, index) => (
-                          <Box
-                            key={image.id}
-                            pos="relative"
-                            style={{
-                              flex: '0 0 calc(16.666% - 10px)',
-                              minWidth: '100px',
-                              maxWidth: '180px'
-                            }}
-                          >
-                            <Paper shadow="sm" p="xs" style={{ height: '100%' }}>
-                              <Image
-                                src={image.url}
-                                alt={`Gallery ${index + 1}`}
-                                height={120}
-                                width="100%"
-                                fit="cover"
-                                radius="md"
+                        <SortableContext
+                          items={galleryImages.map((img) => img.id)}
+                          strategy={horizontalListSortingStrategy}
+                        >
+                          <Group gap="xs" wrap="nowrap">
+                            {galleryImages.map((image, index) => (
+                              <SortableGalleryImage
+                                key={image.id}
+                                image={image}
+                                index={index}
+                                onRemove={handleRemoveGalleryImage}
                               />
-                            </Paper>
-                            <ActionIcon
-                              pos="absolute"
-                              top={-8}
-                              right={-8}
-                              color="red"
-                              variant="filled"
-                              size="sm"
-                              onClick={() => handleRemoveGalleryImage(image.id)}
-                            >
-                              <IconX size={16} />
-                            </ActionIcon>
-                            
-                          </Box>
-                        ))}
-                      </Box>
+                            ))}
+                          </Group>
+                        </SortableContext>
+                      </DndContext>
                     )}
 
                     <Group>
@@ -1206,7 +1624,7 @@ export default function EditProductPage() {
                         value={videoUrl}
                         onChange={(value) => setVideoUrl(typeof value === 'string' ? value : value?.currentTarget?.value || '')}
                         onFocus={collapseSidebarIfNeeded}
-                        className="flex-1"
+                        style={{ flex: 1 }}
                         leftSection={<IconVideo size={16} />}
                         error={errors.videoUrl}
                       />
@@ -1237,16 +1655,6 @@ export default function EditProductPage() {
                           {t('catalog.productsCreate.priceStockVariants') || 'Price, Stock & Variants'}
                         </Text>
                       </Group>
-                      <Group gap="xs">
-                        <Button
-                          size="xs"
-                          variant="light"
-                          leftSection={<IconPlus size={14} />}
-                          onClick={handleAddVariant}
-                        >
-                          {t('catalog.productsCreate.addVariant') || 'Add Variant'}
-                        </Button>
-                      </Group>
                     </Group>
 
                     <Text size="sm" c="dimmed">
@@ -1268,7 +1676,10 @@ export default function EditProductPage() {
                         p="xs"
                         bg={colorScheme === 'dark' ? 'dark.7' : 'blue.0'}
                       >
-                        <SimpleGrid cols={10} spacing="md">
+                        <Box style={{ display: 'grid', gridTemplateColumns: '44px 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr 0.8fr 0.8fr 1fr 36px', gap: '8px', alignItems: 'start' }}>
+                          {/* Thumbnail placeholder */}
+                          <Box />
+
                           {/* Variant Name */}
                           <Stack gap={4}>
                             <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.variantName') || 'VARIANT NAME'}</Text>
@@ -1295,26 +1706,30 @@ export default function EditProductPage() {
 
                           {/* Purchase Cost */}
                           <Stack gap={4}>
-                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.purchaseCost') || 'PURCHASE COST'}</Text>
+                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.purchaseCost') || 'COST'}</Text>
                             <NumberInput
                               placeholder="0"
                               value={defaultValues.purchaseCost}
-                              onChange={(value) => setDefaultValues(prev => ({ ...prev, purchaseCost: typeof value === 'number' ? value : 0 }))}
+                              onChange={(value) => setDefaultValues(prev => ({ ...prev, purchaseCost: typeof value === 'number' ? value : prev.purchaseCost }))}
                               onFocus={collapseSidebarIfNeeded}
                               min={0}
+                              step={0.01}
+                              decimalScale={2}
                               size="xs"
                             />
                           </Stack>
 
                           {/* Retail Price */}
                           <Stack gap={4}>
-                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.retailPrice') || 'RETAIL PRICE'}</Text>
+                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.retailPrice') || 'RETAIL'}</Text>
                             <NumberInput
                               placeholder="0"
                               value={defaultValues.price}
-                              onChange={(value) => setDefaultValues(prev => ({ ...prev, price: typeof value === 'number' ? value : 0 }))}
+                              onChange={(value) => setDefaultValues(prev => ({ ...prev, price: typeof value === 'number' ? value : prev.price }))}
                               onFocus={collapseSidebarIfNeeded}
                               min={0}
+                              step={0.01}
+                              decimalScale={2}
                               size="xs"
                             />
                             <Text size="xs" c={defaultValues.price - defaultValues.purchaseCost < 0 ? 'red' : 'green'}>
@@ -1324,13 +1739,15 @@ export default function EditProductPage() {
 
                           {/* Wholesale Price */}
                           <Stack gap={4}>
-                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.wholesalePrice') || 'WHOLESALE PRICE'}</Text>
+                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.wholesalePrice') || 'WS PRICE'}</Text>
                             <NumberInput
                               placeholder="0"
                               value={defaultValues.wholesalePrice}
-                              onChange={(value) => setDefaultValues(prev => ({ ...prev, wholesalePrice: typeof value === 'number' ? value : 0 }))}
+                              onChange={(value) => setDefaultValues(prev => ({ ...prev, wholesalePrice: typeof value === 'number' ? value : prev.wholesalePrice }))}
                               onFocus={collapseSidebarIfNeeded}
                               min={0}
+                              step={0.01}
+                              decimalScale={2}
                               size="xs"
                             />
                             <Text size="xs" c={defaultValues.wholesalePrice - defaultValues.purchaseCost < 0 ? 'red' : 'green'}>
@@ -1340,13 +1757,16 @@ export default function EditProductPage() {
 
                           {/* Retail Offer Price */}
                           <Stack gap={4}>
-                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.retailOfferPrice') || 'RETAIL OFFER'}</Text>
+                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.retailOfferPrice') || 'R. OFFER'}</Text>
                             <NumberInput
                               placeholder="0"
                               value={defaultValues.specialPrice}
-                              onChange={(value) => setDefaultValues(prev => ({ ...prev, specialPrice: typeof value === 'number' ? value : undefined }))}
+                              onChange={(value) => setDefaultValues(prev => ({ ...prev, specialPrice: typeof value === 'number' ? value : prev.specialPrice }))}
+                              onBlur={() => setDefaultValues(prev => ({ ...prev, specialPrice: prev.specialPrice || undefined }))}
                               onFocus={collapseSidebarIfNeeded}
                               min={0}
+                              step={0.01}
+                              decimalScale={2}
                               size="xs"
                             />
                             {defaultValues.specialPrice !== undefined && defaultValues.specialPrice > 0 && (
@@ -1362,9 +1782,12 @@ export default function EditProductPage() {
                             <NumberInput
                               placeholder="0"
                               value={defaultValues.wholesaleOfferPrice}
-                              onChange={(value) => setDefaultValues(prev => ({ ...prev, wholesaleOfferPrice: typeof value === 'number' ? value : undefined }))}
+                              onChange={(value) => setDefaultValues(prev => ({ ...prev, wholesaleOfferPrice: typeof value === 'number' ? value : prev.wholesaleOfferPrice }))}
+                              onBlur={() => setDefaultValues(prev => ({ ...prev, wholesaleOfferPrice: prev.wholesaleOfferPrice || undefined }))}
                               onFocus={collapseSidebarIfNeeded}
                               min={0}
+                              step={0.01}
+                              decimalScale={2}
                               size="xs"
                             />
                             {defaultValues.wholesaleOfferPrice !== undefined && defaultValues.wholesaleOfferPrice > 0 && (
@@ -1389,13 +1812,15 @@ export default function EditProductPage() {
 
                           {/* Weight */}
                           <Stack gap={4}>
-                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.weight') || 'WT(g)'}</Text>
+                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.weight') || 'WT'}</Text>
                             <NumberInput
                               placeholder="0"
                               value={defaultValues.weight}
-                              onChange={(value) => setDefaultValues(prev => ({ ...prev, weight: typeof value === 'number' ? value : 0 }))}
+                              onChange={(value) => setDefaultValues(prev => ({ ...prev, weight: typeof value === 'number' ? value : prev.weight }))}
                               onFocus={collapseSidebarIfNeeded}
                               min={0}
+                              step={0.01}
+                              decimalScale={2}
                               size="xs"
                               rightSection={<Text size="xs">g</Text>}
                             />
@@ -1421,7 +1846,9 @@ export default function EditProductPage() {
                               {t('catalog.productsCreate.applyToAll') || 'Apply'}
                             </Button>
                           </Stack>
-                        </SimpleGrid>
+                          {/* Delete placeholder */}
+                          <Box />
+                        </Box>
                       </Paper>
                     </Stack>
 
@@ -1430,36 +1857,42 @@ export default function EditProductPage() {
                     <Box className="overflow-x-auto">
                       <Box style={{ minWidth: '900px' }}>
                         {/* Header Row */}
-                        <SimpleGrid cols={10} spacing="md" mb="xs" px="sm">
+                        <Box style={{ display: 'grid', gridTemplateColumns: '44px 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr 0.8fr 0.8fr 1fr 36px', gap: '8px', alignItems: 'center' }} mb="xs" px="sm">
+                          <Text size="xs" fw={600} c="dimmed">{'IMG'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.variantName') || 'VARIANT NAME'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.sellerSku') || 'SKU'}</Text>
-                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.purchaseCost') || 'PURCHASE COST'}</Text>
-                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.retailPrice') || 'RETAIL PRICE'}</Text>
-                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.wholesalePrice') || 'WHOLESALE PRICE'}</Text>
-                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.retailOfferPrice') || 'RETAIL OFFER'}</Text>
+                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.purchaseCost') || 'COST'}</Text>
+                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.retailPrice') || 'RETAIL'}</Text>
+                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.wholesalePrice') || 'WS PRICE'}</Text>
+                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.retailOfferPrice') || 'R. OFFER'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.wholesaleOfferPrice') || 'WS OFFER'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.wholesaleMoq') || 'MOQ'}</Text>
-                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.weight') || 'WT(g)'}</Text>
+                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.weight') || 'WT'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.stock') || 'STOCK'}</Text>
-                        </SimpleGrid>
+                          <Text size="xs" fw={600} c="dimmed">{''}</Text>
+                        </Box>
 
                         {/* Variant Rows */}
                         <Stack gap="xs">
                           {variants.map((variant, index) => (
                             <Paper key={variant.id} withBorder p="xs">
-                              <SimpleGrid cols={10} spacing="md">
+                              <Box style={{ display: 'grid', gridTemplateColumns: '44px 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr 0.8fr 0.8fr 1fr 36px', gap: '8px', alignItems: 'center' }}>
+                                {/* Thumbnail */}
+                                <Box
+                                  style={{ width: 44, height: 44, cursor: 'pointer', borderRadius: 4, overflow: 'hidden', border: '1px dashed var(--mantine-color-gray-4)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: variant.thumbnail ? 'transparent' : 'var(--mantine-color-gray-0)' }}
+                                  onClick={() => openSingleSelect((mediaFile: MediaFile) => {
+                                    handleUpdateVariant(variant.id, 'thumbnail', mediaFile.url)
+                                  })}
+                                >
+                                  {variant.thumbnail ? (
+                                    <Image src={variant.thumbnail} w={44} h={44} fit="cover" radius={4} />
+                                  ) : (
+                                    <IconPhoto size={18} color="var(--mantine-color-gray-5)" />
+                                  )}
+                                </Box>
+
                                 {/* Variant Name */}
                                 <Group gap="xs" style={{ minWidth: 0 }}>
-                                  {variants.length > 1 && (
-                                    <ActionIcon
-                                      color="red"
-                                      variant="subtle"
-                                      size="sm"
-                                      onClick={() => handleRemoveVariant(variant.id)}
-                                    >
-                                      <IconTrash size={14} />
-                                    </ActionIcon>
-                                  )}
                                   <TextInput
                                     placeholder={t('catalog.productsCreate.variantNamePlaceholder') || 'Size, Color...'}
                                     value={variant.name}
@@ -1478,7 +1911,6 @@ export default function EditProductPage() {
                                   onChange={(value) => handleUpdateVariant(variant.id, 'sellerSku', typeof value === 'string' ? value : value?.currentTarget?.value || '')}
                                   onFocus={collapseSidebarIfNeeded}
                                   size="sm"
-                                  styles={{ input: { minWidth: 100 } }}
                                   error={errors[`variant.${index}.sellerSku`]}
                                 />
 
@@ -1486,85 +1918,68 @@ export default function EditProductPage() {
                                 <NumberInput
                                   placeholder="0"
                                   value={variant.purchaseCost}
-                                  onChange={(value) => handleUpdateVariant(variant.id, 'purchaseCost', value || 0)}
+                                  onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'purchaseCost', value)}
                                   onFocus={collapseSidebarIfNeeded}
                                   min={0}
+                                  step={0.01}
+                                  decimalScale={2}
                                   size="sm"
-                                  styles={{ input: { minWidth: 80 } }}
                                   error={errors[`variant.${index}.purchaseCost`]}
                                 />
 
                                 {/* Retail Price */}
-                                <Stack gap={0}>
-                                  <NumberInput
-                                    placeholder="0"
-                                    value={variant.price}
-                                    onChange={(value) => handleUpdateVariant(variant.id, 'price', value || 0)}
-                                    onFocus={collapseSidebarIfNeeded}
-                                    min={0}
-                                    size="sm"
-                                    styles={{ input: { minWidth: 80 } }}
-                                    error={errors[`variant.${index}.price`]}
-                                  />
-                                  <Text size="xs" c={variant.price - variant.purchaseCost < 0 ? 'red' : 'green'}>
-                                    {variant.price - variant.purchaseCost > 0 ? '+' : ''}{(variant.price - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.price - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
-                                  </Text>
-                                </Stack>
+                                <NumberInput
+                                  placeholder="0"
+                                  value={variant.price}
+                                  onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'price', value)}
+                                  onFocus={collapseSidebarIfNeeded}
+                                  min={0}
+                                  step={0.01}
+                                  decimalScale={2}
+                                  size="sm"
+                                  error={errors[`variant.${index}.price`]}
+                                />
 
                                 {/* Wholesale Price */}
-                                <Stack gap={0}>
-                                  <NumberInput
-                                    placeholder="0"
-                                    value={variant.wholesalePrice}
-                                    onChange={(value) => handleUpdateVariant(variant.id, 'wholesalePrice', value || 0)}
-                                    onFocus={collapseSidebarIfNeeded}
-                                    min={0}
-                                    size="sm"
-                                    styles={{ input: { minWidth: 80 } }}
-                                    error={errors[`variant.${index}.wholesalePrice`]}
-                                  />
-                                  <Text size="xs" c={variant.wholesalePrice - variant.purchaseCost < 0 ? 'red' : 'green'}>
-                                    {variant.wholesalePrice - variant.purchaseCost > 0 ? '+' : ''}{(variant.wholesalePrice - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.wholesalePrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
-                                  </Text>
-                                </Stack>
+                                <NumberInput
+                                  placeholder="0"
+                                  value={variant.wholesalePrice}
+                                  onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'wholesalePrice', value)}
+                                  onFocus={collapseSidebarIfNeeded}
+                                  min={0}
+                                  step={0.01}
+                                  decimalScale={2}
+                                  size="sm"
+                                  error={errors[`variant.${index}.wholesalePrice`]}
+                                />
 
                                 {/* Retail Offer Price */}
-                                <Stack gap={0}>
-                                  <NumberInput
-                                    placeholder="0"
-                                    value={variant.specialPrice}
-                                    onChange={(value) => handleUpdateVariant(variant.id, 'specialPrice', value || undefined)}
-                                    onFocus={collapseSidebarIfNeeded}
-                                    min={0}
-                                    size="sm"
-                                    styles={{ input: { minWidth: 80 } }}
-                                    error={errors[`variant.${index}.specialPrice`]}
-                                  />
-                                  {variant.specialPrice !== undefined && variant.specialPrice > 0 && (
-                                    <Text size="xs" c={(variant.specialPrice - variant.purchaseCost) < 0 ? 'red' : 'green'}>
-                                      {(variant.specialPrice - variant.purchaseCost) > 0 ? '+' : ''}{(variant.specialPrice - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.specialPrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
-                                    </Text>
-                                  )}
-                                </Stack>
+                                <NumberInput
+                                  placeholder="0"
+                                  value={variant.specialPrice}
+                                  onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'specialPrice', value)}
+                                  onBlur={(e) => { const v = variant.specialPrice; if (!v) handleUpdateVariant(variant.id, 'specialPrice', undefined) }}
+                                  onFocus={collapseSidebarIfNeeded}
+                                  min={0}
+                                  step={0.01}
+                                  decimalScale={2}
+                                  size="sm"
+                                  error={errors[`variant.${index}.specialPrice`]}
+                                />
 
                                 {/* Wholesale Offer Price */}
-                                <Stack gap={0}>
-                                  <NumberInput
-                                    placeholder="0"
-                                    value={variant.wholesaleOfferPrice}
-                                    onChange={(value) => handleUpdateVariant(variant.id, 'wholesaleOfferPrice', value || undefined)}
-                                    onFocus={collapseSidebarIfNeeded}
-                                    min={0}
-                                    size="sm"
-                                    styles={{ input: { minWidth: 80 } }}
-                                    error={errors[`variant.${index}.wholesaleOfferPrice`]}
-                                  />
-                                  {variant.wholesaleOfferPrice !== undefined && variant.wholesaleOfferPrice > 0 && (
-                                    <Text size="xs" c={(variant.wholesaleOfferPrice - variant.purchaseCost) < 0 ? 'red' : 'green'}>
-                                      {(variant.wholesaleOfferPrice - variant.purchaseCost) > 0 ? '+' : ''}{(variant.wholesaleOfferPrice - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.wholesaleOfferPrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
-                                    </Text>
-                                  )}
-                                </Stack>
+                                <NumberInput
+                                  placeholder="0"
+                                  value={variant.wholesaleOfferPrice}
+                                  onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'wholesaleOfferPrice', value)}
+                                  onBlur={(e) => { const v = variant.wholesaleOfferPrice; if (!v) handleUpdateVariant(variant.id, 'wholesaleOfferPrice', undefined) }}
+                                  onFocus={collapseSidebarIfNeeded}
+                                  min={0}
+                                  step={0.01}
+                                  decimalScale={2}
+                                  size="sm"
+                                  error={errors[`variant.${index}.wholesaleOfferPrice`]}
+                                />
 
                                 {/* Wholesale MOQ */}
                                 <NumberInput
@@ -1574,7 +1989,6 @@ export default function EditProductPage() {
                                   onFocus={collapseSidebarIfNeeded}
                                   min={0}
                                   size="sm"
-                                  styles={{ input: { minWidth: 80 } }}
                                   error={errors[`variant.${index}.wholesaleMoq`]}
                                 />
 
@@ -1582,11 +1996,12 @@ export default function EditProductPage() {
                                 <NumberInput
                                   placeholder="0"
                                   value={variant.weight}
-                                  onChange={(value) => handleUpdateVariant(variant.id, 'weight', value || 0)}
+                                  onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'weight', value)}
                                   onFocus={collapseSidebarIfNeeded}
                                   min={0}
+                                  step={0.01}
+                                  decimalScale={2}
                                   size="sm"
-                                  styles={{ input: { minWidth: 80 } }}
                                   rightSection={<Text size="xs">g</Text>}
                                   error={errors[`variant.${index}.weight`]}
                                 />
@@ -1599,66 +2014,147 @@ export default function EditProductPage() {
                                   onFocus={collapseSidebarIfNeeded}
                                   min={0}
                                   size="sm"
-                                  styles={{ input: { minWidth: 80 } }}
                                   error={errors[`variant.${index}.stock`]}
                                 />
-                              </SimpleGrid>
+
+                                {/* Delete */}
+                                {variants.length > 1 && (
+                                  <ActionIcon
+                                    color="red"
+                                    variant="subtle"
+                                    size="sm"
+                                    onClick={() => handleRemoveVariant(variant.id)}
+                                  >
+                                    <IconTrash size={14} />
+                                  </ActionIcon>
+                                )}
+                              </Box>
                             </Paper>
                           ))}
                         </Stack>
                       </Box>
                     </Box>
+                    <Group justify="flex-end">
+                      <Button
+                        size="xs"
+                        variant="light"
+                        leftSection={<IconPlus size={14} />}
+                        onClick={handleAddVariant}
+                      >
+                        {t('catalog.productsCreate.addVariant') || 'Add Variant'}
+                      </Button>
+                    </Group>
                   </Stack>
                 </Card>
-
-                {/* Product Description & Highlights Section */}
                 <Card withBorder p="md" shadow="sm">
                   <Stack gap="xl">
-                    <Group>
-                      <IconCoin size={20} className="text-blue-600" />
-                      <Text className="text-base md:text-lg" fw={600}>
-                        {t('catalog.productsCreate.descriptionAndHighlights') || 'Product Description & Highlights'}
-                      </Text>
-                    </Group>
-
-                    {/* Description */}
-                    <Stack gap="sm">
-                      <Text size="sm" fw={500}>
-                        {t('catalog.productsCreate.productDescription') || 'Product Description'} <Text span c="red">*</Text>
-                      </Text>
-                      <Box
-                        id="description-editor"
-                        style={{
-                          borderRadius: '4px'
-                        }}
-                      />
-                      {errors.description && (
-                        <Text size="xs" c="red">{errors.description}</Text>
-                      )}
-                    </Stack>
-
-                    {/* Highlights */}
-                    <Stack gap="sm">
-                      <Group justify="space-between" align="center">
-                        <Text size="sm" fw={500}>
-                          {t('catalog.productsCreate.productHighlights') || 'Product Highlights'} <Text span c="red">*</Text>
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          {highlightsList.filter(h => h.trim()).length}/10
+                    <Group justify="space-between">
+                      <Group>
+                        <IconCoin size={20} className="text-blue-600" />
+                        <Text className="text-base md:text-lg" fw={600}>
+                          {t('catalog.productsCreate.descriptionAndHighlights') || 'Product Description & Highlights'}
                         </Text>
                       </Group>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => setDescLang(prev => prev === 'en' ? 'bn' : 'en')}
+                      >
+                        {descLang === 'en' ? 'বাংলা' : 'English'}
+                      </Button>
+                    </Group>
 
-                      <Box
-                        id="highlights-editor"
-                        style={{
-                          borderRadius: '4px'
-                        }}
-                      />
+                    {descLang === 'en' ? (
+                      <>
+                        {/* Description - English */}
+                        <Stack gap="sm">
+                          <Text size="sm" fw={500}>
+                            {t('catalog.productsCreate.productDescription') || 'Product Description'} <Text span c="red">*</Text>
+                          </Text>
+                          <Box
+                            id="description-editor"
+                            style={{
+                              borderRadius: '4px'
+                            }}
+                          />
+                          <Group justify="flex-end">
+                            <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
+                              Enhance with AI
+                            </Button>
+                          </Group>
+                          {errors.description && (
+                            <Text size="xs" c="red">{errors.description}</Text>
+                          )}
+                        </Stack>
 
-                      <Text size="xs" c="dimmed">
-                        {t('catalog.productsCreate.highlightsTip') || 'Add key product highlights, features, or benefits as bullet points. Maximum 10 items.'}
-                      </Text>
-                    </Stack>
+                        {/* Highlights - English */}
+                        <Stack gap="sm">
+                          <Group justify="space-between" align="center">
+                            <Text size="sm" fw={500}>
+                              {t('catalog.productsCreate.productHighlights') || 'Product Highlights'} <Text span c="red">*</Text>
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              {highlightsList.filter(h => h.trim()).length}/10
+                            </Text>
+                          </Group>
+
+                          <Box
+                            id="highlights-editor"
+                            style={{
+                              borderRadius: '4px'
+                            }}
+                          />
+
+                          <Group justify="flex-end">
+                            <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
+                              Enhance with AI
+                            </Button>
+                          </Group>
+
+                          <Text size="xs" c="dimmed">
+                            {t('catalog.productsCreate.highlightsTip') || 'Add key product highlights, features, or benefits as bullet points. Maximum 10 items.'}
+                          </Text>
+                        </Stack>
+                      </>
+                    ) : (
+                      <>
+                        {/* Description - Bangla */}
+                        <Stack gap="sm">
+                          <Text size="sm" fw={500}>
+                            পণ্যের বিবরণ (বাংলা)
+                          </Text>
+                          <Box
+                            id="description-bn-editor"
+                            style={{
+                              borderRadius: '4px'
+                            }}
+                          />
+                          <Group justify="flex-end">
+                            <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
+                              Enhance with AI
+                            </Button>
+                          </Group>
+                        </Stack>
+
+                        {/* Highlights - Bangla */}
+                        <Stack gap="sm">
+                          <Text size="sm" fw={500}>
+                            পণ্যের হাইলাইটস (বাংলা)
+                          </Text>
+                          <Box
+                            id="highlights-bn-editor"
+                            style={{
+                              borderRadius: '4px'
+                            }}
+                          />
+                          <Group justify="flex-end">
+                            <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
+                              Enhance with AI
+                            </Button>
+                          </Group>
+                        </Stack>
+                      </>
+                    )}
                   </Stack>
                 </Card>
 
@@ -1677,8 +2173,8 @@ export default function EditProductPage() {
                     <Grid>
                       <Grid.Col span={{ base: 12, md: 3.6 }}>
                         <Switch
-                          label="Enable Warranty"
-                          description="Offer warranty for this product"
+                          label={t('catalog.productsCreate.enableWarranty') || 'Enable Warranty'}
+                          description={t('catalog.productsCreate.enableWarrantyDescription') || 'Offer warranty for this product'}
                           checked={enableWarranty}
                           onChange={(e) => setEnableWarranty(e.currentTarget.checked)}
                           size="md"
@@ -1688,8 +2184,8 @@ export default function EditProductPage() {
                       {enableWarranty && (
                         <Grid.Col span={{ base: 12, md: 8.4 }}>
                           <TextInput
-                            label="Warranty Details"
-                            placeholder="Enter warranty details"
+                            label={t('catalog.productsCreate.warrantyDetails') || 'Warranty Details'}
+                            placeholder={t('catalog.productsCreate.warrantyDetailsPlaceholder') || 'Enter warranty details'}
                             value={warrantyDetails}
                             onChange={(value) => setWarrantyDetails(typeof value === 'string' ? value : value?.currentTarget?.value || '')}
                             onFocus={collapseSidebarIfNeeded}
@@ -1702,22 +2198,22 @@ export default function EditProductPage() {
                     <Divider />
 
                     {/* What's Included in the Box */}
-                    <Stack gap="sm">
-                      <Text size="sm" fw={500}>
-                        {t('catalog.productsCreate.includesInTheBox') || 'What\'s Included in the Box'}
-                      </Text>
-
-                      <Box
-                        id="includes-in-the-box-editor"
-                        style={{
-                          borderRadius: '4px'
-                        }}
+                    <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                      <TextInput
+                        label={t('catalog.productsCreate.includesInTheBox') || 'What\'s Included in the Box'}
+                        placeholder={t('catalog.productsCreate.includesInTheBoxPlaceholder') || 'e.g. USB Cable, User Manual, Warranty Card'}
+                        value={includesInTheBox}
+                        onChange={(e) => setIncludesInTheBox(e.currentTarget.value)}
+                        onFocus={collapseSidebarIfNeeded}
                       />
-
-                      <Text size="xs" c="dimmed">
-                        {t('catalog.productsCreate.includesInTheBoxTip') || 'List all items included in the product package as bullet points.'}
-                      </Text>
-                    </Stack>
+                      <TextInput
+                        label="What's Included in the Box (Bangla)"
+                        placeholder="যেমন: USB ক্যাবল, ব্যবহারকারী নির্দেশিকা, ওয়ারেন্টি কার্ড"
+                        value={includesInTheBoxBn}
+                        onChange={(e) => setIncludesInTheBoxBn(e.currentTarget.value)}
+                        onFocus={collapseSidebarIfNeeded}
+                      />
+                    </SimpleGrid>
 
                     <Divider />
 
@@ -1830,7 +2326,7 @@ export default function EditProductPage() {
                           <Text size="sm" fw={500} c="dimmed">
                             {t('catalog.productsCreate.googlePreview') || 'Google Search Preview'}
                           </Text>
-                          <Paper withBorder p="lg" bg="white" style={{ cursor: 'pointer' }}>
+                          <Paper withBorder p="lg" bg={colorScheme === 'dark' ? 'dark.7' : 'white'} style={{ cursor: 'pointer' }}>
                             <Stack gap={4}>
                               {/* Site Info Row */}
                               <Group gap={6} wrap="nowrap">
@@ -1839,23 +2335,23 @@ export default function EditProductPage() {
                                     width: 26,
                                     height: 26,
                                     borderRadius: '50%',
-                                    backgroundColor: '#f1f3f4',
+                                    backgroundColor: colorScheme === 'dark' ? '#373A40' : '#f1f3f4',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     flexShrink: 0
                                   }}
                                 >
-                                  <Text size="xs" fw={700} c="#5f6368">H</Text>
+                                  <Text size="xs" fw={700} c={colorScheme === 'dark' ? '#C1C2C5' : '#5f6368'}>H</Text>
                                 </Box>
 
-                                <Text size="xs" c="#202124">
+                                <Text size="xs" c={colorScheme === 'dark' ? '#C1C2C5' : '#202124'}>
                                   hooknhunt.com
                                 </Text>
 
-                                <Text size="xs" c="#5f6368">›</Text>
+                                <Text size="xs" c={colorScheme === 'dark' ? '#909296' : '#5f6368'}>›</Text>
 
-                                <Text size="xs" c="#202124" truncate>
+                                <Text size="xs" c={colorScheme === 'dark' ? '#C1C2C5' : '#202124'} truncate>
                                   Products › {(seoTitle || 'Product Name').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}
                                 </Text>
                               </Group>
@@ -1864,7 +2360,7 @@ export default function EditProductPage() {
                               <Text
                                 size="xl"
                                 fw={400}
-                                c="#1a0dab"
+                                c={colorScheme === 'dark' ? '#4dabf7' : '#1a0dab'}
                                 style={{
                                   lineHeight: '1.3',
                                   overflow: 'hidden',
@@ -1880,7 +2376,7 @@ export default function EditProductPage() {
                               {/* Description */}
                               <Text
                                 size="sm"
-                                c="#4d5156"
+                                c={colorScheme === 'dark' ? '#C1C2C5' : '#4d5156'}
                                 style={{
                                   lineHeight: '1.58',
                                   overflow: 'hidden',

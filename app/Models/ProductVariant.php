@@ -16,6 +16,7 @@ class ProductVariant extends Model
         'channel',
         'variant_slug',
         'variant_name',
+        'thumbnail',
         'sku',
         'custom_sku',
         'size',

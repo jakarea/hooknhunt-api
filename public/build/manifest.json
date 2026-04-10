@@ -1,24 +1,32 @@
 {
-  "_mantine-vendor-CwUPdi79.js": {
-    "file": "assets/mantine-vendor-CwUPdi79.js",
+  "_image-resize.min-BxjRNZSe.js": {
+    "file": "assets/image-resize.min-BxjRNZSe.js",
+    "name": "image-resize.min",
+    "isDynamicEntry": true,
+    "imports": [
+      "_react-vendor-DCNV_QY_.js"
+    ]
+  },
+  "_mantine-vendor-Bhu6VfNE.js": {
+    "file": "assets/mantine-vendor-Bhu6VfNE.js",
     "name": "mantine-vendor",
     "imports": [
-      "_react-vendor-CcRuxgMB.js"
+      "_react-vendor-DCNV_QY_.js"
     ]
   },
   "_other-vendor-C0Zqfgkc.js": {
     "file": "assets/other-vendor-C0Zqfgkc.js",
     "name": "other-vendor"
   },
-  "_react-vendor-CcRuxgMB.js": {
-    "file": "assets/react-vendor-CcRuxgMB.js",
+  "_react-vendor-DCNV_QY_.js": {
+    "file": "assets/react-vendor-DCNV_QY_.js",
     "name": "react-vendor"
   },
-  "_zustand-vendor-B4qmNuGf.js": {
-    "file": "assets/zustand-vendor-B4qmNuGf.js",
+  "_zustand-vendor-Bb1ROlG7.js": {
+    "file": "assets/zustand-vendor-Bb1ROlG7.js",
     "name": "zustand-vendor",
     "imports": [
-      "_react-vendor-CcRuxgMB.js"
+      "_react-vendor-DCNV_QY_.js"
     ]
   },
   "node_modules/workbox-window/build/workbox-window.prod.es5.mjs": {
@@ -28,21 +36,23 @@
     "isDynamicEntry": true
   },
   "resources/js/main.tsx": {
-    "file": "assets/main-C2B4A616.js",
+    "file": "assets/main-CDfGzwL2.js",
     "name": "main",
     "src": "resources/js/main.tsx",
     "isEntry": true,
     "imports": [
-      "_mantine-vendor-CwUPdi79.js",
-      "_react-vendor-CcRuxgMB.js",
+      "_mantine-vendor-Bhu6VfNE.js",
+      "_react-vendor-DCNV_QY_.js",
       "_other-vendor-C0Zqfgkc.js",
-      "_zustand-vendor-B4qmNuGf.js"
+      "_zustand-vendor-Bb1ROlG7.js"
     ],
     "dynamicImports": [
+      "_image-resize.min-BxjRNZSe.js",
+      "_image-resize.min-BxjRNZSe.js",
       "node_modules/workbox-window/build/workbox-window.prod.es5.mjs"
     ],
     "css": [
-      "assets/main-BU76QzR7.css"
+      "assets/main-C_ztb9if.css"
     ]
   }
 }

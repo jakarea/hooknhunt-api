@@ -19,6 +19,8 @@ class Product extends Model
         'name',
         'retail_name',
         'wholesale_name',
+        'retail_name_bn',
+        'wholesale_name_bn',
         'slug',
         'category_id',
         'brand_id',
@@ -27,6 +29,7 @@ class Product extends Model
         'cross_sale',
         'up_sale',
         'description',
+        'description_bn',
         'short_description',
         'video_url',
         'seo_title',
@@ -36,15 +39,18 @@ class Product extends Model
         'warranty_enabled',
         'warranty_details',
         'highlights',
+        'highlights_bn',
         'includes_in_box',
+        'includes_in_box_bn',
         'thank_you',
     ];
 
     protected $casts = [
-        'gallery_images' => 'array', // JSON Column for multiple images
-        'seo_tags' => 'array', // JSON Column for SEO tags
-        'highlights' => 'array', // JSON Column for product highlights
-        'includes_in_box' => 'array', // JSON Column for items included in box
+        'gallery_images' => 'array',
+        'seo_tags' => 'array',
+        'highlights' => 'array',
+        'highlights_bn' => 'array',
+        'includes_in_box' => 'array',
         'warranty_enabled' => 'boolean',
         'thank_you' => 'boolean',
     ];

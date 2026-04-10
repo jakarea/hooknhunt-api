@@ -24,6 +24,7 @@ import {
   Loader,
   ScrollArea,
   Switch,
+  Divider,
 } from '@mantine/core'
 import {
   IconChevronRight,
@@ -70,8 +71,15 @@ import { useUpSaleStore } from '@/stores/upSaleStore'
  */
 const decodeHTMLEntities = (text: string): string => {
   const textArea = document.createElement('textarea')
-  textArea.innerHTML = text
-  return textArea.value
+  // Decode multiple levels of encoding (handles double/triple-encoded HTML entities)
+  let decoded = text
+  let previous = ''
+  while (decoded !== previous) {
+    previous = decoded
+    textArea.innerHTML = decoded
+    decoded = textArea.value
+  }
+  return decoded
 }
 
 // ============================================================================
@@ -147,12 +155,19 @@ interface ProductDetail {
   name: string
   slug: string
   status: 'draft' | 'published' | 'archived'
+  retailName?: string | null
+  wholesaleName?: string | null
+  retailNameBn?: string | null
+  wholesaleNameBn?: string | null
   description?: string | null
+  descriptionBn?: string | null
   shortDescription?: string | null
   warrantyEnabled?: boolean | null
   warrantyDetails?: string | null
   highlights?: string[] | null
-  includesInTheBox?: string[] | null
+  highlightsBn?: string[] | null
+  includesInTheBox?: string[] | string | null
+  includesInTheBoxBn?: string | null
   videoUrl?: string | null
   seoTitle?: string | null
   seoDescription?: string | null
@@ -234,6 +249,9 @@ export default function ProductDetailPage() {
   // Up-sale count
   const upSaleCount = product?.upSaleProducts?.length ?? 0
 
+  // Description language toggle
+  const [descLang, setDescLang] = useState<'en' | 'bn'>('en')
+
   // Translation namespace prefix
   const ns = 'products'
 
@@ -262,8 +280,6 @@ export default function ProductDetailPage() {
 
       // Variants come pre-paired from backend (retail + wholesale merged)
       setProduct(productData)
-      console.log('[fetchProduct] crossSaleProducts:', productData.crossSaleProducts)
-      console.log('[fetchProduct] raw keys:', Object.keys(productData).filter(k => k.toLowerCase().includes('cross') || k.toLowerCase().includes('sale')))
     } catch (err: unknown) {
       console.error('Failed to load product:', err)
 
@@ -833,9 +849,31 @@ export default function ProductDetailPage() {
             <Group gap="sm" align="center" wrap="nowrap">
               <IconPackages size={28} className="text-blue-600" />
               <Title order={2} className="text-lg md:text-xl lg:text-2xl">
-                {product.name}
+                {decodeHTMLEntities(product.retailName || product.name)}
               </Title>
             </Group>
+
+            {/* Channel Names */}
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+              <Stack gap={4}>
+                <Text size="xs" fw={500} c="dimmed">Retail Name</Text>
+                <Text className="text-sm md:text-base" fw={500}>{decodeHTMLEntities(product.retailName || product.name)}</Text>
+                {product.retailNameBn && (
+                  <Text className="text-sm" c="dimmed">{product.retailNameBn}</Text>
+                )}
+              </Stack>
+              {(product.wholesaleName || product.wholesaleNameBn) && (
+                <Stack gap={4}>
+                  <Text size="xs" fw={500} c="dimmed">Wholesale Name</Text>
+                  {product.wholesaleName && (
+                    <Text className="text-sm md:text-base" fw={500}>{decodeHTMLEntities(product.wholesaleName)}</Text>
+                  )}
+                  {product.wholesaleNameBn && (
+                    <Text className="text-sm" c="dimmed">{product.wholesaleNameBn}</Text>
+                  )}
+                </Stack>
+              )}
+            </SimpleGrid>
 
             {/* Metadata row */}
             <Group gap="sm" align="center">
@@ -883,7 +921,7 @@ export default function ProductDetailPage() {
         </Paper>
 
         {/* Warranty & Package Information */}
-        {(product.warrantyEnabled && product.warrantyDetails) || (product.includesInTheBox && product.includesInTheBox.length > 0) ? (
+        {(product.warrantyEnabled && product.warrantyDetails) || (product.includesInTheBox && (Array.isArray(product.includesInTheBox) ? product.includesInTheBox.length > 0 : product.includesInTheBox.trim())) ? (
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
             {/* Warranty Card */}
             {product.warrantyEnabled && product.warrantyDetails && (
@@ -906,7 +944,7 @@ export default function ProductDetailPage() {
             )}
 
             {/* What's in the Box Card */}
-            {product.includesInTheBox && product.includesInTheBox.length > 0 && (
+            {(product.includesInTheBox && (Array.isArray(product.includesInTheBox) ? product.includesInTheBox.length > 0 : product.includesInTheBox.trim())) && (
               <Paper withBorder p="md" radius="md">
                 <Group gap="md" align="flex-start">
                   <Box className="bg-blue-50 p-2 rounded-md">
@@ -917,13 +955,29 @@ export default function ProductDetailPage() {
                       {t(`${ns}.detail.package.label`) || "What's in the Box"}
                     </Text>
                     <Stack gap="xs">
-                      {product.includesInTheBox.map((item, index) => (
-                        <Group key={index} gap="xs" align="center">
-                          <IconCheck size={14} className="text-blue-600" />
-                          <Text className="text-sm md:text-base">{item}</Text>
-                        </Group>
-                      ))}
+                      {Array.isArray(product.includesInTheBox)
+                        ? product.includesInTheBox.map((item, index) => (
+                            <Group key={index} gap="xs" align="center">
+                              <IconCheck size={14} className="text-blue-600" />
+                              <Text className="text-sm md:text-base">{item}</Text>
+                            </Group>
+                          ))
+                        : product.includesInTheBox.split(',').map((item, index) => (
+                            <Group key={index} gap="xs" align="center">
+                              <IconCheck size={14} className="text-blue-600" />
+                              <Text className="text-sm md:text-base">{item.trim()}</Text>
+                            </Group>
+                          ))
+                      }
                     </Stack>
+                    {product.includesInTheBoxBn && (
+                      <>
+                        <Text className="text-sm md:text-base" fw={500} c="dimmed" mt="xs">
+                          What's in the Box (Bangla)
+                        </Text>
+                        <Text className="text-sm md:text-base">{product.includesInTheBoxBn}</Text>
+                      </>
+                    )}
                   </Stack>
                 </Group>
               </Paper>
@@ -1135,18 +1189,29 @@ export default function ProductDetailPage() {
         )}
 
         {/* Product Highlights */}
-        {product.highlights && product.highlights.length > 0 && (
+        {((product.highlights && product.highlights.length > 0) || (product.highlightsBn && product.highlightsBn.length > 0)) && (
           <Paper withBorder p="md" radius="md">
-            <Group gap="md" align="flex-start" mb="sm">
-              <Box className="bg-yellow-50 p-2 rounded-md">
-                <IconBulb size={24} className="text-yellow-600" />
-              </Box>
-              <Text fw={600} className="text-base md:text-lg">
-                {t(`${ns}.detail.highlights.title`) || 'Product Highlights'}
-              </Text>
+            <Group justify="space-between" align="center" mb="sm">
+              <Group gap="md" align="center">
+                <Box className="bg-yellow-50 p-2 rounded-md">
+                  <IconBulb size={24} className="text-yellow-600" />
+                </Box>
+                <Text fw={600} className="text-base md:text-lg">
+                  {t(`${ns}.detail.highlights.title`) || 'Product Highlights'}
+                </Text>
+              </Group>
+              {product.highlightsBn && product.highlightsBn.length > 0 && (
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() => setDescLang(prev => prev === 'en' ? 'bn' : 'en')}
+                >
+                  {descLang === 'en' ? 'বাংলা' : 'English'}
+                </Button>
+              )}
             </Group>
             <Stack gap="xs" ml={46}>
-              {product.highlights.map((highlight, index) => (
+              {(descLang === 'en' ? product.highlights : product.highlightsBn)?.map((highlight, index) => (
                 <Group key={index} gap="xs" align="flex-start">
                   <IconCheck size={16} className="text-green-600 mt-1" />
                   <Text className="text-sm md:text-base">{highlight}</Text>
@@ -1157,14 +1222,25 @@ export default function ProductDetailPage() {
         )}
 
         {/* Description */}
-        {product.description && (
+        {(product.description || product.descriptionBn) && (
           <Paper withBorder p="md" radius="md">
-            <Text fw={600} className="text-base md:text-lg" mb="md">
-              {t(`${ns}.detail.productInformation.description`)}
-            </Text>
+            <Group justify="space-between" align="center" mb="md">
+              <Text fw={600} className="text-base md:text-lg">
+                {t(`${ns}.detail.productInformation.description`)}
+              </Text>
+              {product.descriptionBn && (
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() => setDescLang(prev => prev === 'en' ? 'bn' : 'en')}
+                >
+                  {descLang === 'en' ? 'বাংলা' : 'English'}
+                </Button>
+              )}
+            </Group>
             <Box
               className="text-sm md:text-base html-content wrap-break-word overflow-hidden product-description"
-              dangerouslySetInnerHTML={{ __html: decodeHTMLEntities(product.description) }}
+              dangerouslySetInnerHTML={{ __html: decodeHTMLEntities(descLang === 'en' ? (product.description || '') : (product.descriptionBn || '')) }}
             />
           </Paper>
         )}
