@@ -22,4 +22,12 @@ class Customer extends Model {
     {
         return $this->hasMany(Order::class);
     }
+
+    /**
+     * Get all payment transactions for this customer.
+     */
+    public function paymentTransactions(): HasMany
+    {
+        return $this->hasMany(PaymentTransaction::class);
+    }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V2\Website\ProductController;
 use App\Http\Controllers\Api\V2\Website\AccountController;
 use App\Http\Controllers\Api\V2\Website\OrderController;
 use App\Http\Controllers\Api\V2\Website\StorefrontSliderController;
+use App\Http\Controllers\Api\V2\PaymentGatewayController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -45,6 +46,31 @@ Route::prefix('api')->group(function () {
     Route::post('/orders', [OrderController::class, 'placeOrder']);
     Route::post('/orders/verify', [OrderController::class, 'verifyOrder']);
     Route::post('/orders/{invoice_no}/thank-you', [OrderController::class, 'addThankYouProduct']);
+
+    // ===============================================
+    // PAYMENT GATEWAY ROUTES (SSL Commerz)
+    // ===============================================
+    Route::prefix('payments')->group(function () {
+        // Initiate payment
+        Route::post('/initiate', [PaymentGatewayController::class, 'initiate']);
+
+        // EMI options
+        Route::post('/emi-options', [PaymentGatewayController::class, 'emiOptions']);
+
+        // SSL Commerz callbacks (webhooks)
+        Route::post('/success', [PaymentGatewayController::class, 'success']);
+        Route::post('/fail', [PaymentGatewayController::class, 'fail']);
+        Route::post('/cancel', [PaymentGatewayController::class, 'cancel']);
+        Route::post('/ipn', [PaymentGatewayController::class, 'ipn']);
+
+        // Authenticated payment status check
+        Route::middleware(['auth', \Illuminate\Routing\Middleware\SubstituteBindings::class])->group(function () {
+            Route::get('/status/{tran_id}', [PaymentGatewayController::class, 'status']);
+        });
+    });
+
+    // Payment verification cron (accessible via secret key)
+    Route::get('/payments/verify-pending', [PaymentGatewayController::class, 'verifyPending']);
 
     // Thank You Products (public - for order confirmation page)
     Route::get('/thank-you-products', [ProductController::class, 'thankYouProducts']);

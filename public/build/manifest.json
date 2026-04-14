@@ -36,7 +36,7 @@
     "isDynamicEntry": true
   },
   "resources/js/main.tsx": {
-    "file": "assets/main-CDfGzwL2.js",
+    "file": "assets/main-d4MErf-Y.js",
     "name": "main",
     "src": "resources/js/main.tsx",
     "isEntry": true,
@@ -52,7 +52,7 @@
       "node_modules/workbox-window/build/workbox-window.prod.es5.mjs"
     ],
     "css": [
-      "assets/main-C_ztb9if.css"
+      "assets/main-BmUlzsw9.css"
     ]
   }
 }
