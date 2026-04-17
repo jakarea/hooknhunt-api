@@ -261,14 +261,26 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
     if (!previewFile) return
     set({ savingFileChanges: true })
     try {
+      // Send the update to the API
       await api.put(`/media/files/${previewFile.id}`, {
         filename: editingFileName,
         alt_text: editingAltText,
       })
+
+      // After successful API call, fetch the updated file to get the correct data
+      const updatedFileResponse = await api.get(`/media/files/${previewFile.id}`)
+      // Handle nested response structure (response.data or response.data.data)
+      const updatedFile = updatedFileResponse.data.data || updatedFileResponse.data
+
       notifications.show({ title: 'Saved', message: 'File updated', color: 'green' })
-      set({ previewFile: { ...previewFile, filename: editingFileName, altText: editingAltText } })
-      await get().loadFiles()
-    } catch {
+
+      // Update the preview file and files list with the actual data from the API
+      set((state) => ({
+        previewFile: updatedFile,
+        files: state.files.map((f) => f.id === previewFile.id ? updatedFile : f),
+      }))
+    } catch (error) {
+      console.error('Save failed:', error)
       notifications.show({ title: 'Error', message: 'Update failed', color: 'red' })
     } finally {
       set({ savingFileChanges: false })

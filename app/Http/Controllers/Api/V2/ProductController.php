@@ -144,10 +144,13 @@ class ProductController extends Controller
 
             // Content
             'description' => 'required|string|min:10',
-            'highlights' => 'nullable|array|max:10',
+            'highlights' => 'nullable|array|max:20',
             'highlights.*' => 'string|max:255',
-            'includesInTheBox' => 'nullable|array|max:20',
-            'includesInTheBox.*' => 'string|max:255',
+            'descriptionBn' => 'nullable|string',
+            'highlightsBn' => 'nullable|array|max:20',
+            'highlightsBn.*' => 'string|max:255',
+            'includesInTheBox' => 'nullable|string|max:1000',
+            'includesInTheBoxBn' => 'nullable|string|max:1000',
 
             // SEO
             'seoTitle' => 'nullable|string|max:60',
@@ -182,7 +185,8 @@ class ProductController extends Controller
             'videoUrl.url' => 'Video URL must be a valid URL',
             'description.required' => 'Product description is required',
             'description.min' => 'Description must be at least 10 characters',
-            'highlights.max' => 'Maximum 10 highlights allowed',
+            'highlights.max' => 'Maximum 20 highlights allowed',
+            'highlightsBn.max' => 'Maximum 20 highlights allowed',
             'includesInTheBox.max' => 'Maximum 20 items allowed in box',
             'seoTitle.max' => 'SEO title must not exceed 60 characters',
             'seoDescription.max' => 'SEO description must not exceed 160 characters',
@@ -231,8 +235,8 @@ class ProductController extends Controller
                 'description_bn' => $validated['descriptionBn'] ?? null,
                 'highlights' => $validated['highlights'],
                 'highlights_bn' => $validated['highlightsBn'] ?? null,
-                'includes_in_box' => $validated['includesInTheBox'],
-                'includes_in_box_bn' => $validated['includesInTheBoxBn'] ?? null,
+                'includes_in_box' => !empty($validated['includesInTheBox']) ? json_encode(array_map('trim', explode(',', $validated['includesInTheBox']))) : null,
+                'includes_in_box_bn' => !empty($validated['includesInTheBoxBn']) ? json_encode(array_map('trim', explode(',', $validated['includesInTheBoxBn']))) : null,
                 'seo_title' => $validated['seoTitle'],
                 'seo_description' => $validated['seoDescription'],
                 'seo_tags' => $validated['seoTags'] ? explode(',', $validated['seoTags']) : null,
@@ -454,6 +458,14 @@ class ProductController extends Controller
             'category' => 'sometimes|required|exists:categories,id',
             'brand' => 'nullable|exists:brands,id',
             'status' => 'in:draft,published,archived',
+            'description' => 'sometimes|required|string|min:10',
+            'highlights' => 'nullable|array|max:20',
+            'highlights.*' => 'string|max:255',
+            'descriptionBn' => 'nullable|string',
+            'highlightsBn' => 'nullable|array|max:20',
+            'highlightsBn.*' => 'string|max:255',
+            'includesInTheBox' => 'nullable|string|max:1000',
+            'includesInTheBoxBn' => 'nullable|string|max:1000',
             'featuredImage' => 'nullable|integer|exists:media_files,id',
             'galleryImages' => 'nullable|array|max:6',
             'galleryImages.*' => 'integer|exists:media_files,id',
@@ -477,9 +489,9 @@ class ProductController extends Controller
             if ($request->has('includesInTheBox')) {
                 $val = $request->includesInTheBox;
                 if (is_string($val) && $val !== '') {
-                    $includesInTheBox = array_map('trim', explode(',', $val));
+                    $includesInTheBox = json_encode(array_map('trim', explode(',', $val)));
                 } elseif (is_array($val)) {
-                    $includesInTheBox = $val;
+                    $includesInTheBox = json_encode($val);
                 } elseif ($val === '' || $val === null) {
                     $includesInTheBox = null;
                 }
@@ -503,10 +515,17 @@ class ProductController extends Controller
                 $warrantyDetails = ($val !== '' && $val !== null) ? $val : null;
             }
 
-            // Prepare includes_in_box_bn: column is NOT NULL, use empty string as fallback
-            $includesInTheBoxBn = $product->includes_in_box_bn ?? '';
+            // Prepare includes_in_box_bn: column is NOT NULL, use empty array as fallback
+            $includesInTheBoxBn = $product->includes_in_box_bn ?? [];
             if ($request->has('includesInTheBoxBn')) {
-                $includesInTheBoxBn = $request->includesInTheBoxBn ?? '';
+                $val = $request->includesInTheBoxBn;
+                if (is_string($val) && $val !== '') {
+                    $includesInTheBoxBn = json_encode(array_map('trim', explode(',', $val)));
+                } elseif (is_array($val)) {
+                    $includesInTheBoxBn = json_encode($val);
+                } elseif ($val === '' || $val === null) {
+                    $includesInTheBoxBn = json_encode([]);
+                }
             }
 
             // Update product fields - map camelCase to snake_case

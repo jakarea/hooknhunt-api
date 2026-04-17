@@ -36,6 +36,7 @@ import { modals } from '@mantine/modals'
 import { useTranslation } from 'react-i18next'
 import { useMediaStore, formatFileSize, filterFilesBySearch, filterFoldersByParent, getFolderPath, isImageFile } from '@/stores/mediaStore'
 import { MediaFileCard } from '@/components/media-file-card'
+import { deleteMediaFolder, updateMediaFolder } from '@/utils/api'
 import type { MediaFile } from '@/utils/api'
 
 // ─── Props ───────────────────────────────────────
@@ -59,6 +60,10 @@ export function MediaSelectorModal({
 }: MediaSelectorModalProps) {
   const { t } = useTranslation()
   const store = useMediaStore()
+
+  // Folder rename state
+  const [folderToRename, setFolderToRename] = useState<{ id: number; name: string } | null>(null)
+  const [newFolderName, setNewFolderName] = useState('')
 
   // Load data when modal opens or folder changes
   useEffect(() => {
@@ -121,6 +126,18 @@ export function MediaSelectorModal({
     handleClose()
   }, [store.files, store.selectedFileIds, multiple, onSelectMultiple, onSelect, handleClose])
 
+  // Handle Enter key to confirm selection
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && opened && store.selectedFileIds.length > 0) {
+        handleConfirm()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [opened, store.selectedFileIds, handleConfirm])
+
   const handleBulkDelete = useCallback(() => {
     if (store.selectedFileIds.length === 0) return
     modals.openConfirmModal({
@@ -151,11 +168,86 @@ export function MediaSelectorModal({
     store.loadFiles()
   }, [])
 
+  // Folder rename handler
+  const handleRenameFolder = useCallback((folder: { id: number; name: string }) => {
+    setFolderToRename(folder)
+  }, [])
+
+  const confirmRenameFolder = useCallback(async (name: string) => {
+    if (!folderToRename || !name.trim()) {
+      showNotification({ title: t('cms.mediaPage.validationError'), message: t('cms.mediaPage.folderNameRequired'), color: 'red' })
+      return
+    }
+
+    try {
+      await updateMediaFolder(folderToRename.id, { name })
+      showNotification({ title: t('cms.mediaPage.folderUpdated'), message: t('cms.mediaPage.folderUpdatedMessage'), color: 'green' })
+      setFolderToRename(null)
+      store.loadFolders()
+    } catch (error: any) {
+      showNotification({ title: t('cms.mediaPage.updateFailed'), message: error.response?.data?.message || t('cms.mediaPage.errorUpdatingFolder'), color: 'red' })
+    }
+  }, [folderToRename, t, store])
+
+  // Folder delete handler
+  const handleDeleteFolder = useCallback((folder: { id: number; name: string }) => {
+    modals.openConfirmModal({
+      title: t('cms.mediaPage.deleteFolder'),
+      children: (
+        <Stack gap="sm">
+          <Text size="sm">{t('cms.mediaPage.deleteFolderConfirm', { name: folder.name })}</Text>
+          <Text size="xs" c="orange">{t('cms.mediaPage.deleteFolderWarning')}</Text>
+        </Stack>
+      ),
+      labels: { confirm: t('common.delete'), cancel: t('common.cancel') },
+      confirmProps: { color: 'red' },
+      onConfirm: async () => {
+        try {
+          await deleteMediaFolder(folder.id)
+          showNotification({ title: t('cms.mediaPage.folderDeleted'), message: t('cms.mediaPage.folderDeletedMessage'), color: 'green' })
+          if (store.currentFolder === folder.id) {
+            store.setCurrentFolder(null)
+          }
+          store.loadFolders()
+        } catch (error: any) {
+          const errorMessage = error.response?.data?.errors?.message || error.response?.data?.message || t('cms.mediaPage.errorDeletingFolder')
+          const filesCount = error.response?.data?.errors?.filesCount ?? 0
+          const subfoldersCount = error.response?.data?.errors?.subfoldersCount ?? 0
+
+          showNotification({
+            title: t('common.error'),
+            message: (
+              <Stack gap="xs">
+                <Text>{errorMessage}</Text>
+                {(filesCount > 0 || subfoldersCount > 0) && (
+                  <Text size="sm" c="dimmed">
+                    {filesCount > 0 && `${filesCount} file${filesCount > 1 ? 's' : ''}`}
+                    {filesCount > 0 && subfoldersCount > 0 && ' and '}
+                    {subfoldersCount > 0 && `${subfoldersCount} subfolder${subfoldersCount > 1 ? 's' : ''}`}
+                  </Text>
+                )}
+              </Stack>
+            ),
+            color: 'red',
+          })
+        }
+      },
+    })
+  }, [t, store])
+
   // ─── File action handlers (for MediaFileCard) ─
   const fileActions = useMemo(
     () => ({
       onPreview: (file: MediaFile) => store.openPreview(file),
       onEdit: (file: MediaFile) => store.openPreview(file),
+      onCopy: (file: MediaFile) => {
+        navigator.clipboard.writeText(file.url)
+        notifications.show({
+          title: t('cms.mediaPage.urlCopied'),
+          message: t('cms.mediaPage.urlCopiedMessage'),
+          color: 'green',
+        })
+      },
       onDelete: (file: MediaFile) => {
         modals.openConfirmModal({
           title: t('cms.mediaSelector.deleteSingleConfirm'),
@@ -167,7 +259,7 @@ export function MediaSelectorModal({
       },
       onMove: (file: MediaFile) => store.openMoveModal([file.id]),
     }),
-    [t],
+    [t, store],
   )
 
   // ─── Move file count for modal title ──────────
@@ -266,7 +358,13 @@ export function MediaSelectorModal({
               {filteredFolders.length > 0 && (
                 <SimpleGrid cols={{ base: 2, sm: 4, md: 6, lg: 8 }} spacing="md">
                   {filteredFolders.map((folder) => (
-                    <FolderCard key={folder.id} folder={folder} onClick={() => store.setCurrentFolder(folder.id)} />
+                    <FolderCard
+                      key={folder.id}
+                      folder={folder}
+                      onClick={() => store.setCurrentFolder(folder.id)}
+                      onRename={handleRenameFolder}
+                      onDelete={handleDeleteFolder}
+                    />
                   ))}
                 </SimpleGrid>
               )}
@@ -282,6 +380,7 @@ export function MediaSelectorModal({
                       onSelect={() => store.toggleFileSelection(file.id, multiple)}
                       onPreview={() => fileActions.onPreview(file)}
                       onEdit={() => fileActions.onEdit(file)}
+                      onCopy={() => fileActions.onCopy(file)}
                       onDelete={() => fileActions.onDelete(file)}
                       onMove={() => fileActions.onMove(file)}
                     />
@@ -297,6 +396,7 @@ export function MediaSelectorModal({
           <Button variant="default" onClick={handleClose}>{t('common.cancel')}</Button>
           <Button onClick={handleConfirm} disabled={store.selectedFileIds.length === 0}>
             {multiple ? t('cms.mediaSelector.useSelectedFiles', { count: store.selectedFileIds.length }) : t('cms.mediaSelector.useSelectedFile')}
+            {store.selectedFileIds.length > 0 && <Text size="xs" ml="xs" c="dimmed">(Enter)</Text>}
           </Button>
         </Group>
       </Stack>
@@ -305,6 +405,15 @@ export function MediaSelectorModal({
       <FilePreviewModal />
       {/* Create folder sub-modal */}
       <CreateFolderSubModal onConfirm={handleCreateFolder} />
+      {/* Rename folder sub-modal */}
+      <RenameFolderSubModal
+        folder={folderToRename}
+        onConfirm={confirmRenameFolder}
+        onCancel={() => {
+          setFolderToRename(null)
+          setNewFolderName('')
+        }}
+      />
       {/* Move files sub-modal */}
       <MoveFilesSubModal fileCount={moveFileCount} onConfirm={handleBulkMove} />
     </Modal>
@@ -325,7 +434,14 @@ function EmptyState({ searchQuery }: { searchQuery: string }) {
   )
 }
 
-function FolderCard({ folder, onClick }: { folder: { id: number; name: string; mediaFilesCount?: number }; onClick: () => void }) {
+function FolderCard({ folder, onClick, onRename, onDelete }: {
+  folder: { id: number; name: string; mediaFilesCount?: number }
+  onClick: () => void
+  onRename: (folder: { id: number; name: string }) => void
+  onDelete: (folder: { id: number; name: string }) => void
+}) {
+  const { t } = useTranslation()
+
   return (
     <Paper withBorder p="md" radius="md" pos="relative">
       <Menu position="bottom-end" withinPortal>
@@ -335,15 +451,32 @@ function FolderCard({ folder, onClick }: { folder: { id: number; name: string; m
           </ActionIcon>
         </Menu.Target>
         <Menu.Dropdown>
-          <Menu.Label>Actions</Menu.Label>
-          <Menu.Item leftSection={<IconEdit size={14} />}>Rename</Menu.Item>
-          <Menu.Item leftSection={<IconTrash size={14} />} color="red">Delete</Menu.Item>
+          <Menu.Label>{t('cms.mediaPage.folderActions')}</Menu.Label>
+          <Menu.Item
+            leftSection={<IconEdit size={14} />}
+            onClick={(e) => {
+              e.stopPropagation()
+              onRename(folder)
+            }}
+          >
+            {t('cms.mediaPage.rename')}
+          </Menu.Item>
+          <Menu.Item
+            leftSection={<IconTrash size={14} />}
+            color="red"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(folder)
+            }}
+          >
+            {t('cms.mediaPage.deleteFolder')}
+          </Menu.Item>
         </Menu.Dropdown>
       </Menu>
       <Stack gap="xs" align="center" style={{ cursor: 'pointer' }} onClick={onClick}>
         <IconFolder size={40} c="blue" />
         <Text size="sm" fw={500} ta="center" lineClamp={1}>{folder.name}</Text>
-        {folder.mediaFilesCount !== undefined && <Text size="xs" c="dimmed">{folder.mediaFilesCount} files</Text>}
+        {folder.mediaFilesCount !== undefined && <Text size="xs" c="dimmed">{folder.mediaFilesCount} {t('cms.mediaPage.files')}</Text>}
       </Stack>
     </Paper>
   )
@@ -366,7 +499,7 @@ function FilePreviewModal() {
                 <Group gap="xs">
                   <IconFile size={32} />
                   <Stack gap={0}>
-                    <Text fw={500}>{file.originalFilename}</Text>
+                    <Text fw={500}>{file.filename || file.originalFilename}</Text>
                     <Text size="sm" c="dimmed">{formatFileSize(file.size)}</Text>
                   </Stack>
                 </Group>
@@ -379,7 +512,7 @@ function FilePreviewModal() {
             <Paper withBorder p="md" radius="md">
               <Stack gap="sm">
                 <Text fw={600}>File Information</Text>
-                <Stack gap="xs"><Text size="xs" c="dimmed">Name</Text><Text size="sm">{file.originalFilename}</Text></Stack>
+                <Stack gap="xs"><Text size="xs" c="dimmed">Name</Text><Text size="sm">{file.filename || file.originalFilename}</Text></Stack>
                 <Stack gap="xs"><Text size="xs" c="dimmed">Size</Text><Text size="sm">{formatFileSize(file.size)}</Text></Stack>
                 {file.width && file.height && <Stack gap="xs"><Text size="xs" c="dimmed">Dimensions</Text><Text size="sm">{file.width} x {file.height} px</Text></Stack>}
                 {file.mimeType && <Stack gap="xs"><Text size="xs" c="dimmed">Type</Text><Text size="sm">{file.mimeType}</Text></Stack>}
@@ -424,9 +557,43 @@ function CreateFolderSubModal({ onConfirm }: { onConfirm: () => void }) {
   )
 }
 
+function RenameFolderSubModal({ folder, onConfirm, onCancel }: {
+  folder: { id: number; name: string } | null
+  onConfirm: (name: string) => void
+  onCancel: () => void
+}) {
+  const { t } = useTranslation()
+  const [name, setName] = useState(folder?.name || '')
+
+  useEffect(() => {
+    setName(folder?.name || '')
+  }, [folder])
+
+  return (
+    <Modal opened={!!folder} onClose={onCancel} title={t('cms.mediaPage.renameFolder')} size="sm" centered>
+      <Stack gap="md">
+        <TextInput
+          label={t('cms.mediaPage.folderName')}
+          placeholder={t('cms.mediaPage.folderName')}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+        />
+        <Group justify="flex-end" gap="sm">
+          <Button variant="default" onClick={onCancel}>{t('common.cancel')}</Button>
+          <Button onClick={() => onConfirm(name)}>{t('cms.mediaPage.renameFolder')}</Button>
+        </Group>
+      </Stack>
+    </Modal>
+  )
+}
+
 function MoveFilesSubModal({ fileCount, onConfirm }: { fileCount: number; onConfirm: () => void }) {
   const store = useMediaStore()
   const { t } = useTranslation()
+
+  // Use 'root' as a special value for root folder (null)
+  const selectValue = store.targetFolderId === null ? 'root' : store.targetFolderId?.toString() ?? ''
 
   return (
     <Modal opened={store.moveModalOpened} onClose={store.closeMoveModal} title={t('cms.mediaPage.moveFiles', { count: fileCount })} size="sm" centered>
@@ -435,17 +602,16 @@ function MoveFilesSubModal({ fileCount, onConfirm }: { fileCount: number; onConf
         <Select
           placeholder={t('cms.mediaSelector.selectFolder')}
           data={[
-            { value: '', label: t('cms.mediaPage.allFiles') },
+            { value: 'root', label: t('cms.mediaPage.allFiles') },
             ...store.folders.map((f) => ({ value: f.id.toString(), label: f.name })),
           ]}
-          value={store.targetFolderId?.toString() ?? ''}
-          onChange={(v) => store.setTargetFolderId(v ? Number(v) : null)}
-          clearable
+          value={selectValue}
+          onChange={(v) => store.setTargetFolderId(v === 'root' ? null : (v ? Number(v) : null))}
           searchable
         />
         <Group justify="flex-end" gap="sm">
           <Button variant="default" onClick={store.closeMoveModal}>{t('common.cancel')}</Button>
-          <Button onClick={onConfirm} disabled={!store.targetFolderId && store.targetFolderId !== 0}>{t('cms.mediaPage.moveFiles')}</Button>
+          <Button onClick={onConfirm}>{t('cms.mediaPage.moveFiles')}</Button>
         </Group>
       </Stack>
     </Modal>

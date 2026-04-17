@@ -439,7 +439,7 @@ export default function MediaLibraryPage() {
       title: t('cms.mediaPage.deleteFile'),
       children: (
         <Text className="text-sm md:text-base">
-          {t('cms.mediaPage.deleteFileConfirm', { name: file.originalFilename })}
+          {t('cms.mediaPage.deleteFileConfirm', { name: file.filename || file.originalFilename })}
         </Text>
       ),
       labels: { confirm: t('cms.mediaPage.delete'), cancel: t('common.cancel') },
@@ -487,7 +487,7 @@ export default function MediaLibraryPage() {
   const handleDownloadFile = (file: MediaFile) => {
     const link = document.createElement('a')
     link.href = file.url
-    link.download = file.originalFilename
+    link.download = file.filename || file.originalFilename
     link.style.display = 'none'
     document.body.appendChild(link)
     link.click()
@@ -551,9 +551,29 @@ export default function MediaLibraryPage() {
 
           await fetchFolders()
         } catch (error: any) {
+          // Handle the structured error response from API
+          const errorMessage = error.response?.data?.errors?.message ||
+                              error.response?.data?.message ||
+                              error.response?.data?.error ||
+                              t('cms.mediaPage.errorDeletingFolder')
+
+          const filesCount = error.response?.data?.errors?.filesCount ?? 0
+          const subfoldersCount = error.response?.data?.errors?.subfoldersCount ?? 0
+
           notifications.show({
             title: t('common.error'),
-            message: error.response?.data?.message || t('cms.mediaPage.errorDeletingFolder'),
+            message: (
+              <Stack gap="xs">
+                <Text>{errorMessage}</Text>
+                {(filesCount > 0 || subfoldersCount > 0) && (
+                  <Text size="sm" c="dimmed">
+                    {filesCount > 0 && `${filesCount} file${filesCount > 1 ? 's' : ''}`}
+                    {filesCount > 0 && subfoldersCount > 0 && ' and '}
+                    {subfoldersCount > 0 && `${subfoldersCount} subfolder${subfoldersCount > 1 ? 's' : ''}`}
+                  </Text>
+                )}
+              </Stack>
+            ),
             color: 'red',
           })
         }
@@ -1021,7 +1041,7 @@ export default function MediaLibraryPage() {
                     {isImage(file.mimeType) ? (
                       <Image
                         src={file.url}
-                        alt={file.originalFilename}
+                        alt={file.filename || file.originalFilename}
                         height={120}
                         fit="cover"
                         radius="7px 7px 0 0"
@@ -1038,14 +1058,14 @@ export default function MediaLibraryPage() {
                       >
                         <IconFile size={40} c="dimmed" />
                         <Text size="xs" c="dimmed" lineClamp={2} ta="center">
-                          {file.originalFilename}
+                          {file.filename || file.originalFilename}
                         </Text>
                       </Stack>
                     )}
 
                     <Box p="xs">
                       <Text size="xs" c="dimmed" lineClamp={1}>
-                        {file.originalFilename}
+                        {file.filename || file.originalFilename}
                       </Text>
                       <Group gap={4} mt={4}>
                         <Text size="xs" c="dimmed">

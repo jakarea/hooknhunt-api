@@ -1,12 +1,4 @@
 {
-  "_image-resize.min-BxjRNZSe.js": {
-    "file": "assets/image-resize.min-BxjRNZSe.js",
-    "name": "image-resize.min",
-    "isDynamicEntry": true,
-    "imports": [
-      "_react-vendor-DCNV_QY_.js"
-    ]
-  },
   "_mantine-vendor-Bhu6VfNE.js": {
     "file": "assets/mantine-vendor-Bhu6VfNE.js",
     "name": "mantine-vendor",
@@ -36,7 +28,7 @@
     "isDynamicEntry": true
   },
   "resources/js/main.tsx": {
-    "file": "assets/main-d4MErf-Y.js",
+    "file": "assets/main-B_6mbIwB.js",
     "name": "main",
     "src": "resources/js/main.tsx",
     "isEntry": true,
@@ -47,8 +39,6 @@
       "_zustand-vendor-Bb1ROlG7.js"
     ],
     "dynamicImports": [
-      "_image-resize.min-BxjRNZSe.js",
-      "_image-resize.min-BxjRNZSe.js",
       "node_modules/workbox-window/build/workbox-window.prod.es5.mjs"
     ],
     "css": [

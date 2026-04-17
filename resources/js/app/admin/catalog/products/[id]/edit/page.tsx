@@ -48,6 +48,29 @@ import { notifications } from '@mantine/notifications'
 import { getCategories, getBrands, getProduct, type Category, type Brand, type MediaFile } from '@/utils/api'
 import { useMediaSelector } from '@/hooks/useMediaSelector'
 import { useUIStore } from '@/stores/uiStore'
+
+// Utility function to decode HTML entities (handles multiple levels of encoding)
+const decodeHTMLEntities = (text: string): string => {
+  if (!text) return ''
+  let decoded = text
+  let maxIterations = 5 // Prevent infinite loops
+  let iteration = 0
+  while (iteration < maxIterations && (
+    decoded.includes('&amp;') ||
+    decoded.includes('&lt;') ||
+    decoded.includes('&gt;') ||
+    decoded.includes('&quot;') ||
+    decoded.includes('&#039;') ||
+    decoded.includes('&#x27;') ||
+    decoded.includes('&apos;')
+  )) {
+    const textarea = document.createElement('textarea')
+    textarea.innerHTML = decoded
+    decoded = textarea.value
+    iteration++
+  }
+  return decoded
+}
 import { apiMethods } from '@/lib/api'
 import Quill from 'quill'
 import 'quill/dist/quill.snow.css'
@@ -195,7 +218,6 @@ export default function EditProductPage() {
   const [highlightsList, setHighlightsList] = useState<string[]>([])
   const [descriptionBn, setDescriptionBn] = useState('')
   const [highlightsBn, setHighlightsBn] = useState<string[]>([])
-  const [descLang, setDescLang] = useState<'en' | 'bn'>('en')
   const [includesInTheBox, setIncludesInTheBox] = useState('')
 
   // SEO state
@@ -283,13 +305,17 @@ export default function EditProductPage() {
     if (isLoading) return
 
     const initializeQuillEditors = async () => {
-      // Try to load image resize module (optional)
-      try {
-        const ImageResize = (await import('quill-image-resize-module') as any).default
-        Quill.register('modules/imageResize', ImageResize)
-      } catch (e) {
-        console.warn('Image resize module not loaded:', e)
+      // Custom Image Format for Quill 2.x with resize support
+      const BaseImageFormat: any = Quill.import('formats/image')
+      class ImageFormat extends BaseImageFormat {
+        static create(value: string) {
+          const node = super.create(value) as HTMLImageElement
+          node.classList.add('richtext_image')
+          node.setAttribute('contenteditable', 'false')
+          return node
+        }
       }
+      Quill.register(ImageFormat, true)
 
       // Add custom CSS for Quill editor heights and dark mode
       const styleId = 'quill-custom-heights-v2'
@@ -419,8 +445,448 @@ export default function EditProductPage() {
             color: #228BE6;
           }
 
+          /* Richtext image styles - base class for all images */
+          .richtext_image {
+            max-width: 100%;
+            height: auto;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border-radius: 4px;
+            display: inline-block;
+          }
+
+          .richtext_image:hover {
+            box-shadow: 0 0 0 2px rgba(34, 139, 230, 0.5);
+          }
+
+          /* Selected image with resize handles */
+          .richtext_image.selected {
+            outline: 2px solid #228BE6;
+            outline-offset: 2px;
+          }
+
+          /* Resize handles for selected images */
+          .richtext-image-resize-handle {
+            position: absolute;
+            background: #228BE6;
+            border: 2px solid white;
+            z-index: 1000;
+          }
+
+          /* Corner handles - round */
+          .richtext-image-resize-handle.nw,
+          .richtext-image-resize-handle.ne,
+          .richtext-image-resize-handle.sw,
+          .richtext-image-resize-handle.se {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+          }
+
+          .richtext-image-resize-handle.nw {
+            top: -6px;
+            left: -6px;
+            cursor: nwse-resize;
+          }
+
+          .richtext-image-resize-handle.ne {
+            top: -6px;
+            right: -6px;
+            cursor: nesw-resize;
+          }
+
+          .richtext-image-resize-handle.sw {
+            bottom: -6px;
+            left: -6px;
+            cursor: nesw-resize;
+          }
+
+          .richtext-image-resize-handle.se {
+            bottom: -6px;
+            right: -6px;
+            cursor: nwse-resize;
+          }
+
+          /* Edge handles - rectangular */
+          .richtext-image-resize-handle.top,
+          .richtext-image-resize-handle.bottom {
+            width: 24px;
+            height: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-radius: 4px;
+            cursor: ns-resize;
+          }
+
+          .richtext-image-resize-handle.top {
+            top: -4px;
+          }
+
+          .richtext-image-resize-handle.bottom {
+            bottom: -4px;
+          }
+
+          .richtext-image-resize-handle.left,
+          .richtext-image-resize-handle.right {
+            width: 8px;
+            height: 24px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-radius: 4px;
+            cursor: ew-resize;
+          }
+
+          .richtext-image-resize-handle.left {
+            left: -4px;
+          }
+
+          .richtext-image-resize-handle.right {
+            right: -4px;
+          }
+
+          /* Delete button for selected images */
+          .richtext-image-delete-btn {
+            position: absolute;
+            top: -12px;
+            right: -12px;
+            width: 24px;
+            height: 24px;
+            background: #ff4444;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            z-index: 1001;
+            user-select: none;
+          }
+
+          /* Size display for selected images */
+          .richtext-image-size-display {
+            position: absolute;
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1001;
+            white-space: nowrap;
+          }
+
         `
       document.head.appendChild(style)
+
+      // Helper function to make images resizable and selectable
+      const setupImageInteractions = (quillInstance: any) => {
+        console.log('🔧 setupImageInteractions called for:', quillInstance)
+        const editor = quillInstance.root
+        const editorContainer = editor.parentElement
+        console.log('📝 Editor root:', editor, 'Container:', editorContainer)
+
+        // Store current selected image and its UI elements
+        let selectedImage: HTMLImageElement | null = null
+        let uiElements: {
+          handles: HTMLDivElement[]
+          deleteBtn: HTMLDivElement | null
+          sizeDisplay: HTMLDivElement | null
+        } = {
+          handles: [],
+          deleteBtn: null,
+          sizeDisplay: null
+        }
+
+        // Remove all existing UI elements
+        const cleanupImageUI = () => {
+          console.log('🧹 Cleaning up UI')
+          uiElements.handles.forEach(handle => handle.remove())
+          if (uiElements.deleteBtn) uiElements.deleteBtn.remove()
+          if (uiElements.sizeDisplay) uiElements.sizeDisplay.remove()
+          uiElements = { handles: [], deleteBtn: null, sizeDisplay: null }
+          selectedImage = null
+        }
+
+        // Update UI elements position based on image position
+        const updateUIPosition = () => {
+          if (!selectedImage || !editorContainer) return
+
+          const imgRect = selectedImage.getBoundingClientRect()
+          const containerRect = editorContainer.getBoundingClientRect()
+
+          // Calculate relative position
+          const relativeTop = imgRect.top - containerRect.top
+          const relativeLeft = imgRect.left - containerRect.left
+
+          // Update resize handles positions
+          const positions = [
+            // Corner handles
+            { name: 'nw', top: relativeTop - 6, left: relativeLeft - 6 },
+            { name: 'ne', top: relativeTop - 6, left: relativeLeft + imgRect.width - 6 },
+            { name: 'sw', top: relativeTop + imgRect.height - 6, left: relativeLeft - 6 },
+            { name: 'se', top: relativeTop + imgRect.height - 6, left: relativeLeft + imgRect.width - 6 },
+            // Edge handles
+            { name: 'top', top: relativeTop - 4, left: relativeLeft + imgRect.width / 2 },
+            { name: 'bottom', top: relativeTop + imgRect.height - 4, left: relativeLeft + imgRect.width / 2 },
+            { name: 'left', top: relativeTop + imgRect.height / 2, left: relativeLeft - 4 },
+            { name: 'right', top: relativeTop + imgRect.height / 2, left: relativeLeft + imgRect.width - 4 }
+          ]
+
+          positions.forEach((pos, index) => {
+            if (uiElements.handles[index]) {
+              uiElements.handles[index].style.top = `${pos.top}px`
+              uiElements.handles[index].style.left = `${pos.left}px`
+            }
+          })
+
+          // Update delete button position
+          if (uiElements.deleteBtn) {
+            uiElements.deleteBtn.style.top = `${relativeTop - 12}px`
+            uiElements.deleteBtn.style.left = `${relativeLeft + imgRect.width - 12}px`
+          }
+
+          // Update size display position
+          if (uiElements.sizeDisplay) {
+            uiElements.sizeDisplay.style.top = `${relativeTop + imgRect.height + 5}px`
+            uiElements.sizeDisplay.style.left = `${relativeLeft + imgRect.width / 2}px`
+          }
+        }
+
+        // Add resize handles and delete button to selected image
+        const addImageUI = (img: HTMLImageElement) => {
+          console.log('➕ Adding UI to image:', img)
+          cleanupImageUI()
+
+          selectedImage = img
+
+          if (!editorContainer) {
+            console.log('❌ No editor container found')
+            return
+          }
+
+          // Ensure container has position relative for absolute positioning
+          if (getComputedStyle(editorContainer).position === 'static') {
+            editorContainer.style.position = 'relative'
+          }
+
+          // Add resize handles
+          const positions = ['nw', 'ne', 'sw', 'se', 'top', 'bottom', 'left', 'right']
+          positions.forEach(pos => {
+            const handle = document.createElement('div')
+            handle.className = `richtext-image-resize-handle ${pos}`
+            handle.dataset.position = pos
+            editorContainer.appendChild(handle)
+            uiElements.handles.push(handle)
+            console.log(`✅ Added resize handle: ${pos}`)
+          })
+
+          // Add delete button
+          const deleteBtn = document.createElement('div')
+          deleteBtn.className = 'richtext-image-delete-btn'
+          deleteBtn.textContent = '×'
+          deleteBtn.title = 'Delete image'
+          editorContainer.appendChild(deleteBtn)
+          uiElements.deleteBtn = deleteBtn
+          console.log('✅ Added delete button')
+
+          // Add size display
+          const sizeDisplay = document.createElement('div')
+          sizeDisplay.className = 'richtext-image-size-display'
+          sizeDisplay.textContent = `${img.offsetWidth} × ${img.offsetHeight}`
+          editorContainer.appendChild(sizeDisplay)
+          uiElements.sizeDisplay = sizeDisplay
+          console.log('✅ Added size display:', sizeDisplay.textContent)
+
+          // Update positions
+          setTimeout(() => updateUIPosition(), 0)
+
+          // Verify all elements were added
+          setTimeout(() => {
+            console.log('🔍 Verification - Handles in container:', editorContainer.querySelectorAll('.richtext-image-resize-handle').length,
+              'Delete btn:', !!editorContainer.querySelector('.richtext-image-delete-btn'),
+              'Size display:', !!editorContainer.querySelector('.richtext-image-size-display'))
+          }, 100)
+        }
+
+        // Handle image click for selection
+        editor.addEventListener('click', (e: any) => {
+          const target = e.target
+
+          // Check if clicking on image
+          if (target && target.tagName === 'IMG' && target.classList.contains('richtext_image')) {
+            console.log('🖼️ Clicked on richtext_image')
+            e.preventDefault()
+            e.stopPropagation()
+            const img = target as HTMLImageElement
+
+            // Toggle selection
+            if (selectedImage === img) {
+              console.log('❌ Deselecting image')
+              img.classList.remove('selected')
+              cleanupImageUI()
+            } else {
+              console.log('✅ Selecting image')
+              // Remove selected class from previous image
+              if (selectedImage) {
+                selectedImage.classList.remove('selected')
+              }
+              img.classList.add('selected')
+              addImageUI(img)
+            }
+          } else {
+            console.log('🌫️ Clicked elsewhere, deselecting all images')
+            // Deselect image when clicking elsewhere
+            if (selectedImage) {
+              selectedImage.classList.remove('selected')
+              cleanupImageUI()
+            }
+          }
+        })
+
+        // Handle clicks on UI elements (at container level since elements are there)
+        if (editorContainer) {
+          editorContainer.addEventListener('click', (e: any) => {
+            const target = e.target
+            console.log('🖱️ Container click on:', target, 'classes:', target?.className)
+
+            // Check if clicking on resize handle
+            if (target.classList.contains('richtext-image-resize-handle')) {
+              console.log('✋ Clicked on resize handle:', target.dataset.position)
+              e.preventDefault()
+              e.stopPropagation()
+              return // Let the mousedown handler deal with it
+            }
+
+            // Check if clicking on delete button
+            if (target.classList.contains('richtext-image-delete-btn')) {
+              console.log('🗑️ Clicked on delete button')
+              e.preventDefault()
+              e.stopPropagation()
+              if (selectedImage) {
+                const blot = Quill.find(selectedImage)
+                if (blot && blot !== quillInstance) {
+                  (blot as any).remove()
+                }
+                cleanupImageUI()
+              }
+              return
+            }
+          })
+        }
+
+        // Handle resize dragging (at container level)
+        if (editorContainer) {
+          editorContainer.addEventListener('mousedown', (e: any) => {
+            if (e.target.classList.contains('richtext-image-resize-handle')) {
+              console.log('🎯 Started resizing with handle:', e.target.dataset.position)
+              e.preventDefault()
+              e.stopPropagation()
+              const handle = e.target
+              const position = handle.dataset.position
+              const img = selectedImage
+
+              if (!img) return
+
+              const startX = e.clientX
+              const startY = e.clientY
+              const startWidth = img.offsetWidth
+              const startHeight = img.offsetHeight
+
+              const aspectRatio = startWidth / startHeight
+
+              const onMouseMove = (moveEvent: MouseEvent) => {
+                const deltaX = moveEvent.clientX - startX
+                const deltaY = moveEvent.clientY - startY
+
+                let newWidth = startWidth
+                let newHeight = startHeight
+
+                // Corner handles - always maintain aspect ratio
+                if (['nw', 'ne', 'sw', 'se'].includes(position)) {
+                  if (position === 'se' || position === 'ne') {
+                    newWidth = startWidth + deltaX
+                  } else if (position === 'sw' || position === 'nw') {
+                    newWidth = startWidth - deltaX
+                  }
+
+                  // Maintain aspect ratio automatically for corners
+                  newHeight = newWidth / aspectRatio
+                }
+                // Edge handles - resize only one dimension
+                else if (position === 'top') {
+                  newHeight = startHeight - deltaY
+                } else if (position === 'bottom') {
+                  newHeight = startHeight + deltaY
+                } else if (position === 'left') {
+                  newWidth = startWidth - deltaX
+                } else if (position === 'right') {
+                  newWidth = startWidth + deltaX
+                }
+
+                // Minimum size
+                if (newWidth < 50) newWidth = 50
+                if (newHeight < 50) newHeight = 50
+
+                img.style.width = `${newWidth}px`
+                img.style.height = `${newHeight}px`
+
+                // Update UI positions
+                updateUIPosition()
+
+                // Update size display
+                if (uiElements.sizeDisplay) {
+                  uiElements.sizeDisplay.textContent = `${Math.round(newWidth)} × ${Math.round(newHeight)}`
+                }
+              }
+
+              const onMouseUp = () => {
+                document.removeEventListener('mousemove', onMouseMove)
+                document.removeEventListener('mouseup', onMouseUp)
+                console.log('✅ Finished resizing')
+              }
+
+              document.addEventListener('mousemove', onMouseMove)
+              document.addEventListener('mouseup', onMouseUp)
+            }
+          })
+        }
+
+        // Handle keyboard delete
+        editor.addEventListener('keydown', (e: any) => {
+          if ((e.key === 'Delete' || e.key === 'Backspace') && !quillInstance.getSelection()) {
+            if (selectedImage) {
+              e.preventDefault()
+              const blot = Quill.find(selectedImage)
+              if (blot && blot !== quillInstance) {
+                (blot as any).remove()
+              }
+              cleanupImageUI()
+            }
+          }
+        })
+
+        // Handle image double-click to replace
+        editor.addEventListener('dblclick', (e: any) => {
+          const target = e.target
+          if (target && target.tagName === 'IMG' && target.classList.contains('richtext_image')) {
+            e.preventDefault()
+            const blot = Quill.find(target)
+            if (blot) {
+              openSingleSelect((mediaFile: MediaFile) => {
+                const img = target as HTMLImageElement
+                img.src = mediaFile.url
+                img.classList.remove('selected')
+                cleanupImageUI()
+              })
+            }
+          }
+        })
+      }
 
       // Description Editor
       const descriptionContainer = document.getElementById('description-editor')
@@ -436,9 +902,6 @@ export default function EditProductPage() {
             'link', 'image'
           ],
           modules: {
-            imageResize: {
-              parchment: Quill.import('parchment')
-            },
             toolbar: [
               ['bold', 'italic', 'underline'],
               [{ 'header': [2, 3, 4, 5, 6, false] }],
@@ -460,6 +923,22 @@ export default function EditProductPage() {
           })
         }
 
+        // Handle double-click on images to replace them
+        quill1.root.addEventListener('dblclick', (e: any) => {
+          const target = e.target
+          if (target && target.tagName === 'IMG' && target.classList.contains('richtext_image')) {
+            e.preventDefault()
+            const blot = Quill.find(target)
+            if (blot) {
+              openSingleSelect((mediaFile: MediaFile) => {
+                const img = target as HTMLImageElement
+                img.src = mediaFile.url
+                quill1.update()
+              })
+            }
+          }
+        })
+
         quill1.root.innerHTML = description
         quill1.on('text-change', () => {
           clearError('description')
@@ -471,12 +950,21 @@ export default function EditProductPage() {
           }
         })
         descriptionQuillRef.current = quill1
+
+        // Setup image interactions
+        console.log('🚀 Calling setupImageInteractions for description editor')
+        setupImageInteractions(quill1)
       } else if (descriptionQuillRef.current && description) {
         descriptionQuillRef.current.root.innerHTML = description
       }
 
       // Highlights Editor
       const highlightsContainer = document.getElementById('highlights-editor')
+      console.log('🔍 Highlights Editor Container:', {
+        container: highlightsContainer,
+        highlightsList: highlightsList,
+        editorRef: highlightsQuillRef.current
+      })
       if (highlightsContainer && !highlightsQuillRef.current) {
         let isProgrammaticUpdate = false
         const quill2 = new Quill('#highlights-editor', {
@@ -511,13 +999,13 @@ export default function EditProductPage() {
           if (isProgrammaticUpdate) return
           const html = quill2.root.innerHTML
           const items = parseListItems(html)
-          if (items.length > 10) {
+          if (items.length > 20) {
             notifications.show({
               title: 'Maximum Limit Reached',
-              message: 'You can only add up to 10 highlights.',
+              message: 'You can only add up to 20 highlights.',
               color: 'yellow'
             })
-            const truncated = items.slice(0, 10)
+            const truncated = items.slice(0, 20)
             setHighlightsList(truncated)
             isProgrammaticUpdate = true
             quill2.root.innerHTML = arrayToListHtml(truncated)
@@ -529,7 +1017,10 @@ export default function EditProductPage() {
 
         if (highlightsList.length > 0) {
           isProgrammaticUpdate = true
-          quill2.root.innerHTML = arrayToListHtml(highlightsList)
+          const html = arrayToListHtml(highlightsList)
+          console.log('📌 Setting initial highlights HTML:', html)
+          // Use Quill's clipboard API for better HTML parsing
+          quill2.clipboard.dangerouslyPasteHTML(html)
           setTimeout(() => { isProgrammaticUpdate = false }, 0)
         } else {
           setTimeout(() => {
@@ -551,35 +1042,41 @@ export default function EditProductPage() {
           }
         })
         highlightsQuillRef.current = quill2
-      } else if (highlightsQuillRef.current && highlightsList.length > 0) {
+
+        // Setup image interactions
+        console.log('🚀 Calling setupImageInteractions for highlights editor')
+        setupImageInteractions(quill2)
+      } else if (highlightsQuillRef.current) {
         // Update existing editor with loaded highlights
-        const existingHtml = highlightsQuillRef.current.root.innerHTML
-        const existingItems: string[] = []
-        const tempDiv = document.createElement('div')
-        tempDiv.innerHTML = existingHtml
-        tempDiv.querySelectorAll('li').forEach((li) => {
-          const text = li.textContent?.trim() || ''
-          if (text) existingItems.push(text)
+        console.log('🔄 Updating existing highlights editor:', {
+          highlightsList: highlightsList,
+          currentHTML: highlightsQuillRef.current.root.innerHTML
         })
-        // Only update if content differs
-        if (JSON.stringify(existingItems) !== JSON.stringify(highlightsList)) {
-          const nonEmpty = highlightsList.filter(item => item.trim() !== '')
-          if (nonEmpty.length > 0) {
-            highlightsQuillRef.current.root.innerHTML = `<ul>${nonEmpty.map(item => `<li>${item}</li>`).join('')}</ul>`
-          }
+        const nonEmpty = highlightsList.filter(item => item.trim() !== '')
+        console.log('📝 Non-empty highlights:', nonEmpty)
+        if (nonEmpty.length > 0) {
+          const html = `<ul>${nonEmpty.map(item => `<li>${item}</li>`).join('')}</ul>`
+          console.log('📄 Setting HTML via clipboard:', html)
+          // Use Quill's clipboard API for better HTML parsing
+          highlightsQuillRef.current.clipboard.dangerouslyPasteHTML(html)
+          console.log('✅ HTML set via clipboard, current content:', highlightsQuillRef.current.root.innerHTML)
+        } else {
+          // Enable bullet list format for empty editor
+          setTimeout(() => {
+            if (highlightsQuillRef.current) {
+              highlightsQuillRef.current.format('list', 'bullet')
+            }
+          }, 50)
         }
       }
 
       // Bangla Description Editor
       const descriptionBnContainer = document.getElementById('description-bn-editor')
-      if (descriptionBnContainer && !descriptionBnQuillRef.current && descriptionBn) {
+      if (descriptionBnContainer && !descriptionBnQuillRef.current) {
         const quillBn1 = new Quill('#description-bn-editor', {
           theme: 'snow',
           placeholder: 'পণ্যের বিস্তারিত বিবরণ লিখুন...',
           modules: {
-            imageResize: {
-              parchment: Quill.import('parchment')
-            },
             toolbar: [
               ['bold', 'italic', 'underline'],
               [{ 'header': [2, 3, 4, 5, 6, false] }],
@@ -601,6 +1098,22 @@ export default function EditProductPage() {
           })
         }
 
+        // Handle double-click on images to replace them (Bangla)
+        quillBn1.root.addEventListener('dblclick', (e: any) => {
+          const target = e.target
+          if (target && target.tagName === 'IMG' && target.classList.contains('richtext_image')) {
+            e.preventDefault()
+            const blot = Quill.find(target)
+            if (blot) {
+              openSingleSelect((mediaFile: MediaFile) => {
+                const img = target as HTMLImageElement
+                img.src = mediaFile.url
+                quillBn1.update()
+              })
+            }
+          }
+        })
+
         quillBn1.root.innerHTML = descriptionBn
         quillBn1.on('text-change', () => {
           setDescriptionBn(quillBn1.root.innerHTML)
@@ -609,6 +1122,10 @@ export default function EditProductPage() {
           if (range && collapseSidebarIfNeeded) collapseSidebarIfNeeded()
         })
         descriptionBnQuillRef.current = quillBn1
+
+        // Setup image interactions
+        console.log('🚀 Calling setupImageInteractions for Bangla description editor')
+        setupImageInteractions(quillBn1)
       } else if (descriptionBnQuillRef.current && descriptionBn) {
         descriptionBnQuillRef.current.root.innerHTML = descriptionBn
       }
@@ -643,8 +1160,8 @@ export default function EditProductPage() {
           if (isProgrammaticUpdateBn) return
           const html = quillBn2.root.innerHTML
           const items = parseListItemsBn(html)
-          if (items.length > 10) {
-            const truncated = items.slice(0, 10)
+          if (items.length > 20) {
+            const truncated = items.slice(0, 20)
             setHighlightsBn(truncated)
             isProgrammaticUpdateBn = true
             quillBn2.root.innerHTML = `<ul>${truncated.map(item => `<li>${item}</li>`).join('')}</ul>`
@@ -656,7 +1173,9 @@ export default function EditProductPage() {
 
         if (highlightsBn.length > 0) {
           isProgrammaticUpdateBn = true
-          quillBn2.root.innerHTML = `<ul>${highlightsBn.map(item => `<li>${item}</li>`).join('')}</ul>`
+          const html = `<ul>${highlightsBn.map(item => `<li>${item}</li>`).join('')}</ul>`
+          console.log('📌 Setting initial Bangla highlights HTML:', html)
+          quillBn2.clipboard.dangerouslyPasteHTML(html)
           setTimeout(() => { isProgrammaticUpdateBn = false }, 0)
         } else {
           setTimeout(() => {
@@ -678,6 +1197,31 @@ export default function EditProductPage() {
           }
         })
         highlightsBnQuillRef.current = quillBn2
+
+        // Setup image interactions
+        console.log('🚀 Calling setupImageInteractions for Bangla highlights editor')
+        setupImageInteractions(quillBn2)
+      } else if (highlightsBnQuillRef.current) {
+        // Update existing Bangla editor with loaded highlights
+        console.log('🔄 Updating existing Bangla highlights editor:', {
+          highlightsBn: highlightsBn,
+          currentHTML: highlightsBnQuillRef.current.root.innerHTML
+        })
+        const nonEmpty = highlightsBn.filter(item => item.trim() !== '')
+        console.log('📝 Non-empty Bangla highlights:', nonEmpty)
+        if (nonEmpty.length > 0) {
+          const html = `<ul>${nonEmpty.map(item => `<li>${item}</li>`).join('')}</ul>`
+          console.log('📄 Setting Bangla HTML via clipboard:', html)
+          highlightsBnQuillRef.current.clipboard.dangerouslyPasteHTML(html)
+          console.log('✅ Bangla HTML set, current content:', highlightsBnQuillRef.current.root.innerHTML)
+        } else {
+          // Enable bullet list format for empty editor
+          setTimeout(() => {
+            if (highlightsBnQuillRef.current) {
+              highlightsBnQuillRef.current.format('list', 'bullet')
+            }
+          }, 50)
+        }
       }
     }
 
@@ -808,16 +1352,12 @@ export default function EditProductPage() {
         }
 
         // Decode HTML entities in description before setting it
-        let description = productData.description || ''
-        if (description) {
-          // Create a temporary div to decode HTML entities
-          const textarea = document.createElement('textarea')
-          textarea.innerHTML = description
-          description = textarea.value
-        }
+        const description = decodeHTMLEntities(productData.description || '')
         setDescription(description)
 
-        setHighlightsList(productData.highlights || [])
+        // Decode HTML entities in highlights
+        const decodedHighlights = (productData.highlights || []).map((highlight: string) => decodeHTMLEntities(highlight))
+        setHighlightsList(decodedHighlights)
         setIncludesInTheBox(Array.isArray(productData.inTheBox || productData.includes_in_the_box)
           ? (productData.inTheBox || productData.includes_in_the_box).join(', ')
           : (productData.inTheBox || productData.includes_in_the_box || ''))
@@ -826,16 +1366,13 @@ export default function EditProductPage() {
         setRetailNameBn(productData.retailNameBn || productData.retail_name_bn || '')
         setWholesaleNameBn(productData.wholesaleNameBn || productData.wholesale_name_bn || '')
 
-        // Decode HTML entities in bangla description
-        let descriptionBn = productData.descriptionBn || productData.description_bn || ''
-        if (descriptionBn) {
-          const textareaBn = document.createElement('textarea')
-          textareaBn.innerHTML = descriptionBn
-          descriptionBn = textareaBn.value
-        }
+        // Decode HTML entities in Bangla description
+        const descriptionBn = decodeHTMLEntities(productData.descriptionBn || productData.description_bn || '')
         setDescriptionBn(descriptionBn)
 
-        setHighlightsBn(productData.highlightsBn || productData.highlights_bn || [])
+        // Decode HTML entities in Bangla highlights
+        const decodedHighlightsBn = (productData.highlightsBn || productData.highlights_bn || []).map((highlight: string) => decodeHTMLEntities(highlight))
+        setHighlightsBn(decodedHighlightsBn)
         setIncludesInTheBoxBn(productData.includesInTheBoxBn || productData.includes_in_box_bn || '')
 
         // SEO
@@ -1857,7 +2394,7 @@ export default function EditProductPage() {
                     <Box className="overflow-x-auto">
                       <Box style={{ minWidth: '900px' }}>
                         {/* Header Row */}
-                        <Box style={{ display: 'grid', gridTemplateColumns: '44px 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr 0.8fr 0.8fr 1fr 36px', gap: '8px', alignItems: 'center' }} mb="xs" px="sm">
+                        <Box style={{ display: 'grid', gridTemplateColumns: '44px 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr 0.8fr 0.8fr 1fr 36px', gap: '8px', alignItems: 'start' }} mb="xs" px="sm">
                           <Text size="xs" fw={600} c="dimmed">{'IMG'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.variantName') || 'VARIANT NAME'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.sellerSku') || 'SKU'}</Text>
@@ -1876,7 +2413,7 @@ export default function EditProductPage() {
                         <Stack gap="xs">
                           {variants.map((variant, index) => (
                             <Paper key={variant.id} withBorder p="xs">
-                              <Box style={{ display: 'grid', gridTemplateColumns: '44px 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr 0.8fr 0.8fr 1fr 36px', gap: '8px', alignItems: 'center' }}>
+                              <Box style={{ display: 'grid', gridTemplateColumns: '44px 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr 0.8fr 0.8fr 1fr 36px', gap: '8px', alignItems: 'start' }}>
                                 {/* Thumbnail */}
                                 <Box
                                   style={{ width: 44, height: 44, cursor: 'pointer', borderRadius: 4, overflow: 'hidden', border: '1px dashed var(--mantine-color-gray-4)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: variant.thumbnail ? 'transparent' : 'var(--mantine-color-gray-0)' }}
@@ -1928,58 +2465,86 @@ export default function EditProductPage() {
                                 />
 
                                 {/* Retail Price */}
-                                <NumberInput
-                                  placeholder="0"
-                                  value={variant.price}
-                                  onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'price', value)}
-                                  onFocus={collapseSidebarIfNeeded}
-                                  min={0}
-                                  step={0.01}
-                                  decimalScale={2}
-                                  size="sm"
-                                  error={errors[`variant.${index}.price`]}
-                                />
+                                <Stack gap={4}>
+                                  <NumberInput
+                                    placeholder="0"
+                                    value={variant.price}
+                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'price', value)}
+                                    onFocus={collapseSidebarIfNeeded}
+                                    min={0}
+                                    step={0.01}
+                                    decimalScale={2}
+                                    size="sm"
+                                    error={errors[`variant.${index}.price`]}
+                                  />
+                                  {variant.price > 0 && (
+                                    <Text size="xs" c={(variant.price - variant.purchaseCost) < 0 ? 'red' : 'green'}>
+                                      {(variant.price - variant.purchaseCost) > 0 ? '+' : ''}{(variant.price - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.price - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
+                                    </Text>
+                                  )}
+                                </Stack>
 
                                 {/* Wholesale Price */}
-                                <NumberInput
-                                  placeholder="0"
-                                  value={variant.wholesalePrice}
-                                  onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'wholesalePrice', value)}
-                                  onFocus={collapseSidebarIfNeeded}
-                                  min={0}
-                                  step={0.01}
-                                  decimalScale={2}
-                                  size="sm"
-                                  error={errors[`variant.${index}.wholesalePrice`]}
-                                />
+                                <Stack gap={4}>
+                                  <NumberInput
+                                    placeholder="0"
+                                    value={variant.wholesalePrice}
+                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'wholesalePrice', value)}
+                                    onFocus={collapseSidebarIfNeeded}
+                                    min={0}
+                                    step={0.01}
+                                    decimalScale={2}
+                                    size="sm"
+                                    error={errors[`variant.${index}.wholesalePrice`]}
+                                  />
+                                  {variant.wholesalePrice > 0 && (
+                                    <Text size="xs" c={(variant.wholesalePrice - variant.purchaseCost) < 0 ? 'red' : 'green'}>
+                                      {(variant.wholesalePrice - variant.purchaseCost) > 0 ? '+' : ''}{(variant.wholesalePrice - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.wholesalePrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
+                                    </Text>
+                                  )}
+                                </Stack>
 
                                 {/* Retail Offer Price */}
-                                <NumberInput
-                                  placeholder="0"
-                                  value={variant.specialPrice}
-                                  onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'specialPrice', value)}
-                                  onBlur={(e) => { const v = variant.specialPrice; if (!v) handleUpdateVariant(variant.id, 'specialPrice', undefined) }}
-                                  onFocus={collapseSidebarIfNeeded}
-                                  min={0}
-                                  step={0.01}
-                                  decimalScale={2}
-                                  size="sm"
-                                  error={errors[`variant.${index}.specialPrice`]}
-                                />
+                                <Stack gap={4}>
+                                  <NumberInput
+                                    placeholder="0"
+                                    value={variant.specialPrice}
+                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'specialPrice', value)}
+                                    onBlur={(e) => { const v = variant.specialPrice; if (!v) handleUpdateVariant(variant.id, 'specialPrice', undefined) }}
+                                    onFocus={collapseSidebarIfNeeded}
+                                    min={0}
+                                    step={0.01}
+                                    decimalScale={2}
+                                    size="sm"
+                                    error={errors[`variant.${index}.specialPrice`]}
+                                  />
+                                  {variant.specialPrice > 0 && (
+                                    <Text size="xs" c={(variant.specialPrice - variant.purchaseCost) < 0 ? 'red' : 'green'}>
+                                      {(variant.specialPrice - variant.purchaseCost) > 0 ? '+' : ''}{(variant.specialPrice - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.specialPrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
+                                    </Text>
+                                  )}
+                                </Stack>
 
                                 {/* Wholesale Offer Price */}
-                                <NumberInput
-                                  placeholder="0"
-                                  value={variant.wholesaleOfferPrice}
-                                  onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'wholesaleOfferPrice', value)}
-                                  onBlur={(e) => { const v = variant.wholesaleOfferPrice; if (!v) handleUpdateVariant(variant.id, 'wholesaleOfferPrice', undefined) }}
-                                  onFocus={collapseSidebarIfNeeded}
-                                  min={0}
-                                  step={0.01}
-                                  decimalScale={2}
-                                  size="sm"
-                                  error={errors[`variant.${index}.wholesaleOfferPrice`]}
-                                />
+                                <Stack gap={4}>
+                                  <NumberInput
+                                    placeholder="0"
+                                    value={variant.wholesaleOfferPrice}
+                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'wholesaleOfferPrice', value)}
+                                    onBlur={(e) => { const v = variant.wholesaleOfferPrice; if (!v) handleUpdateVariant(variant.id, 'wholesaleOfferPrice', undefined) }}
+                                    onFocus={collapseSidebarIfNeeded}
+                                    min={0}
+                                    step={0.01}
+                                    decimalScale={2}
+                                    size="sm"
+                                    error={errors[`variant.${index}.wholesaleOfferPrice`]}
+                                  />
+                                  {variant.wholesaleOfferPrice > 0 && (
+                                    <Text size="xs" c={(variant.wholesaleOfferPrice - variant.purchaseCost) < 0 ? 'red' : 'green'}>
+                                      {(variant.wholesaleOfferPrice - variant.purchaseCost) > 0 ? '+' : ''}{(variant.wholesaleOfferPrice - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.wholesaleOfferPrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
+                                    </Text>
+                                  )}
+                                </Stack>
 
                                 {/* Wholesale MOQ */}
                                 <NumberInput
@@ -2048,113 +2613,98 @@ export default function EditProductPage() {
                 </Card>
                 <Card withBorder p="md" shadow="sm">
                   <Stack gap="xl">
-                    <Group justify="space-between">
-                      <Group>
-                        <IconCoin size={20} className="text-blue-600" />
-                        <Text className="text-base md:text-lg" fw={600}>
-                          {t('catalog.productsCreate.descriptionAndHighlights') || 'Product Description & Highlights'}
-                        </Text>
-                      </Group>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        onClick={() => setDescLang(prev => prev === 'en' ? 'bn' : 'en')}
-                      >
-                        {descLang === 'en' ? 'বাংলা' : 'English'}
-                      </Button>
+                    <Group>
+                      <IconCoin size={20} className="text-blue-600" />
+                      <Text className="text-base md:text-lg" fw={600}>
+                        {t('catalog.productsCreate.descriptionAndHighlights') || 'Product Description & Highlights'}
+                      </Text>
                     </Group>
 
-                    {descLang === 'en' ? (
-                      <>
-                        {/* Description - English */}
-                        <Stack gap="sm">
-                          <Text size="sm" fw={500}>
-                            {t('catalog.productsCreate.productDescription') || 'Product Description'} <Text span c="red">*</Text>
-                          </Text>
-                          <Box
-                            id="description-editor"
-                            style={{
-                              borderRadius: '4px'
-                            }}
-                          />
-                          <Group justify="flex-end">
-                            <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
-                              Enhance with AI
-                            </Button>
-                          </Group>
-                          {errors.description && (
-                            <Text size="xs" c="red">{errors.description}</Text>
-                          )}
-                        </Stack>
+                    {/* Description - English */}
+                    <Stack gap="sm">
+                      <Text size="sm" fw={500}>
+                        {t('catalog.productsCreate.productDescription') || 'Product Description'} <Text span c="red">*</Text>
+                      </Text>
+                      <Box
+                        id="description-editor"
+                        style={{
+                          borderRadius: '4px'
+                        }}
+                      />
+                      <Group justify="flex-end">
+                        <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
+                          Enhance with AI
+                        </Button>
+                      </Group>
+                      {errors.description && (
+                        <Text size="xs" c="red">{errors.description}</Text>
+                      )}
+                    </Stack>
 
-                        {/* Highlights - English */}
-                        <Stack gap="sm">
-                          <Group justify="space-between" align="center">
-                            <Text size="sm" fw={500}>
-                              {t('catalog.productsCreate.productHighlights') || 'Product Highlights'} <Text span c="red">*</Text>
-                            </Text>
-                            <Text size="xs" c="dimmed">
-                              {highlightsList.filter(h => h.trim()).length}/10
-                            </Text>
-                          </Group>
+                    {/* Highlights - English */}
+                    <Stack gap="sm">
+                      <Group justify="space-between" align="center">
+                        <Text size="sm" fw={500}>
+                          {t('catalog.productsCreate.productHighlights') || 'Product Highlights'} <Text span c="red">*</Text>
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {highlightsList.filter(h => h.trim()).length}/20
+                        </Text>
+                      </Group>
 
-                          <Box
-                            id="highlights-editor"
-                            style={{
-                              borderRadius: '4px'
-                            }}
-                          />
+                      <Box
+                        id="highlights-editor"
+                        style={{
+                          borderRadius: '4px'
+                        }}
+                      />
 
-                          <Group justify="flex-end">
-                            <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
-                              Enhance with AI
-                            </Button>
-                          </Group>
+                      <Group justify="flex-end">
+                        <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
+                          Enhance with AI
+                        </Button>
+                      </Group>
 
-                          <Text size="xs" c="dimmed">
-                            {t('catalog.productsCreate.highlightsTip') || 'Add key product highlights, features, or benefits as bullet points. Maximum 10 items.'}
-                          </Text>
-                        </Stack>
-                      </>
-                    ) : (
-                      <>
-                        {/* Description - Bangla */}
-                        <Stack gap="sm">
-                          <Text size="sm" fw={500}>
-                            পণ্যের বিবরণ (বাংলা)
-                          </Text>
-                          <Box
-                            id="description-bn-editor"
-                            style={{
-                              borderRadius: '4px'
-                            }}
-                          />
-                          <Group justify="flex-end">
-                            <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
-                              Enhance with AI
-                            </Button>
-                          </Group>
-                        </Stack>
+                      <Text size="xs" c="dimmed">
+                        {t('catalog.productsCreate.highlightsTip') || 'Add key product highlights, features, or benefits as bullet points. Maximum 20 items.'}
+                      </Text>
+                    </Stack>
 
-                        {/* Highlights - Bangla */}
-                        <Stack gap="sm">
-                          <Text size="sm" fw={500}>
-                            পণ্যের হাইলাইটস (বাংলা)
-                          </Text>
-                          <Box
-                            id="highlights-bn-editor"
-                            style={{
-                              borderRadius: '4px'
-                            }}
-                          />
-                          <Group justify="flex-end">
-                            <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
-                              Enhance with AI
-                            </Button>
-                          </Group>
-                        </Stack>
-                      </>
-                    )}
+                    {/* Description - Bangla */}
+                    <Stack gap="sm">
+                      <Text size="sm" fw={500}>
+                        পণ্যের বিবরণ (বাংলা)
+                      </Text>
+                      <Box
+                        id="description-bn-editor"
+                        style={{
+                          borderRadius: '4px'
+                        }}
+                      />
+                      <Group justify="flex-end">
+                        <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
+                          Enhance with AI
+                        </Button>
+                      </Group>
+                    </Stack>
+
+                    {/* Highlights - Bangla */}
+                    <Stack gap="sm">
+                      <Text size="sm" fw={500}>
+                        পণ্যের হাইলাইটস (বাংলা)
+                      </Text>
+                      <Box
+                        id="highlights-bn-editor"
+                        style={{
+                          borderRadius: '4px'
+                        }}
+                      />
+                      <Group justify="flex-end">
+                        <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
+                          Enhance with AI
+                        </Button>
+                      </Group>
+                    </Stack>
                   </Stack>
                 </Card>
 

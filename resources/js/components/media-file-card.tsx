@@ -13,6 +13,7 @@ import {
   IconTrash,
   IconCheck,
   IconArrowMoveRight,
+  IconCopy,
 } from '@tabler/icons-react'
 import type { MediaFile } from '@/utils/api'
 
@@ -24,6 +25,7 @@ interface MediaFileCardProps {
   onEdit: () => void
   onDelete: () => void
   onMove: () => void
+  onCopy?: () => void
 }
 
 export function MediaFileCard({
@@ -34,6 +36,7 @@ export function MediaFileCard({
   onEdit,
   onDelete,
   onMove,
+  onCopy,
 }: MediaFileCardProps) {
   return (
     <Paper
@@ -94,6 +97,9 @@ export function MediaFileCard({
             <Menu.Item leftSection={<IconEdit size={14} />} onClick={(e) => { e.stopPropagation(); onEdit() }}>
               Edit
             </Menu.Item>
+            <Menu.Item leftSection={<IconCopy size={14} />} onClick={(e) => { e.stopPropagation(); onCopy && onCopy() }}>
+              Copy Link
+            </Menu.Item>
             <Menu.Item leftSection={<IconArrowMoveRight size={14} />} onClick={(e) => { e.stopPropagation(); onMove() }}>
               Move to folder
             </Menu.Item>
@@ -107,7 +113,7 @@ export function MediaFileCard({
       {/* Image */}
       <Image
         src={file.url}
-        alt={file.originalFilename}
+        alt={file.filename || file.originalFilename}
         height={120}
         fit="contain"
         radius="md"
@@ -115,7 +121,7 @@ export function MediaFileCard({
 
       {/* Filename */}
       <Text size="xs" mt="xs" lineClamp={1}>
-        {file.originalFilename || file.filename}
+        {file.filename || file.originalFilename}
       </Text>
       <Text size="xs" c="dimmed">
         {file.size ? `${(file.size / 1024).toFixed(1)} KB` : 'Unknown'}
