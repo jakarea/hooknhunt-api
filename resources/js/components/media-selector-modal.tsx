@@ -165,8 +165,9 @@ export function MediaSelectorModal({
 
   const handleRefresh = useCallback(() => {
     store.loadFolders()
+    store.invalidateCache()
     store.loadFiles()
-  }, [])
+  }, [store])
 
   // Folder rename handler
   const handleRenameFolder = useCallback((folder: { id: number; name: string }) => {
@@ -347,7 +348,19 @@ export function MediaSelectorModal({
         )}
 
         {/* Grid */}
-        <ScrollArea.Autosize mah={500}>
+        <ScrollArea.Autosize
+          mah={500}
+          viewportProps={{
+            onScroll: (e: React.UIEvent<HTMLDivElement>) => {
+              const target = e.target as HTMLDivElement
+              const { scrollTop, scrollHeight, clientHeight } = target
+              const isNearBottom = scrollHeight - scrollTop - clientHeight < 200
+              if (isNearBottom && !store.loading && !store.loadingMore && store.hasMoreFiles) {
+                store.loadMoreFiles()
+              }
+            }
+          }}
+        >
           {store.loading ? (
             <Text ta="center" c="dimmed" py="xl">{t('cms.mediaSelector.loadingMedia')}</Text>
           ) : filteredFolders.length === 0 && filteredFiles.length === 0 ? (
@@ -371,21 +384,29 @@ export function MediaSelectorModal({
 
               {/* Files */}
               {filteredFiles.length > 0 && (
-                <SimpleGrid cols={{ base: 2, sm: 4, md: 6, lg: 8 }} spacing="md">
-                  {filteredFiles.map((file) => (
-                    <MediaFileCard
-                      key={file.id}
-                      file={file}
-                      isSelected={store.selectedFileIds.includes(file.id)}
-                      onSelect={() => store.toggleFileSelection(file.id, multiple)}
-                      onPreview={() => fileActions.onPreview(file)}
-                      onEdit={() => fileActions.onEdit(file)}
-                      onCopy={() => fileActions.onCopy(file)}
-                      onDelete={() => fileActions.onDelete(file)}
-                      onMove={() => fileActions.onMove(file)}
-                    />
-                  ))}
-                </SimpleGrid>
+                <>
+                  <SimpleGrid cols={{ base: 2, sm: 4, md: 6, lg: 8 }} spacing="md">
+                    {filteredFiles.map((file) => (
+                      <MediaFileCard
+                        key={file.id}
+                        file={file}
+                        isSelected={store.selectedFileIds.includes(file.id)}
+                        onSelect={() => store.toggleFileSelection(file.id, multiple)}
+                        onPreview={() => fileActions.onPreview(file)}
+                        onEdit={() => fileActions.onEdit(file)}
+                        onCopy={() => fileActions.onCopy(file)}
+                        onDelete={() => fileActions.onDelete(file)}
+                        onMove={() => fileActions.onMove(file)}
+                      />
+                    ))}
+                  </SimpleGrid>
+                  {store.loadingMore && (
+                    <Group justify="center" py="md">
+                      <IconRefresh size={16} className="animate-spin" />
+                      <Text size="sm" c="dimmed">Loading more...</Text>
+                    </Group>
+                  )}
+                </>
               )}
             </Stack>
           )}

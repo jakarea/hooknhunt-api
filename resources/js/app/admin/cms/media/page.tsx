@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Paper,
@@ -22,6 +22,7 @@ import {
   MultiSelect,
   Select,
   Box,
+  ScrollArea,
 } from '@mantine/core'
 import {
   IconSearch,
@@ -70,6 +71,8 @@ export default function MediaLibraryPage() {
   }
 
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [folders, setFolders] = useState<MediaFolder[]>([])
   const [files, setFiles] = useState<MediaFile[]>([])
@@ -89,6 +92,10 @@ export default function MediaLibraryPage() {
   const [editingFileName, setEditingFileName] = useState('')
   const [editingAltText, setEditingAltText] = useState('')
   const [savingFileChanges, setSavingFileChanges] = useState(false)
+
+  // Cache for loaded files per folder
+  const filesCacheRef = useRef<Record<number | null, MediaFile[]>>({})
+  const currentPageRef = useRef(1)
 
   // Role permissions
   const [viewRoles, setViewRoles] = useState<string[]>([])
@@ -121,15 +128,17 @@ export default function MediaLibraryPage() {
     }
   }, [])
 
-  // Fetch files
-  const fetchFiles = useCallback(async (showLoading = true) => {
+  // Fetch files with infinite scroll and caching
+  const fetchFiles = useCallback(async (showLoading = true, loadMore = false) => {
     try {
       if (showLoading) setLoading(true)
+      if (loadMore) setLoadingMore(true)
 
+      const page = loadMore ? currentPageRef.current + 1 : 1
       const response = await getMediaFiles({
         folderId: currentFolder ?? undefined,
-        page: 1,
-        per_page: 100,
+        page: page,
+        per_page: 50,
       })
 
       let filesData: MediaFile[] = []
@@ -144,7 +153,26 @@ export default function MediaLibraryPage() {
         filesData = response
       }
 
-      setFiles(filesData)
+      const filteredFiles = filesData.filter((f) => {
+        if (!debouncedSearch) return true
+        const query = debouncedSearch.toLowerCase()
+        return (
+          f.originalFilename?.toLowerCase().includes(query) ||
+          f.filename?.toLowerCase().includes(query)
+        )
+      })
+
+      if (loadMore) {
+        setFiles((prev) => [...prev, ...filteredFiles])
+        currentPageRef.current = page
+        setHasMore(filteredFiles.length >= 50)
+      } else {
+        setFiles(filteredFiles)
+        currentPageRef.current = 1
+        setHasMore(filteredFiles.length >= 50)
+        // Update cache
+        filesCacheRef.current[currentFolder] = filteredFiles
+      }
     } catch (error) {
       notifications.show({
         title: t('common.error'),
@@ -153,16 +181,31 @@ export default function MediaLibraryPage() {
       })
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
-  }, [currentFolder])
+  }, [currentFolder, debouncedSearch, t])
+
+  // Load more files on scroll
+  const loadMoreFiles = useCallback(() => {
+    if (!loading && !loadingMore && hasMore) {
+      fetchFiles(false, true)
+    }
+  }, [loading, loadingMore, hasMore, fetchFiles])
 
   useEffect(() => {
     fetchFolders()
   }, [fetchFolders])
 
   useEffect(() => {
-    fetchFiles(true)
-  }, [fetchFiles])
+    // Check cache first
+    if (filesCacheRef.current[currentFolder]) {
+      setFiles(filesCacheRef.current[currentFolder])
+      setLoading(false)
+      setHasMore(false)
+    } else {
+      fetchFiles(true, false)
+    }
+  }, [currentFolder, fetchFiles])
 
   // Handle file selection
   const toggleFileSelection = (id: number) => {
@@ -236,6 +279,9 @@ export default function MediaLibraryPage() {
         color: 'green',
       })
 
+      // Clear cache and reload
+      delete filesCacheRef.current[currentFolder]
+      currentPageRef.current = 1
       await fetchFiles(false)
     } catch (error: any) {
       console.error('Upload error:', error)
@@ -341,6 +387,9 @@ export default function MediaLibraryPage() {
           })
 
           setSelectedFiles(new Set())
+          // Clear cache and reload
+          delete filesCacheRef.current[currentFolder]
+          currentPageRef.current = 1
           await fetchFiles(false)
         } catch (error) {
           notifications.show({
@@ -369,6 +418,10 @@ export default function MediaLibraryPage() {
       setMoveModalOpened(false)
       setTargetFolderId(null)
       setSelectedFiles(new Set())
+      // Clear cache for both source and target folders
+      delete filesCacheRef.current[currentFolder]
+      delete filesCacheRef.current[targetFolderId]
+      currentPageRef.current = 1
       await fetchFiles(false)
     } catch (error: any) {
       notifications.show({
@@ -413,6 +466,8 @@ export default function MediaLibraryPage() {
       })
 
       // Refresh files list
+      delete filesCacheRef.current[currentFolder]
+      currentPageRef.current = 1
       await fetchFiles(false)
     } catch (error: any) {
       notifications.show({
@@ -454,6 +509,9 @@ export default function MediaLibraryPage() {
             color: 'green',
           })
 
+          // Clear cache and reload
+          delete filesCacheRef.current[currentFolder]
+          currentPageRef.current = 1
           await fetchFiles(false)
         } catch (error) {
           notifications.show({
@@ -547,6 +605,7 @@ export default function MediaLibraryPage() {
           // If we deleted the current folder, go to parent
           if (currentFolder === folder.id) {
             setCurrentFolder(folder.parentId ?? null)
+            currentPageRef.current = 1
           }
 
           await fetchFolders()
@@ -773,6 +832,9 @@ export default function MediaLibraryPage() {
             size="lg"
             onClick={() => {
               fetchFolders()
+              // Clear cache and reload
+              delete filesCacheRef.current[currentFolder]
+              currentPageRef.current = 1
               fetchFiles(false)
             }}
           >
@@ -792,6 +854,7 @@ export default function MediaLibraryPage() {
                 onClick={() => {
                   setCurrentFolder(null)
                   setSelectedFiles(new Set())
+                  currentPageRef.current = 1
                 }}
                 c={currentFolder === null ? 'blue' : 'dimmed'}
               >
@@ -804,6 +867,7 @@ export default function MediaLibraryPage() {
                   onClick={() => {
                     setCurrentFolder(folder.id)
                     setSelectedFiles(new Set())
+                    currentPageRef.current = 1
                   }}
                   c={currentFolder === folder.id ? 'blue' : 'dimmed'}
                 >
@@ -908,6 +972,7 @@ export default function MediaLibraryPage() {
                   onClick={() => {
                     setCurrentFolder(folder.id)
                     setSelectedFiles(new Set())
+                    currentPageRef.current = 1
                   }}
                 >
                   <IconFolder size={40} c="blue" />
@@ -925,7 +990,7 @@ export default function MediaLibraryPage() {
           </SimpleGrid>
         )}
 
-        {/* Files Grid */}
+        {/* Files Grid with infinite scroll */}
         {files.length > 0 ? (
           <>
             {selectedFiles.size > 0 && files.length > 0 && (
@@ -941,17 +1006,30 @@ export default function MediaLibraryPage() {
               </Group>
             )}
 
-            <SimpleGrid cols={{ base: 2, sm: 3, md: 4, lg: 6 }} spacing="md">
-              {files
-                .filter((file) => {
-                  if (!debouncedSearch) return true
-                  const query = debouncedSearch.toLowerCase()
-                  return (
-                    file.originalFilename.toLowerCase().includes(query) ||
-                    file.filename.toLowerCase().includes(query)
-                  )
-                })
-                .map((file) => (
+            <ScrollArea.Autosize
+              mah={600}
+              viewportProps={{
+                onScroll: (e: React.UIEvent<HTMLDivElement>) => {
+                  const target = e.target as HTMLDivElement
+                  const { scrollTop, scrollHeight, clientHeight } = target
+                  const isNearBottom = scrollHeight - scrollTop - clientHeight < 200
+                  if (isNearBottom && !loading && !loadingMore && hasMore) {
+                    loadMoreFiles()
+                  }
+                }
+              }}
+            >
+              <SimpleGrid cols={{ base: 2, sm: 3, md: 4, lg: 6 }} spacing="md">
+                {files
+                  .filter((file) => {
+                    if (!debouncedSearch) return true
+                    const query = debouncedSearch.toLowerCase()
+                    return (
+                      file.originalFilename.toLowerCase().includes(query) ||
+                      file.filename.toLowerCase().includes(query)
+                    )
+                  })
+                  .map((file) => (
                   <Paper
                     key={file.id}
                     withBorder
@@ -1075,7 +1153,14 @@ export default function MediaLibraryPage() {
                     </Box>
                   </Paper>
                 ))}
-            </SimpleGrid>
+              </SimpleGrid>
+              {loadingMore && (
+                <Group justify="center" py="md">
+                  <Loader size="sm" />
+                  <Text size="sm" c="dimmed">Loading more files...</Text>
+                </Group>
+              )}
+            </ScrollArea.Autosize>
           </>
         ) : (
           <Alert variant="light" color="gray">

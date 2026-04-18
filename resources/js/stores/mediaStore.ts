@@ -64,9 +64,14 @@ interface MediaStoreState {
 
   // UI state
   loading: boolean
+  loadingMore: boolean
   uploading: boolean
   searchQuery: string
   currentFolder: number | null
+  hasMoreFiles: boolean
+
+  // Cache state - store files per folder
+  filesCache: Record<number | null, MediaFile[]>
 
   // Preview
   previewOpened: boolean
@@ -84,6 +89,7 @@ interface MediaStoreState {
 
   // Actions
   loadFiles: () => Promise<void>
+  loadMoreFiles: () => Promise<void>
   loadFolders: () => Promise<void>
   uploadFiles: (files: FileList, folderId: number | null) => Promise<void>
   setSearchQuery: (q: string) => void
@@ -107,6 +113,7 @@ interface MediaStoreState {
   setEditingFileName: (name: string) => void
   setEditingAltText: (text: string) => void
   resetState: () => void
+  invalidateCache: (folderId?: number | null) => void
 }
 
 export const useMediaStore = create<MediaStoreState>((set, get) => ({
@@ -118,9 +125,14 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
 
   // UI state
   loading: false,
+  loadingMore: false,
   uploading: false,
   searchQuery: '',
   currentFolder: null,
+  hasMoreFiles: true,
+
+  // Cache - store files per folder to avoid reloading
+  filesCache: {},
 
   // Preview
   previewOpened: false,
@@ -139,23 +151,77 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
   // ─── Actions ─────────────────────────────────
 
   loadFiles: async () => {
-    set({ loading: true })
+    const folderId = get().currentFolder
+    const cache = get().filesCache
+
+    // Check if we have cached data for this folder
+    if (cache[folderId] && cache[folderId].length > 0) {
+      set({ files: cache[folderId], loading: false, hasMoreFiles: false })
+      return
+    }
+
+    set({ loading: true, hasMoreFiles: true })
     try {
-      const folderId = get().currentFolder
       const response = await getMediaFiles({
         folderId: folderId ?? undefined,
         page: 1,
-        per_page: 100,
+        per_page: 50, // Load in batches for infinite scroll
       })
       if (response?.data) {
         const raw = Array.isArray(response.data) ? response.data : response.data.data || []
-        set({ files: raw.filter((f: MediaFile) => isImageFile(f.mimeType)) })
+        const filtered = raw.filter((f: MediaFile) => isImageFile(f.mimeType))
+        set({
+          files: filtered,
+          filesCache: { ...cache, [folderId]: filtered },
+          hasMoreFiles: filtered.length >= 50,
+        })
       }
     } catch {
       notifications.show({ title: 'Error', message: 'Failed to load files', color: 'red' })
     } finally {
       set({ loading: false })
     }
+  },
+
+  loadMoreFiles: async () => {
+    const { loadingMore, hasMoreFiles, currentFolder, files } = get()
+    if (loadingMore || !hasMoreFiles) return
+
+    set({ loadingMore: true })
+    try {
+      const currentPage = Math.ceil(files.length / 50) + 1
+      const response = await getMediaFiles({
+        folderId: currentFolder ?? undefined,
+        page: currentPage,
+        per_page: 50,
+      })
+      if (response?.data) {
+        const raw = Array.isArray(response.data) ? response.data : response.data.data || []
+        const newFiles = raw.filter((f: MediaFile) => isImageFile(f.mimeType))
+        const updatedFiles = [...files, ...newFiles]
+        set((state) => ({
+          files: updatedFiles,
+          filesCache: { ...state.filesCache, [currentFolder]: updatedFiles },
+          hasMoreFiles: newFiles.length >= 50,
+          loadingMore: false,
+        }))
+      }
+    } catch {
+      set({ loadingMore: false })
+    }
+  },
+
+  invalidateCache: (folderId?: number | null) => {
+    set((state) => {
+      const newCache = { ...state.filesCache }
+      if (folderId !== undefined) {
+        delete newCache[folderId]
+      } else {
+        // Invalidate current folder cache
+        delete newCache[state.currentFolder]
+      }
+      return { filesCache: newCache }
+    })
   },
 
   loadFolders: async () => {
@@ -179,6 +245,8 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
         message: `${fileList.length} file(s) uploaded`,
         color: 'green',
       })
+      // Invalidate cache and reload
+      get().invalidateCache(folderId)
       await get().loadFiles()
     } catch {
       notifications.show({ title: 'Error', message: 'Upload failed', color: 'red' })
@@ -207,13 +275,15 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
     try {
       await bulkDeleteMediaFiles(ids)
       notifications.show({ title: 'Deleted', message: `${ids.length} file(s) deleted`, color: 'green' })
-      const { previewFile } = get()
+      const { previewFile, currentFolder } = get()
       if (previewFile && ids.includes(previewFile.id)) {
         set({ previewOpened: false, previewFile: null })
       }
       set((s) => ({
         selectedFileIds: s.selectedFileIds.filter((x) => !ids.includes(x)),
       }))
+      // Invalidate cache and reload
+      get().invalidateCache(currentFolder)
       await get().loadFiles()
     } catch {
       notifications.show({ title: 'Error', message: 'Delete failed', color: 'red' })
@@ -222,9 +292,13 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
 
   moveFiles: async (fileIds, targetFolderId) => {
     try {
+      const { currentFolder } = get()
       await bulkMoveMediaFiles(fileIds, targetFolderId)
       notifications.show({ title: 'Moved', message: `${fileIds.length} file(s) moved`, color: 'green' })
       set({ moveModalOpened: false, targetFolderId: null, singleActionFileIds: [], selectedFileIds: [] })
+      // Invalidate cache for both source and target folders
+      get().invalidateCache(currentFolder)
+      get().invalidateCache(targetFolderId)
       await get().loadFiles()
     } catch {
       notifications.show({ title: 'Error', message: 'Move failed', color: 'red' })

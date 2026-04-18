@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\View;
 | System Refresh (Optional – secure it later)
 |--------------------------------------------------------------------------
 */
-Route::get('/system/refresh', function () {
+Route::get('/refresh', function () {
     Artisan::call('storage:link');
     Artisan::call('cache:clear');
     Artisan::call('config:clear');
