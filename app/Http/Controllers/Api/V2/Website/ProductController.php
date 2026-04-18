@@ -250,6 +250,12 @@ class ProductController extends Controller
             'shortDescription' => $product->short_description,
             'highlights'       => $product->highlights,
             'includesInBox'    => $product->includes_in_box,
+            // Bangla fields
+            'nameBn'           => $product->retail_name_bn ?? $product->name_bn,
+            'descriptionBn'    => $product->description_bn,
+            'highlightsBn'     => $product->highlights_bn,
+            'includesInBoxBn'  => $product->includes_in_box_bn,
+            // Common fields
             'videoUrl'         => $product->video_url,
             'warrantyEnabled'  => $product->warranty_enabled,
             'warrantyDetails'  => $product->warranty_details,
@@ -303,6 +309,7 @@ class ProductController extends Controller
         return [
             'id'               => $p->id,
             'title'            => $p->retail_name ?? $p->name,
+            'titleBn'          => $p->retail_name_bn ?? $p->name_bn,
             'slug'             => $p->slug,
             'thumbnail'        => $this->transformMedia($p->thumbnail),
             'retailPrice'      => $retailVariant ? (float) $retailVariant->price : 0,
@@ -374,6 +381,8 @@ class ProductController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('retail_name', 'like', "%{$search}%")
                   ->orWhere('name', 'like', "%{$search}%")
+                  ->orWhere('retail_name_bn', 'like', "%{$search}%")
+                  ->orWhere('name_bn', 'like', "%{$search}%")
                   ->orWhereHas('variants', fn($vq) => $vq->where('sku', 'like', "%{$search}%"));
             });
         }

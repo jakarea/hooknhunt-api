@@ -558,14 +558,15 @@ class ProductController extends Controller
                 'thank_you' => $request->has('thankYou') ? $request->thankYou : $product->thank_you,
             ]);
 
-            // Handle variants update
+            // Handle variants update (create, update, delete)
             if ($request->has('variants') && is_array($request->variants)) {
-                foreach ($request->variants as $variantData) {
-                    // Validate required fields for variant
-                    if (!isset($variantData['retail_id']) || !isset($variantData['wholesale_id'])) {
-                        continue;
-                    }
+                // Get all existing variant IDs for this product
+                $existingRetailIds = $product->variants()->where('channel', 'retail')->pluck('id')->toArray();
+                $existingWholesaleIds = $product->variants()->where('channel', 'wholesale')->pluck('id')->toArray();
+                $submittedRetailIds = [];
+                $submittedWholesaleIds = [];
 
+                foreach ($request->variants as $variantData) {
                     // Common fields (same for both channels)
                     $commonFields = [
                         'variant_name' => $variantData['name'],
@@ -577,45 +578,110 @@ class ProductController extends Controller
                         'expected_delivery' => $request->expectedDeliveryDate ?? null,
                     ];
 
-                    // Update retail variant
-                    $retailVariant = \App\Models\ProductVariant::find($variantData['retail_id']);
-                    if ($retailVariant && $retailVariant->product_id == $product->id) {
-                        // Generate new variant slug if name changed
-                        $newRetailVariantSlug = $retailVariant->variant_slug;
-                        if (isset($variantData['name']) && $variantData['name'] !== $retailVariant->variant_name) {
-                            $newRetailVariantSlug = SlugHelper::generateVariantSlug($product->slug, $variantData['name'], 'retail');
-                        }
+                    // Check if this is a new variant (no IDs yet) or existing variant
+                    $isNewVariant = empty($variantData['retail_id']) && empty($variantData['wholesale_id']);
 
-                        $retailVariant->update(array_merge($commonFields, [
-                            'variant_slug' => $newRetailVariantSlug,
-                            'sku' => $variantData['sellerSku'] ?? $retailVariant->sku,
+                    if ($isNewVariant) {
+                        // Create new retail + wholesale variant pair
+                        $retailSlug = SlugHelper::generateVariantSlug($product->slug, $variantData['name'], 'retail');
+                        $wholesaleSlug = SlugHelper::generateVariantSlug($product->slug, $variantData['name'], 'wholesale');
+
+                        // Generate base SKU if not provided
+                        $baseSku = $variantData['sellerSku'] ?? $this->generateSkuFromNames($product->name, $variantData['name']);
+
+                        // Create retail variant with unique SKU
+                        $retailVariant = \App\Models\ProductVariant::create(array_merge($commonFields, [
+                            'product_id' => $product->id,
+                            'channel' => 'retail',
+                            'variant_slug' => $retailSlug,
+                            'sku' => $baseSku . '-R-' . rand(1000, 9999),
+                            'custom_sku' => $variantData['sellerSku'] ?? null,
                             'price' => $variantData['retailPrice'] ?? 0,
                             'offer_price' => $variantData['retailOfferPrice'] ?? 0,
+                            'is_active' => true,
                         ]));
-                    }
 
-                    // Update wholesale variant
-                    $wholesaleVariant = \App\Models\ProductVariant::find($variantData['wholesale_id']);
-                    if ($wholesaleVariant && $wholesaleVariant->product_id == $product->id) {
-                        // Generate new variant slug if name changed
-                        $newWholesaleVariantSlug = $wholesaleVariant->variant_slug;
-                        if (isset($variantData['name']) && $variantData['name'] !== $wholesaleVariant->variant_name) {
-                            $newWholesaleVariantSlug = SlugHelper::generateVariantSlug($product->slug, $variantData['name'], 'wholesale');
-                        }
-
-                        $wholesaleUpdateData = [
-                            'variant_slug' => $newWholesaleVariantSlug,
+                        // Create wholesale variant with unique SKU
+                        $wholesaleVariant = \App\Models\ProductVariant::create(array_merge($commonFields, [
+                            'product_id' => $product->id,
+                            'channel' => 'wholesale',
+                            'variant_slug' => $wholesaleSlug,
+                            'sku' => $baseSku . '-W-' . rand(1000, 9999),
+                            'custom_sku' => $variantData['sellerSku'] ?? null,
                             'price' => $variantData['wholesalePrice'] ?? 0,
                             'offer_price' => $variantData['wholesaleOfferPrice'] ?? 0,
-                        ];
+                            'moq' => $variantData['wholesaleMoq'] ?? 6,
+                            'is_active' => true,
+                        ]));
 
-                        // Only update MOQ if it's explicitly provided (allow 0, but use current value if not provided)
-                        if (array_key_exists('wholesaleMoq', $variantData)) {
-                            $wholesaleUpdateData['moq'] = is_null($variantData['wholesaleMoq']) ? $wholesaleVariant->moq : $variantData['wholesaleMoq'];
+                        $submittedRetailIds[] = $retailVariant->id;
+                        $submittedWholesaleIds[] = $wholesaleVariant->id;
+
+                    } else {
+                        // Update existing variants
+                        // Track submitted IDs
+                        if (!empty($variantData['retail_id'])) {
+                            $submittedRetailIds[] = $variantData['retail_id'];
+                        }
+                        if (!empty($variantData['wholesale_id'])) {
+                            $submittedWholesaleIds[] = $variantData['wholesale_id'];
                         }
 
-                        $wholesaleVariant->update(array_merge($commonFields, $wholesaleUpdateData));
+                        // Update retail variant
+                        if (!empty($variantData['retail_id'])) {
+                            $retailVariant = \App\Models\ProductVariant::find($variantData['retail_id']);
+                            if ($retailVariant && $retailVariant->product_id == $product->id) {
+                                // Generate new variant slug if name changed
+                                $newRetailVariantSlug = $retailVariant->variant_slug;
+                                if (isset($variantData['name']) && $variantData['name'] !== $retailVariant->variant_name) {
+                                    $newRetailVariantSlug = SlugHelper::generateVariantSlug($product->slug, $variantData['name'], 'retail');
+                                }
+
+                                $retailVariant->update(array_merge($commonFields, [
+                                    'variant_slug' => $newRetailVariantSlug,
+                                    'sku' => $variantData['sellerSku'] ?? $retailVariant->sku,
+                                    'price' => $variantData['retailPrice'] ?? 0,
+                                    'offer_price' => $variantData['retailOfferPrice'] ?? 0,
+                                ]));
+                            }
+                        }
+
+                        // Update wholesale variant
+                        if (!empty($variantData['wholesale_id'])) {
+                            $wholesaleVariant = \App\Models\ProductVariant::find($variantData['wholesale_id']);
+                            if ($wholesaleVariant && $wholesaleVariant->product_id == $product->id) {
+                                // Generate new variant slug if name changed
+                                $newWholesaleVariantSlug = $wholesaleVariant->variant_slug;
+                                if (isset($variantData['name']) && $variantData['name'] !== $wholesaleVariant->variant_name) {
+                                    $newWholesaleVariantSlug = SlugHelper::generateVariantSlug($product->slug, $variantData['name'], 'wholesale');
+                                }
+
+                                $wholesaleUpdateData = [
+                                    'variant_slug' => $newWholesaleVariantSlug,
+                                    'price' => $variantData['wholesalePrice'] ?? 0,
+                                    'offer_price' => $variantData['wholesaleOfferPrice'] ?? 0,
+                                ];
+
+                                // Only update MOQ if it's explicitly provided (allow 0, but use current value if not provided)
+                                if (array_key_exists('wholesaleMoq', $variantData)) {
+                                    $wholesaleUpdateData['moq'] = is_null($variantData['wholesaleMoq']) ? $wholesaleVariant->moq : $variantData['wholesaleMoq'];
+                                }
+
+                                $wholesaleVariant->update(array_merge($commonFields, $wholesaleUpdateData));
+                            }
+                        }
                     }
+                }
+
+                // Delete variants that were removed (exist in DB but not in submitted list)
+                $retailIdsToDelete = array_diff($existingRetailIds, $submittedRetailIds);
+                $wholesaleIdsToDelete = array_diff($existingWholesaleIds, $submittedWholesaleIds);
+
+                if (!empty($retailIdsToDelete)) {
+                    \App\Models\ProductVariant::whereIn('id', $retailIdsToDelete)->delete();
+                }
+                if (!empty($wholesaleIdsToDelete)) {
+                    \App\Models\ProductVariant::whereIn('id', $wholesaleIdsToDelete)->delete();
                 }
             }
 

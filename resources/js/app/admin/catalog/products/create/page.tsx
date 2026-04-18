@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -16,8 +16,6 @@ import {
   Select,
   Switch,
   Checkbox,
-  Breadcrumbs,
-  Anchor,
   Card,
   Divider,
   ActionIcon,
@@ -31,6 +29,7 @@ import {
 import {
   IconPhoto,
   IconX,
+  IconArrowLeft,
   IconPackages,
   IconDeviceFloppy,
   IconUpload,
@@ -56,6 +55,29 @@ import 'quill/dist/quill.snow.css'
 import { DndContext, closestCenter, type DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, useSortable, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+
+// Utility function to decode HTML entities (handles multiple levels of encoding)
+const decodeHTMLEntities = (text: string): string => {
+  if (!text) return ''
+  let decoded = text
+  let maxIterations = 5 // Prevent infinite loops
+  let iteration = 0
+  while (iteration < maxIterations && (
+    decoded.includes('&amp;') ||
+    decoded.includes('&lt;') ||
+    decoded.includes('&gt;') ||
+    decoded.includes('&quot;') ||
+    decoded.includes('&#039;') ||
+    decoded.includes('&#x27;') ||
+    decoded.includes('&apos;')
+  )) {
+    const textarea = document.createElement('textarea')
+    textarea.innerHTML = decoded
+    decoded = textarea.value
+    iteration++
+  }
+  return decoded
+}
 
 interface GalleryImage {
   id: string
@@ -145,7 +167,8 @@ export default function CreateProductPage() {
   const { openSingleSelect, openMultipleSelect } = useMediaSelector()
   const { colorScheme } = useMantineColorScheme()
 
-  // Loading state
+  // Loading states
+  const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Validation errors state
@@ -1035,6 +1058,13 @@ export default function CreateProductPage() {
           setDescription(quill1.root.innerHTML)
         })
 
+        // Prevent Enter key from propagating to form
+        quill1.root.addEventListener('keydown', (e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            e.stopPropagation()
+          }
+        })
+
         // Collapse sidebar when Quill editor gains focus
         quill1.on('selection-change', (range: any) => {
           if (range && collapseSidebarIfNeeded) {
@@ -1193,6 +1223,13 @@ export default function CreateProductPage() {
           updateHighlightsState()
         })
 
+        // Prevent Enter key from propagating to form
+        quill2.root.addEventListener('keydown', (e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            e.stopPropagation()
+          }
+        })
+
         // Also listen to editor changes for toolbar clicks
         quill2.on('editor-change', (eventName: string) => {
           if (eventName === 'text-change') {
@@ -1254,6 +1291,13 @@ export default function CreateProductPage() {
 
         quillBn1.on('text-change', () => {
           setDescriptionBn(quillBn1.root.innerHTML)
+        })
+
+        // Prevent Enter key from propagating to form
+        quillBn1.root.addEventListener('keydown', (e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            e.stopPropagation()
+          }
         })
 
         quillBn1.on('selection-change', (range: any) => {
@@ -1343,6 +1387,13 @@ export default function CreateProductPage() {
           if (source === 'user') updateHighlightsBnState()
         })
         quillBn2.root.addEventListener('input', () => updateHighlightsBnState())
+
+        // Prevent Enter key from propagating to form
+        quillBn2.root.addEventListener('keydown', (e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            e.stopPropagation()
+          }
+        })
 
         highlightsBnQuillRef.current = quillBn2
 
@@ -1723,16 +1774,18 @@ export default function CreateProductPage() {
   return (
     <Box p="md">
       <Stack gap="md">
-        <Breadcrumbs>
-          <Anchor href="/admin/catalog/products">{t('catalog.products') || 'Products'}</Anchor>
-          <Text>{t('catalog.productsCreate.title') || 'Add Product'}</Text>
-        </Breadcrumbs>
-
         <Group justify="space-between">
           <Group>
             <IconPackages size={32} className="text-blue-600" />
             <Title order={1}>{t('catalog.productsCreate.title') || 'Add New Product'}</Title>
           </Group>
+          <Button
+            variant="light"
+            leftSection={<IconArrowLeft size={16} />}
+            onClick={() => navigate('/catalog/products')}
+          >
+            {t('catalog.productsCreate.back') || 'Back to Products'}
+          </Button>
         </Group>
 
         <form onSubmit={handleSubmit}>
@@ -2452,91 +2505,107 @@ export default function CreateProductPage() {
                       </Text>
                     </Group>
 
-                    {/* Description - English */}
-                    <Stack gap="sm">
-                      <Text size="sm" fw={500}>
-                        {t('catalog.productsCreate.productDescription') || 'Product Description'} <Text span c="red">*</Text>
-                      </Text>
-                      <Box
-                        id="description-editor-container"
-                        style={{
-                          borderRadius: '4px'
-                        }}
-                      />
-                      <Group justify="flex-end">
-                        <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
-                          Enhance with AI
-                        </Button>
-                      </Group>
-                      {errors.description && (
-                        <Text size="xs" c="red">{errors.description}</Text>
-                      )}
-                    </Stack>
+                    {/* Descriptions - English & Bangla side by side */}
+                    <Grid>
+                      <Grid.Col span={6}>
+                        <Stack gap="sm">
+                          <Text size="sm" fw={500}>
+                            {t('catalog.productsCreate.productDescription') || 'Product Description'} <Text span c="red">*</Text>
+                          </Text>
+                          <div id="description-editor-container">
+                            <Box
+                              id="description-editor"
+                              style={{
+                                borderRadius: '4px'
+                              }}
+                            />
+                          </div>
+                          <Group justify="flex-end">
+                            <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
+                              Enhance with AI
+                            </Button>
+                          </Group>
+                          {errors.description && (
+                            <Text size="xs" c="red">{errors.description}</Text>
+                          )}
+                        </Stack>
+                      </Grid.Col>
+                      <Grid.Col span={6}>
+                        <Stack gap="sm">
+                          <Text size="sm" fw={500}>
+                            পণ্যের বিবরণ (বাংলা)
+                          </Text>
+                          <div id="description-bn-editor-container">
+                            <Box
+                              id="description-bn-editor"
+                              style={{
+                                borderRadius: '4px'
+                              }}
+                            />
+                          </div>
+                          <Group justify="flex-end">
+                            <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
+                              Enhance with AI
+                            </Button>
+                          </Group>
+                        </Stack>
+                      </Grid.Col>
+                    </Grid>
 
-                    {/* Highlights - English */}
-                    <Stack gap="sm">
-                      <Group justify="space-between" align="center">
-                        <Text size="sm" fw={500}>
-                          {t('catalog.productsCreate.productHighlights') || 'Product Highlights'} <Text span c="red">*</Text>
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          {highlightsList.filter(h => h.trim()).length}/20
-                        </Text>
-                      </Group>
+                    {/* Highlights - English & Bangla side by side */}
+                    <Grid>
+                      <Grid.Col span={6}>
+                        <Stack gap="sm">
+                          <Group justify="space-between" align="center">
+                            <Text size="sm" fw={500}>
+                              {t('catalog.productsCreate.productHighlights') || 'Product Highlights'} <Text span c="red">*</Text>
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              {highlightsList.filter(h => h.trim()).length}/20
+                            </Text>
+                          </Group>
 
-                      <Box
-                        id="highlights-editor-container"
-                        style={{
-                          borderRadius: '4px'
-                        }}
-                      />
+                          <div id="highlights-editor-container">
+                            <Box
+                              id="highlights-editor"
+                              style={{
+                                borderRadius: '4px'
+                              }}
+                            />
+                          </div>
 
-                      <Group justify="flex-end">
-                        <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
-                          Enhance with AI
-                        </Button>
-                      </Group>
+                          <Group justify="flex-end">
+                            <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
+                              Enhance with AI
+                            </Button>
+                          </Group>
 
-                      <Text size="xs" c="dimmed">
-                        {t('catalog.productsCreate.highlightsTip') || 'Add key product highlights, features, or benefits as bullet points. Maximum 20 items.'}
-                      </Text>
-                    </Stack>
-
-                    {/* Description - Bangla */}
-                    <Stack gap="sm">
-                      <Text size="sm" fw={500}>
-                        পণ্যের বিবরণ (বাংলা)
-                      </Text>
-                      <Box
-                        id="description-bn-editor-container"
-                        style={{
-                          borderRadius: '4px'
-                        }}
-                      />
-                      <Group justify="flex-end">
-                        <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
-                          Enhance with AI
-                        </Button>
-                      </Group>
-                    </Stack>
-
-                    {/* Highlights - Bangla */}
-                    <Stack gap="sm">
-                      <Text size="sm" fw={500}>
-                        পণ্যের হাইলাইটস (বাংলা)
-                      </Text>
-                      <Box
-                        id="highlights-bn-editor-container"
-                        style={{
-                          borderRadius: '4px'
-                        }}
-                      />
-                      <Group justify="flex-end">
-                        <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
-                          Enhance with AI
-                        </Button>
-                      </Group>
-                    </Stack>
+                          <Text size="xs" c="dimmed">
+                            {t('catalog.productsCreate.highlightsTip') || 'Add key product highlights, features, or benefits as bullet points. Maximum 20 items.'}
+                          </Text>
+                        </Stack>
+                      </Grid.Col>
+                      <Grid.Col span={6}>
+                        <Stack gap="sm">
+                          <Text size="sm" fw={500}>
+                            পণ্যের হাইলাইটস (বাংলা)
+                          </Text>
+                          <div id="highlights-bn-editor-container">
+                            <Box
+                              id="highlights-bn-editor"
+                              style={{
+                                borderRadius: '4px'
+                              }}
+                            />
+                          </div>
+                          <Group justify="flex-end">
+                            <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
+                              Enhance with AI
+                            </Button>
+                          </Group>
+                        </Stack>
+                      </Grid.Col>
+                    </Grid>
                   </Stack>
                 </Card>
 

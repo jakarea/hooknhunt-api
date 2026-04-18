@@ -42,7 +42,8 @@ import {
   IconShoppingBag,
   IconLoader,
   IconArrowLeft,
-  IconSparkles
+  IconSparkles,
+  IconCheck
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { getCategories, getBrands, getProduct, type Category, type Brand, type MediaFile } from '@/utils/api'
@@ -1468,11 +1469,32 @@ export default function EditProductPage() {
 
         // Variants - Group/merge by variant_name (retail + wholesale channels)
         if (productData.variants && Array.isArray(productData.variants)) {
-          // Check if variants have channel field
+          // Check if variants are already merged by the backend (have retailId/wholesaleId but no channel)
+          const isAlreadyMerged = productData.variants.some((v: any) => (v.retailId || v.retail_id) && (v.wholesaleId || v.wholesale_id) && !v.channel)
           const hasChannelField = productData.variants.some((v: any) => v.channel)
 
-          if (hasChannelField) {
-            // Merge by channel
+          if (isAlreadyMerged) {
+            // Variants are already merged by the backend - map them directly
+            const mappedVariants = productData.variants.map((variant: any, index: number) => ({
+              id: `variant-${variant.id || index}`,
+              dbId: variant.id,
+              retail_id: variant.retailId || variant.retail_id || null,
+              wholesale_id: variant.wholesaleId || variant.wholesale_id || null,
+              name: variant.variantName || variant.variant_name || variant.name || '',
+              sellerSku: variant.sku || variant.custom_sku || variant.sellerSku || '',
+              purchaseCost: variant.purchaseCost || variant.purchase_cost || 0,
+              price: variant.price || variant.retail_price || variant.retailPrice || 0,
+              specialPrice: variant.offerPrice || variant.offer_price || variant.retail_offer_price || variant.retailOfferPrice || 0,
+              wholesalePrice: variant.wholesalePrice || variant.wholesale_price || 0,
+              wholesaleOfferPrice: variant.wholesaleOfferPrice || variant.wholesale_offer_price || 0,
+              wholesaleMoq: variant.moq || variant.wholesaleMoq || variant.wholesale_moq || 6,
+              weight: variant.weight || 0,
+              stock: variant.stock || variant.currentStock || variant.current_stock || 0,
+              thumbnail: variant.thumbnail || null
+            }))
+            setVariants(mappedVariants)
+          } else if (hasChannelField) {
+            // Merge by channel (old API format)
             const variantGroups = new Map<string, any>()
 
             productData.variants.forEach((variant: any) => {
@@ -1481,7 +1503,7 @@ export default function EditProductPage() {
 
               if (!variantGroups.has(name)) {
                 variantGroups.set(name, {
-                  id: `merged-${name}`,
+                  id: `merged-${name}-${Date.now()}`, // Use unique ID with timestamp
                   retail_id: null,
                   wholesale_id: null,
                   name: name,
@@ -1805,8 +1827,8 @@ export default function EditProductPage() {
         featuredImage: featuredImage?.mediaId ?? null,
         galleryImages: galleryImages.map(img => img.mediaId),
         variants: variants.map(v => ({
-          retail_id: v.retail_id,
-          wholesale_id: v.wholesale_id,
+          retail_id: v.retail_id ?? null,
+          wholesale_id: v.wholesale_id ?? null,
           name: v.name,
           sellerSku: v.sellerSku || null,
           purchaseCost: parseFloat(v.purchaseCost.toString()),
@@ -1903,6 +1925,201 @@ export default function EditProductPage() {
     t,
     navigate
   ])
+
+  // Common submit function that accepts status override
+  const submitWithStatus = useCallback(async (overrideStatus: 'draft' | 'published') => {
+    // Clear previous errors
+    setErrors({})
+
+    // Validate required fields
+    const newErrors: Record<string, string> = {}
+
+    if (!productName) {
+      newErrors.productName = t('catalog.productsEdit.validation.productNameRequired') || 'Product name is required'
+    }
+
+    if (!category) {
+      newErrors.category = t('catalog.productsEdit.validation.categoryRequired') || 'Please select a category'
+    }
+
+    if (!brand) {
+      newErrors.brand = t('catalog.productsEdit.validation.brandRequired') || 'Please select a brand'
+    }
+
+    if (!description || description.trim().length < 10) {
+      newErrors.description = t('catalog.productsEdit.validation.descriptionTooShort') || 'Description must be at least 10 characters'
+    }
+
+    if (variants.length === 0) {
+      newErrors.variants = t('catalog.productsEdit.validation.atLeastOneVariant') || 'At least one variant is required'
+    }
+
+    // Validate variants
+    variants.forEach((variant, index) => {
+      if (!variant.name || variant.name.trim() === '') {
+        newErrors[`variant.${index}.name`] = t('catalog.productsEdit.validation.variantNameRequired', { index: index + 1 }) || `Variant ${index + 1} name is required`
+      }
+    })
+
+    // Check for duplicate variant names
+    const variantNames = variants.map(v => v.name.trim()).filter(name => name.length > 0)
+    const duplicateNames = variantNames.filter((name, index) => variantNames.indexOf(name) !== index)
+    if (duplicateNames.length > 0) {
+      const uniqueDuplicates = [...new Set(duplicateNames)]
+      newErrors.variants = t('catalog.productsEdit.validation.duplicateVariantNames', { names: uniqueDuplicates.join(', ') }) ||
+        `Variant names must be unique. Duplicate(s): ${uniqueDuplicates.join(', ')}`
+    }
+
+    // If there are errors, set them and stop
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
+      const firstField = Object.keys(newErrors)[0]
+      const element = document.getElementById(firstField)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      // Prepare data for API with override status
+      const payload = {
+        productName,
+        retailName: productName,
+        wholesaleName,
+        retailNameBn: retailNameBn || undefined,
+        wholesaleNameBn: wholesaleNameBn || undefined,
+        category: parseInt(category!),
+        brand: parseInt(brand!),
+        status: overrideStatus, // Use override status instead of state
+        videoUrl,
+        enableWarranty,
+        warrantyDetails,
+        enablePreorder,
+        expectedDeliveryDate,
+        description,
+        descriptionBn: descriptionBn || undefined,
+        highlights: highlightsList.filter(h => h.trim()).length > 0 ? highlightsList : null,
+        highlightsBn: highlightsBn.filter(h => h.trim()).length > 0 ? highlightsBn : null,
+        includesInTheBox: includesInTheBox.trim() ? includesInTheBox.trim() : null,
+        includesInTheBoxBn: includesInTheBoxBn.trim() ? includesInTheBoxBn.trim() : null,
+        seoTitle,
+        seoDescription,
+        seoTags,
+        featuredImage: featuredImage?.mediaId ?? null,
+        galleryImages: galleryImages.map(img => img.mediaId),
+        variants: variants.map(v => ({
+          retail_id: v.retail_id ?? null,
+          wholesale_id: v.wholesale_id ?? null,
+          name: v.name,
+          sellerSku: v.sellerSku || null,
+          purchaseCost: parseFloat(v.purchaseCost.toString()),
+          retailPrice: parseFloat(v.price.toString()),
+          wholesalePrice: parseFloat(v.wholesalePrice.toString()),
+          retailOfferPrice: v.specialPrice ? parseFloat(v.specialPrice.toString()) : null,
+          wholesaleOfferPrice: v.wholesaleOfferPrice ? parseFloat(v.wholesaleOfferPrice.toString()) : null,
+          wholesaleMoq: parseInt(v.wholesaleMoq.toString()),
+          weight: parseFloat(v.weight.toString()),
+          stock: parseInt(v.stock.toString()),
+          thumbnail: v.thumbnail || null
+        }))
+      }
+
+      // Call API - PUT for update
+      const response = await apiMethods.put(`/catalog/products/${id}`, payload)
+
+      // Success - update the status state
+      setStatus(overrideStatus)
+
+      notifications.show({
+        title: t('common.success') || 'Success',
+        message: response.message || t('catalog.productsEdit.notification.productUpdated') || 'Product updated successfully',
+        color: 'green'
+      })
+
+      // Navigate to product detail page
+      setTimeout(() => {
+        navigate(`/catalog/products/${id}`)
+      }, 1500)
+    } catch (error: any) {
+      console.error('Update failed:', error)
+
+      if (error.response?.status === 422 && error.response?.data?.errors) {
+        const serverErrors = error.response.data.errors
+        const formattedErrors: Record<string, string> = {}
+
+        // Transform Laravel-style nested error keys (variants.0.name) to frontend format
+        Object.keys(serverErrors).forEach((field) => {
+          // Frontend expects: variant.0.field (singular)
+          const transformedField = field.replace(/^variants\./, 'variant.')
+
+          // Clean up error message - remove field path prefix like "variants.0."
+          let errorMessage = serverErrors[field]?.[0] || 'Validation error'
+          errorMessage = errorMessage.replace(/^variants\.\d+\./, '').replace(/^variant\.\d+\./, '')
+
+          formattedErrors[transformedField] = errorMessage
+        })
+
+        setErrors(formattedErrors)
+
+        const firstField = Object.keys(formattedErrors)[0]
+        const element = document.getElementById(firstField)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      } else {
+        notifications.show({
+          title: t('common.error') || 'Error',
+          message: error.response?.data?.message || error.message || 'Failed to update product',
+          color: 'red'
+        })
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [
+    productName,
+    wholesaleName,
+    retailNameBn,
+    wholesaleNameBn,
+    category,
+    brand,
+    videoUrl,
+    enableWarranty,
+    warrantyDetails,
+    enablePreorder,
+    expectedDeliveryDate,
+    description,
+    descriptionBn,
+    highlightsList,
+    highlightsBn,
+    includesInTheBox,
+    includesInTheBoxBn,
+    seoTitle,
+    seoDescription,
+    seoTags,
+    featuredImage,
+    galleryImages,
+    variants,
+    id,
+    t,
+    navigate,
+    setStatus
+  ])
+
+  // Save as draft handler
+  const handleSaveAsDraft = useCallback(async (event: React.MouseEvent) => {
+    event.preventDefault()
+    await submitWithStatus('draft')
+  }, [submitWithStatus])
+
+  // Publish product handler
+  const handlePublish = useCallback(async (event: React.MouseEvent) => {
+    event.preventDefault()
+    await submitWithStatus('published')
+  }, [submitWithStatus])
 
   // ============================================================================
   // RENDER HELPERS
@@ -3037,13 +3254,28 @@ export default function EditProductPage() {
                       {t('common.cancel') || 'Cancel'}
                     </Button>
                     <Button
-                      type="submit"
+                      variant="light"
+                      color="blue"
                       leftSection={isSubmitting ? <IconLoader size={16} className="animate-spin" /> : <IconDeviceFloppy size={16} />}
+                      disabled={isSubmitting}
                       loading={isSubmitting}
+                      onClick={handleSaveAsDraft}
                     >
                       {isSubmitting
-                        ? (t('common.saving') || 'Saving...')
-                        : (t('catalog.productsCreate.saveProduct') || 'Save Changes')
+                        ? (t('catalog.productsCreate.saving') || 'Saving...')
+                        : (t('catalog.productsCreate.saveAsDraft') || 'Save as Draft')
+                      }
+                    </Button>
+                    <Button
+                      color="green"
+                      leftSection={isSubmitting ? <IconLoader size={16} className="animate-spin" /> : <IconCheck size={16} />}
+                      disabled={isSubmitting}
+                      loading={isSubmitting}
+                      onClick={handlePublish}
+                    >
+                      {isSubmitting
+                        ? (t('catalog.productsCreate.publishing') || 'Publishing...')
+                        : (t('catalog.productsCreate.publishProduct') || 'Publish Product')
                       }
                     </Button>
                   </Group>
