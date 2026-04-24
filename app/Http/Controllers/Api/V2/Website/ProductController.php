@@ -242,6 +242,15 @@ class ProductController extends Controller
             );
         }
 
+        $thumbnailUrl = $product->thumbnail?->full_url;
+
+        // Get first variant for price calculation
+        $firstVariant = $product->variants->first();
+        $price = $firstVariant ? (float) ($firstVariant['offerPrice'] > 0 ? $firstVariant['offerPrice'] : $firstVariant['price']) : 0;
+        $originalPrice = $firstVariant ? (float) $firstVariant['price'] : 0;
+        $variantCount = $product->variants->count();
+        $stock = $variantCount > 0 ? (int) $product->variants->sum('stock') : 0;
+
         return [
             'id'               => $product->id,
             'name'             => $product->retail_name ?? $product->name,
@@ -262,7 +271,20 @@ class ProductController extends Controller
             'seoTitle'         => $product->seo_title,
             'seoDescription'   => $product->seo_description,
             'seoTags'          => $product->seo_tags,
-            'thumbnail'        => $this->transformMedia($product->thumbnail),
+            // Image fields - both string URL and object for compatibility
+            'image'            => $thumbnailUrl,
+            'featured_image'   => $thumbnailUrl,
+            'thumbnail'        => $thumbnailUrl,
+            'thumbnailObj'     => $this->transformMedia($product->thumbnail),
+            // Price fields for ProductCard compatibility
+            'price'            => $price,
+            'actual_price'     => $price,
+            'originalPrice'    => $originalPrice,
+            'compare_at_price' => $originalPrice,
+            // Stock fields for ProductCard compatibility
+            'stock'            => $stock,
+            'inventory_quantity' => $stock,
+            'variant_count'    => $variantCount,
             'galleryImages'    => collect($product->gallery_images_urls)->map(fn($url) => ['fullUrl' => $url])->values()->toArray(),
             'category'         => $this->transformCategory($product->category),
             'brand'            => $product->brand ? [
@@ -306,14 +328,33 @@ class ProductController extends Controller
             ->where('is_active', true)
             ->first();
 
+        $thumbnailUrl = $p->thumbnail?->full_url;
+
+        // Calculate price: use offer_price if available and greater than 0, otherwise use price
+        $displayPrice = 0;
+        if ($retailVariant) {
+            $displayPrice = ($retailVariant->offer_price > 0)
+                ? (float) $retailVariant->offer_price
+                : (float) $retailVariant->price;
+        }
+
         return [
             'id'               => $p->id,
             'title'            => $p->retail_name ?? $p->name,
             'titleBn'          => $p->retail_name_bn ?? $p->name_bn,
             'slug'             => $p->slug,
-            'thumbnail'        => $this->transformMedia($p->thumbnail),
+            'name'             => $p->retail_name ?? $p->name,
+            // Image fields - both string URL and object for compatibility
+            'image'            => $thumbnailUrl,
+            'featured_image'   => $thumbnailUrl,
+            'thumbnail'        => $thumbnailUrl,
+            'thumbnailObj'     => $this->transformMedia($p->thumbnail),
             'retailPrice'      => $retailVariant ? (float) $retailVariant->price : 0,
             'retailOfferPrice' => $retailVariant ? (float) $retailVariant->offer_price : 0,
+            'price'            => $displayPrice,
+            'actual_price'     => $displayPrice,
+            'originalPrice'    => $retailVariant ? (float) $retailVariant->price : 0,
+            'compare_at_price' => $retailVariant ? (float) $retailVariant->price : 0,
         ];
     }
 
@@ -379,10 +420,17 @@ class ProductController extends Controller
         if ($request->filled('search')) {
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
-                $q->where('retail_name', 'like', "%{$search}%")
-                  ->orWhere('name', 'like', "%{$search}%")
+                // Use FULLTEXT search on name column for better performance
+                $q->whereRaw("MATCH(name) AGAINST(? IN BOOLEAN MODE)", [$search])
+                  // Search in seo_tags (JSON array)
+                  ->orWhereJsonContains('seo_tags', [$search])
+                  ->orWhereJsonContains('seo_tags', ["%{$search}%"])
+                  // Search in Bangla names
                   ->orWhere('retail_name_bn', 'like', "%{$search}%")
                   ->orWhere('name_bn', 'like', "%{$search}%")
+                  // Search by category name
+                  ->orWhereHas('category', fn($cq) => $cq->where('name', 'like', "%{$search}%"))
+                  // Search by SKU
                   ->orWhereHas('variants', fn($vq) => $vq->where('sku', 'like', "%{$search}%"));
             });
         }
@@ -417,5 +465,85 @@ class ProductController extends Controller
                 ->orderByRaw('MAX(product_variants.price) DESC'),
             default           => $query->orderBy('created_at', 'desc'),
         };
+    }
+
+    /**
+     * Search products with suggestions dropdown.
+     * GET /api/v2/public/search/suggestions?q=query
+     */
+    public function searchSuggestions(Request $request): JsonResponse
+    {
+        $request->validate(['q' => 'required|string|min:2|max:100']);
+
+        $query = $request->input('q');
+
+        $products = Product::with(['category', 'thumbnail'])
+            ->where('status', 'published')
+            ->whereHas('variants', fn($q) => $q->where('channel', 'retail')->where('is_active', true))
+            ->where(function ($q) use ($query) {
+                $q->whereRaw("MATCH(name) AGAINST(? IN BOOLEAN MODE)", [$query])
+                  ->orWhereJsonContains('seo_tags', [$query])
+                  ->orWhereHas('category', fn($cq) => $cq->where('name', 'like', "%{$query}%"))
+                  ->orWhereHas('variants', fn($vq) => $vq->where('sku', 'like', "%{$query}%"));
+            })
+            ->limit(8)
+            ->get();
+
+        $suggestions = $products->map(function ($product) {
+            $thumbnailUrl = $product->thumbnail?->full_url;
+            $retailVariant = $product->variants->where('channel', 'retail')->where('is_active', true)->first();
+
+            return [
+                'id' => $product->id,
+                'name' => $product->name,
+                'slug' => $product->slug,
+                'thumbnail' => $thumbnailUrl,
+                'image' => $thumbnailUrl,
+                'featured_image' => $thumbnailUrl,
+                'category' => $product->category?->name,
+                'price' => $retailVariant?->offerPrice > 0 ? $retailVariant->offerPrice : $retailVariant?->price,
+            ];
+        });
+
+        return $this->sendSuccess(['suggestions' => $suggestions]);
+    }
+
+    /**
+     * Search products with full results.
+     * GET /api/v2/public/search?q=query&category_id=X&per_page=20
+     */
+    public function search(Request $request): JsonResponse
+    {
+        $request->validate([
+            'q' => 'required|string|min:2|max:100',
+            'category_id' => 'nullable|integer|exists:categories,id',
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
+
+        $searchQuery = $request->input('q');
+
+        $query = Product::with(['category', 'brand', 'thumbnail'])
+            ->where('status', 'published')
+            ->whereHas('variants', fn($q) => $q->where('channel', 'retail')->where('is_active', true))
+            ->where(function ($q) use ($searchQuery) {
+                $q->whereRaw("MATCH(name) AGAINST(? IN BOOLEAN MODE)", [$searchQuery])
+                  ->orWhereJsonContains('seo_tags', [$searchQuery])
+                  ->orWhereHas('category', fn($cq) => $cq->where('name', 'like', "%{$searchQuery}%"))
+                  ->orWhereHas('variants', fn($vq) => $vq->where('sku', 'like', "%{$searchQuery}%"));
+            });
+
+        // Filter by category if provided
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->input('category_id'));
+        }
+
+        $this->applySorting($query, $request);
+
+        $perPage = $request->input('per_page', 24);
+        $products = $query->paginate($perPage);
+
+        $products->getCollection()->transform(fn($product) => $this->transformProduct($product));
+
+        return $this->sendSuccess($products);
     }
 }

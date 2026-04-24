@@ -9,9 +9,12 @@ use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
 use App\Traits\ApiResponse;
+use App\Services\Website\DeliveryChargeCalculator;
+use App\Services\AlphaSmsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class OrderController extends Controller
 {
@@ -27,6 +30,7 @@ class OrderController extends Controller
             'customer_name'    => 'required|string|max:255',
             'customer_phone'   => 'required|string|max:20',
             'customer_email'   => 'nullable|email|max:255',
+            'customer_type'    => 'nullable|in:retail,wholesale',
             'items'            => 'required|array|min:1',
             'items.*.product_id'  => 'required|integer|exists:products,id',
             'items.*.variant_id'  => 'nullable|integer|exists:product_variants,id',
@@ -49,10 +53,13 @@ class OrderController extends Controller
         try {
             $customer = $this->resolveCustomer($validated, $request->user());
 
+            // Determine channel based on customer type
+            $channel = $customer->type === 'wholesale' ? 'wholesale_web' : 'retail_web';
+
             $order = SalesOrder::create([
                 'invoice_no'      => 'WEB-' . strtoupper(uniqid()),
                 'customer_id'     => $customer->id,
-                'channel'         => 'retail_web',
+                'channel'         => $channel,
                 'status'          => 'pending',
                 'payment_status'  => in_array($validated['payment_method'], ['cod', 'sslcommerz']) ? 'unpaid' : 'paid',
                 'sub_total'       => $validated['subtotal'],
@@ -69,6 +76,7 @@ class OrderController extends Controller
                 $variant = $this->resolveVariant($item);
 
                 $unitPrice = $this->getEffectivePrice($variant);
+                $originalPrice = (float) $variant->price;
                 $quantity = (int) $item['quantity'];
 
                 SalesOrderItem::create([
@@ -76,6 +84,7 @@ class OrderController extends Controller
                     'product_variant_id' => $variant->id,
                     'quantity'           => $quantity,
                     'unit_price'         => $unitPrice,
+                    'original_price'     => $originalPrice,
                     'total_price'        => $unitPrice * $quantity,
                     'total_cost'         => (float) $variant->purchase_cost * $quantity,
                 ]);
@@ -294,6 +303,7 @@ class OrderController extends Controller
         DB::beginTransaction();
         try {
             $unitPrice = $this->getEffectivePrice($variant);
+            $originalPrice = (float) $variant->price;
             $quantity = 1;
 
             SalesOrderItem::create([
@@ -301,6 +311,7 @@ class OrderController extends Controller
                 'product_variant_id' => $variant->id,
                 'quantity'           => $quantity,
                 'unit_price'         => $unitPrice,
+                'original_price'     => $originalPrice,
                 'total_price'        => $unitPrice * $quantity,
                 'total_cost'         => (float) $variant->purchase_cost * $quantity,
             ]);
@@ -328,15 +339,76 @@ class OrderController extends Controller
         }
     }
 
+    /**
+     * Calculate delivery charge based on weight and destination.
+     * POST /api/v2/store/calculate-delivery
+     */
+    public function calculateDelivery(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'weight' => 'required|numeric|min:0',
+            'division' => 'required|string|max:100',
+            'order_amount' => 'nullable|numeric|min:0',
+        ]);
+
+        try {
+            $weight = (float) $validated['weight'];
+            $division = $validated['division'];
+            $orderAmount = $validated['order_amount'] ?? null;
+
+            $charge = DeliveryChargeCalculator::calculate($weight, $division);
+            $breakdown = DeliveryChargeCalculator::breakdown($weight, $division);
+
+            // Check if free delivery applies based on order amount
+            $isFreeDelivery = false;
+            if ($orderAmount !== null) {
+                $isFreeDelivery = DeliveryChargeCalculator::isFreeDelivery(orderAmount: $orderAmount);
+                if ($isFreeDelivery) {
+                    $charge = 0;
+                }
+            }
+
+            return $this->sendSuccess([
+                'charge' => $charge,
+                'breakdown' => [
+                    'total_weight' => $breakdown['total_weight'],
+                    'zone' => $breakdown['zone'],
+                    'is_inside_dhaka' => $breakdown['is_inside_dhaka'],
+                    'base_charge' => $breakdown['base_charge'],
+                    'additional_kg' => $breakdown['additional_kg'],
+                    'per_kg_rate' => $breakdown['per_kg_rate'],
+                ],
+                'is_free_delivery' => $isFreeDelivery,
+            ], 'Delivery charge calculated successfully');
+
+        } catch (\Exception $e) {
+            \Log::error('Delivery charge calculation failed', [
+                'error' => $e->getMessage(),
+                'weight' => $validated['weight'] ?? null,
+                'division' => $validated['division'] ?? null,
+            ]);
+            return $this->sendError('Failed to calculate delivery charge', $e->getMessage(), 500);
+        }
+    }
+
     // -------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------
 
     /**
-     * Find existing customer or create a new one.
+     * Find existing customer/user or create new ones.
+     * Creates both User and Customer if they don't exist.
      */
     private function resolveCustomer(array $data, $user = null): Customer
     {
+        $phone = $data['customer_phone'];
+        $name = $data['customer_name'];
+        $customerType = $data['customer_type'] ?? 'retail';
+
+        // Determine role based on customer type
+        $roleSlug = $customerType === 'wholesale' ? 'wholesale_customer' : 'retail_customer';
+        $role = \App\Models\Role::where('slug', $roleSlug)->first();
+
         // Authenticated user — find linked customer
         if ($user) {
             $customer = Customer::where('user_id', $user->id)->first();
@@ -345,25 +417,103 @@ class OrderController extends Controller
             }
         }
 
-        // Find by phone
-        $customer = Customer::where('phone', $data['customer_phone'])->first();
-        if ($customer) {
-            // Link to authenticated user if not already linked
-            if ($user && !$customer->user_id) {
-                $customer->update(['user_id' => $user->id]);
+        // Step 1: Find existing user by phone first
+        $existingUser = \App\Models\User::where('phone', $phone)->first();
+
+        if ($existingUser) {
+            // User exists - find or create customer for this user
+            $customer = Customer::where('user_id', $existingUser->id)->first();
+
+            if (!$customer) {
+                // Create customer linked to existing user
+                $customer = new Customer();
+                $customer->name = $name;
+                $customer->phone = $phone;
+                $customer->user_id = $existingUser->id;
+                $customer->type = $customerType;
+                $customer->save();
             }
+
             return $customer;
         }
 
-        // Create new customer (bypasses $fillable restriction)
-        $customer = new Customer();
-        $customer->name = $data['customer_name'];
-        $customer->phone = $data['customer_phone'];
-        $customer->user_id = $user?->id;
-        $customer->type = 'retail';
-        $customer->save();
+        // Step 2: Find existing customer by phone (without user)
+        $customer = Customer::where('phone', $phone)->first();
+
+        if ($customer && $customer->user_id) {
+            // Customer has a user account - return it
+            return $customer;
+        }
+
+        // Step 3: Create new user and customer
+        // Generate 8-digit numeric password
+        $password = $this->generateNumericPassword(8);
+
+        $newUser = \App\Models\User::create([
+            'role_id' => $role?->id ?? 10, // Default to retail_customer role
+            'name' => $name,
+            'phone' => $phone,
+            'email' => $data['customer_email'] ?? null,
+            'password' => \Hash::make($password),
+            'is_active' => true,
+        ]);
+
+        // Create customer linked to new user
+        $customer = Customer::create([
+            'name' => $name,
+            'phone' => $phone,
+            'user_id' => $newUser->id,
+            'type' => $customerType,
+        ]);
+
+        // Send welcome SMS with login credentials
+        $this->sendWelcomeSms($phone, $name, $password, $newUser->phone);
 
         return $customer;
+    }
+
+    /**
+     * Generate numeric password of specified length
+     */
+    private function generateNumericPassword(int $length = 8): string
+    {
+        $password = '';
+        for ($i = 0; $i < $length; $i++) {
+            $password .= random_int(0, 9);
+        }
+        return $password;
+    }
+
+    /**
+     * Send welcome SMS with login credentials
+     */
+    private function sendWelcomeSms(string $phone, string $name, string $password, string $loginPhone): void
+    {
+        try {
+            $smsService = new AlphaSmsService();
+
+            // Format phone for SMS (remove 88 prefix for display)
+            $displayPhone = preg_replace('/^880/', '', $loginPhone);
+            if (!str_starts_with($displayPhone, '01')) {
+                $displayPhone = '0' . $displayPhone;
+            }
+
+            // Exactly 159 characters
+            $message = "Welcome {$name} to HooknHunt! Your order has been placed. Track your order status at https://hooknhunt.com/account/orders Login: {$displayPhone} Password: {$password}";
+
+            $smsService->sendSms($message, $phone);
+
+            \Log::info('Welcome SMS sent', [
+                'phone' => $phone,
+                'name' => $name,
+            ]);
+        } catch (\Exception $e) {
+            // Log error but don't fail the order
+            \Log::error('Failed to send welcome SMS', [
+                'phone' => $phone,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -457,11 +607,13 @@ class OrderController extends Controller
                 'variantId'     => $item->product_variant_id,
                 'quantity'      => $item->quantity,
                 'unitPrice'     => (float) $item->unit_price,
+                'originalPrice' => $item->original_price ? (float) $item->original_price : null,
                 'totalPrice'    => (float) $item->total_price,
                 'productName'   => $item->variant?->product?->retail_name ?? $item->variant?->product?->name,
                 'variantName'   => $item->variant?->variant_name,
                 'sku'           => $item->variant?->sku,
-                'image'         => $item->variant?->product?->thumbnail?->full_url,
+                // Variant thumbnail with fallback to product thumbnail
+                'image'         => $item->variant?->thumbnail ?? $item->variant?->product?->thumbnail?->full_url,
             ])->values()->toArray(),
             'createdAt' => $order->created_at->toIso8601String(),
         ];

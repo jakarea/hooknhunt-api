@@ -3795,6 +3795,7 @@ export type Product = {
   description?: string | null
   status: 'draft' | 'published' | 'archived'
   videoUrl?: string | null
+  sortOrder?: number
   createdAt: string
   updatedAt: string
   category?: {
@@ -3961,6 +3962,15 @@ export const deleteProduct = async (id: number) => {
  */
 export const duplicateProduct = async (id: number) => {
   const response = await api.post(`catalog/products/${id}/duplicate`)
+  return response.data
+}
+
+/**
+ * Reorder products (drag and drop sorting)
+ * POST /api/v2/catalog/products/reorder
+ */
+export const reorderProducts = async (products: Array<{ id: number; sort_order: number }>) => {
+  const response = await api.post('catalog/products/reorder', { products })
   return response.data
 }
 

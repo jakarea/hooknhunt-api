@@ -22,7 +22,6 @@ import {
   MultiSelect,
   Select,
   Box,
-  ScrollArea,
 } from '@mantine/core'
 import {
   IconSearch,
@@ -138,7 +137,7 @@ export default function MediaLibraryPage() {
       const response = await getMediaFiles({
         folderId: currentFolder ?? undefined,
         page: page,
-        per_page: 50,
+        per_page: 24,
       })
 
       let filesData: MediaFile[] = []
@@ -165,11 +164,11 @@ export default function MediaLibraryPage() {
       if (loadMore) {
         setFiles((prev) => [...prev, ...filteredFiles])
         currentPageRef.current = page
-        setHasMore(filteredFiles.length >= 50)
+        setHasMore(filteredFiles.length >= 24)
       } else {
         setFiles(filteredFiles)
         currentPageRef.current = 1
-        setHasMore(filteredFiles.length >= 50)
+        setHasMore(filteredFiles.length >= 24)
         // Update cache
         filesCacheRef.current[currentFolder] = filteredFiles
       }
@@ -1006,20 +1005,7 @@ export default function MediaLibraryPage() {
               </Group>
             )}
 
-            <ScrollArea.Autosize
-              mah={600}
-              viewportProps={{
-                onScroll: (e: React.UIEvent<HTMLDivElement>) => {
-                  const target = e.target as HTMLDivElement
-                  const { scrollTop, scrollHeight, clientHeight } = target
-                  const isNearBottom = scrollHeight - scrollTop - clientHeight < 200
-                  if (isNearBottom && !loading && !loadingMore && hasMore) {
-                    loadMoreFiles()
-                  }
-                }
-              }}
-            >
-              <SimpleGrid cols={{ base: 2, sm: 3, md: 4, lg: 6 }} spacing="md">
+            <SimpleGrid cols={{ base: 2, sm: 3, md: 4, lg: 6 }} spacing="md">
                 {files
                   .filter((file) => {
                     if (!debouncedSearch) return true
@@ -1154,13 +1140,24 @@ export default function MediaLibraryPage() {
                   </Paper>
                 ))}
               </SimpleGrid>
-              {loadingMore && (
+
+              {hasMore && (
                 <Group justify="center" py="md">
-                  <Loader size="sm" />
-                  <Text size="sm" c="dimmed">Loading more files...</Text>
+                  <Button
+                    variant="light"
+                    onClick={loadMoreFiles}
+                    loading={loadingMore}
+                    disabled={loading}
+                  >
+                    Load More Files
+                  </Button>
                 </Group>
               )}
-            </ScrollArea.Autosize>
+              {!hasMore && files.length > 0 && (
+                <Text size="sm" c="dimmed" ta="center" py="md">
+                  All files loaded
+                </Text>
+              )}
           </>
         ) : (
           <Alert variant="light" color="gray">

@@ -16,11 +16,11 @@ class Customer extends Model {
     }
 
     /**
-     * Get all orders for this customer.
+     * Get all sales orders for this customer.
      */
-    public function orders(): HasMany
+    public function salesOrders(): HasMany
     {
-        return $this->hasMany(Order::class);
+        return $this->hasMany(\App\Models\SalesOrder::class);
     }
 
     /**

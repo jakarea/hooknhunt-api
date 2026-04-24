@@ -27,6 +27,7 @@ return new class extends Migration
             $table->string('courier_tracking_id')->nullable();
             $table->string('consignment_id')->nullable();
             $table->string('tracking_code')->nullable();
+            $table->string('tracking_link')->nullable(); // Steadfast courier tracking link
             $table->boolean('sent_to_courier')->default(false);
             $table->string('delivery_status')->nullable();
             $table->string('external_order_id')->nullable()->index();

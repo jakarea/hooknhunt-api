@@ -14,7 +14,6 @@ import {
   Menu,
   Breadcrumbs,
   Anchor,
-  ScrollArea,
   Select,
   Box,
 } from '@mantine/core'
@@ -348,69 +347,66 @@ export function MediaSelectorModal({
         )}
 
         {/* Grid */}
-        <ScrollArea.Autosize
-          mah={500}
-          viewportProps={{
-            onScroll: (e: React.UIEvent<HTMLDivElement>) => {
-              const target = e.target as HTMLDivElement
-              const { scrollTop, scrollHeight, clientHeight } = target
-              const isNearBottom = scrollHeight - scrollTop - clientHeight < 200
-              if (isNearBottom && !store.loading && !store.loadingMore && store.hasMoreFiles) {
-                store.loadMoreFiles()
-              }
-            }
-          }}
-        >
-          {store.loading ? (
-            <Text ta="center" c="dimmed" py="xl">{t('cms.mediaSelector.loadingMedia')}</Text>
-          ) : filteredFolders.length === 0 && filteredFiles.length === 0 ? (
-            <EmptyState searchQuery={store.searchQuery} />
-          ) : (
-            <Stack gap="md">
-              {/* Folders */}
-              {filteredFolders.length > 0 && (
+        {store.loading ? (
+          <Text ta="center" c="dimmed" py="xl">{t('cms.mediaSelector.loadingMedia')}</Text>
+        ) : filteredFolders.length === 0 && filteredFiles.length === 0 ? (
+          <EmptyState searchQuery={store.searchQuery} />
+        ) : (
+          <Stack gap="md">
+            {/* Folders */}
+            {filteredFolders.length > 0 && (
+              <SimpleGrid cols={{ base: 2, sm: 4, md: 6, lg: 8 }} spacing="md">
+                {filteredFolders.map((folder) => (
+                  <FolderCard
+                    key={folder.id}
+                    folder={folder}
+                    onClick={() => store.setCurrentFolder(folder.id)}
+                    onRename={handleRenameFolder}
+                    onDelete={handleDeleteFolder}
+                  />
+                ))}
+              </SimpleGrid>
+            )}
+
+            {/* Files */}
+            {filteredFiles.length > 0 && (
+              <>
                 <SimpleGrid cols={{ base: 2, sm: 4, md: 6, lg: 8 }} spacing="md">
-                  {filteredFolders.map((folder) => (
-                    <FolderCard
-                      key={folder.id}
-                      folder={folder}
-                      onClick={() => store.setCurrentFolder(folder.id)}
-                      onRename={handleRenameFolder}
-                      onDelete={handleDeleteFolder}
+                  {filteredFiles.map((file) => (
+                    <MediaFileCard
+                      key={file.id}
+                      file={file}
+                      isSelected={store.selectedFileIds.includes(file.id)}
+                      onSelect={() => store.toggleFileSelection(file.id, multiple)}
+                      onPreview={() => fileActions.onPreview(file)}
+                      onEdit={() => fileActions.onEdit(file)}
+                      onCopy={() => fileActions.onCopy(file)}
+                      onDelete={() => fileActions.onDelete(file)}
+                      onMove={() => fileActions.onMove(file)}
                     />
                   ))}
                 </SimpleGrid>
-              )}
-
-              {/* Files */}
-              {filteredFiles.length > 0 && (
-                <>
-                  <SimpleGrid cols={{ base: 2, sm: 4, md: 6, lg: 8 }} spacing="md">
-                    {filteredFiles.map((file) => (
-                      <MediaFileCard
-                        key={file.id}
-                        file={file}
-                        isSelected={store.selectedFileIds.includes(file.id)}
-                        onSelect={() => store.toggleFileSelection(file.id, multiple)}
-                        onPreview={() => fileActions.onPreview(file)}
-                        onEdit={() => fileActions.onEdit(file)}
-                        onCopy={() => fileActions.onCopy(file)}
-                        onDelete={() => fileActions.onDelete(file)}
-                        onMove={() => fileActions.onMove(file)}
-                      />
-                    ))}
-                  </SimpleGrid>
-                  {store.loadingMore && (
-                    <Group justify="center" py="md">
-                      <IconRefresh size={16} className="animate-spin" />
-                      <Text size="sm" c="dimmed">Loading more...</Text>
-                    </Group>
-                  )}
-                </>
-              )}
-            </Stack>
-          )}
-        </ScrollArea.Autosize>
+                {store.hasMoreFiles && (
+                  <Group justify="center" py="md">
+                    <Button
+                      variant="light"
+                      onClick={store.loadMoreFiles}
+                      loading={store.loadingMore}
+                      disabled={store.loading}
+                    >
+                      Load More Files
+                    </Button>
+                  </Group>
+                )}
+                {!store.hasMoreFiles && filteredFiles.length > 0 && (
+                  <Text size="sm" c="dimmed" ta="center" py="md">
+                    All files loaded
+                  </Text>
+                )}
+              </>
+            )}
+          </Stack>
+        )}
 
         {/* Confirm buttons */}
         <Group justify="flex-end">

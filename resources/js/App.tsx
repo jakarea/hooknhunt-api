@@ -148,6 +148,7 @@ import WebsiteOrderDetail from "@/app/admin/website/orders/[id]/page"
 import Sliders from "@/app/admin/website/sliders/page"
 import CreateSlider from "@/app/admin/website/sliders/create/page"
 import EditSlider from "@/app/admin/website/sliders/[id]/edit/page"
+import WebsiteSettings from "@/app/admin/website/settings/page"
 
 import Login from "@/app/login/page"
 import ForgotPassword from "@/app/forgot-password/page"
@@ -323,6 +324,7 @@ function App() {
               <Route path="website/sliders" element={<Sliders />} />
               <Route path="website/sliders/create" element={<CreateSlider />} />
               <Route path="website/sliders/:id/edit" element={<EditSlider />} />
+              <Route path="website/settings" element={<WebsiteSettings />} />
             </Route>
           </Route>
 

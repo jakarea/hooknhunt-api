@@ -13,12 +13,30 @@ class CustomerController extends Controller
 
     public function index(Request $request)
     {
-        $query = Customer::latest();
+        $query = Customer::with(['salesOrders']);
+
+        // Filter by type (retail/wholesale)
+        if ($request->filled('type') && in_array($request->type, ['retail', 'wholesale'])) {
+            $query->where('type', $request->type);
+        }
+
+        // Search
         if ($request->search) {
             $query->where('name', 'like', "%{$request->search}%")
                   ->orWhere('phone', 'like', "%{$request->search}%");
         }
-        return $this->sendSuccess($query->paginate(20));
+
+        $customers = $query->latest()->paginate($request->per_page ?? 20);
+
+        // Add computed fields
+        $customers->getCollection()->transform(function ($customer) {
+            $customer->total_orders = $customer->salesOrders?->count() ?? 0;
+            $customer->total_spent = (float) ($customer->salesOrders?->sum('total_amount') ?? 0);
+            $customer->loyalty_points = 0; // TODO: Implement loyalty points system
+            return $customer;
+        });
+
+        return $this->sendSuccess($customers);
     }
 
     /**

@@ -12,9 +12,21 @@ class WebsiteOrderItem extends Model
 
     protected $guarded = ['id'];
 
+    protected $fillable = [
+        'sales_order_id',
+        'product_variant_id',
+        'quantity',
+        'unit_price',
+        'original_price',
+        'total_price',
+        'total_cost',
+        'weight',
+    ];
+
     protected $casts = [
         'weight' => 'decimal:2',
         'unit_price' => 'decimal:2',
+        'original_price' => 'decimal:2',
         'total_price' => 'decimal:2',
         'total_cost' => 'decimal:2',
     ];

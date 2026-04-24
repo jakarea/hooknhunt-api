@@ -25,6 +25,7 @@ import {
   Grid,
   SimpleGrid,
   Skeleton,
+  TagsInput,
   useMantineColorScheme
 } from '@mantine/core'
 import {
@@ -95,10 +96,14 @@ function SortableGalleryImage({
   image,
   index,
   onRemove,
+  isFeatured,
+  onSetFeatured,
 }: {
   image: GalleryImage
   index: number
   onRemove: (id: string) => void
+  isFeatured: boolean
+  onSetFeatured: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: image.id })
   const style: React.CSSProperties = {
@@ -111,7 +116,17 @@ function SortableGalleryImage({
 
   return (
     <Box ref={setNodeRef} style={style} {...attributes} {...listeners} w={80}>
-      <Paper shadow="sm" p={4} withBorder>
+      <Paper
+        shadow="sm"
+        p={4}
+        withBorder
+        onClick={onSetFeatured}
+        style={{
+          cursor: 'pointer',
+          border: isFeatured ? '2px solid #bc1215' : undefined,
+          backgroundColor: isFeatured ? '#fff5f5' : undefined
+        }}
+      >
         <Image
           src={image.url}
           alt={`Gallery ${index + 1}`}
@@ -119,11 +134,23 @@ function SortableGalleryImage({
           radius="md"
           fit="cover"
         />
+        {isFeatured && (
+          <Badge
+            pos="absolute"
+            top={4}
+            left={4}
+            size="sm"
+            variant="filled"
+            color="blue"
+          >
+            Featured
+          </Badge>
+        )}
       </Paper>
       <Badge
         pos="absolute"
         top={4}
-        left={4}
+        right={4}
         size="sm"
         variant="filled"
         color="gray"
@@ -132,7 +159,7 @@ function SortableGalleryImage({
       </Badge>
       <ActionIcon
         pos="absolute"
-        top={4}
+        bottom={4}
         right={4}
         color="red"
         variant="filled"
@@ -163,6 +190,7 @@ interface ProductVariant {
   weight: number
   stock: number
   sellerSku: string
+  sellerSkuManuallyEdited?: boolean
   thumbnail?: string | null
 }
 
@@ -221,10 +249,22 @@ export default function EditProductPage() {
   const [highlightsBn, setHighlightsBn] = useState<string[]>([])
   const [includesInTheBox, setIncludesInTheBox] = useState('')
 
+  // Track manually edited fields
+  const [manuallyEdited, setManuallyEdited] = useState({
+    defaultSellerSku: false
+  })
+
+  // Helper function to generate SKU from name and variant
+  const generateSku = (name: string, variant?: string): string => {
+    const cleanName = name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    const cleanVariant = variant?.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    return cleanVariant ? `${cleanName}-${cleanVariant}` : cleanName
+  }
+
   // SEO state
   const [seoTitle, setSeoTitle] = useState('')
   const [seoDescription, setSeoDescription] = useState('')
-  const [seoTags, setSeoTags] = useState('')
+  const [seoTags, setSeoTags] = useState<string[]>([])
 
   // Quill editor refs
   const descriptionQuillRef = useRef<any>(null)
@@ -1435,7 +1475,9 @@ export default function EditProductPage() {
         // SEO
         setSeoTitle(productData.seoTitle || productData.metaTitle || '')
         setSeoDescription(productData.seoDescription || productData.metaDescription || '')
-        setSeoTags(productData.seoTags || '')
+        // Handle seoTags: can be array or string from API
+        const tagsValue = productData.seoTags || productData.seo_tags || []
+        setSeoTags(Array.isArray(tagsValue) ? tagsValue : (typeof tagsValue === 'string' && tagsValue ? tagsValue.split(',').map(t => t.trim()).filter(t => t) : []))
 
         // Featured image
         if (productData.thumbnail || productData.featuredImage) {
@@ -1482,6 +1524,7 @@ export default function EditProductPage() {
               wholesale_id: variant.wholesaleId || variant.wholesale_id || null,
               name: variant.variantName || variant.variant_name || variant.name || '',
               sellerSku: variant.sku || variant.custom_sku || variant.sellerSku || '',
+              sellerSkuManuallyEdited: !!(variant.sku || variant.custom_sku || variant.sellerSku),
               purchaseCost: variant.purchaseCost || variant.purchase_cost || 0,
               price: variant.price || variant.retail_price || variant.retailPrice || 0,
               specialPrice: variant.offerPrice || variant.offer_price || variant.retail_offer_price || variant.retailOfferPrice || 0,
@@ -1508,6 +1551,7 @@ export default function EditProductPage() {
                   wholesale_id: null,
                   name: name,
                   sellerSku: '',
+                  sellerSkuManuallyEdited: false,
                   purchaseCost: 0,
                   price: 0,
                   specialPrice: 0,
@@ -1527,6 +1571,7 @@ export default function EditProductPage() {
                 existing.price = variant.price || 0
                 existing.specialPrice = variant.offer_price || variant.offerPrice || 0
                 existing.sellerSku = variant.sku || variant.custom_sku || ''
+                existing.sellerSkuManuallyEdited = !!(variant.sku || variant.custom_sku)
                 existing.purchaseCost = variant.purchase_cost || variant.purchaseCost || 0
                 existing.weight = variant.weight || 0
                 existing.stock = variant.current_stock || variant.stock || 0
@@ -1551,6 +1596,7 @@ export default function EditProductPage() {
               wholesale_id: variant.wholesale_id || variant.wholesaleId || null,
               name: variant.variantName || variant.variant_name || variant.name || '',
               sellerSku: variant.sku || variant.custom_sku || variant.sellerSku || '',
+              sellerSkuManuallyEdited: !!(variant.sku || variant.custom_sku || variant.sellerSku),
               purchaseCost: variant.purchase_cost || variant.purchaseCost || 0,
               price: variant.retail_price || variant.retailPrice || variant.price || 0,
               specialPrice: variant.retail_offer_price || variant.retailOfferPrice || variant.offer_price || variant.offerPrice || variant.specialPrice || 0,
@@ -1604,14 +1650,10 @@ export default function EditProductPage() {
     }
   }, [initialDataLoaded, isLoading, seoTitle, productName, wholesaleName])
 
-  // Auto-fill wholesale name ONLY if it's empty
+  // Auto-fill SEO title ONLY
   useEffect(() => {
     // Only auto-fill after initial data has been loaded
     if (productName && initialDataLoaded) {
-      if (!wholesaleName || wholesaleName === originalValues.current.productName) {
-        setWholesaleName(productName)
-      }
-
       const shouldUpdateSeo = !seoTitle ||
         seoTitle === originalValues.current.productName ||
         seoTitle === originalValues.current.seoTitle
@@ -1674,7 +1716,8 @@ export default function EditProductPage() {
       wholesaleMoq: defaultValues.wholesaleMoq,
       weight: defaultValues.weight,
       stock: defaultValues.stock,
-      sellerSku: defaultValues.sellerSku,
+      sellerSku: defaultValues.sellerSku || '',
+      sellerSkuManuallyEdited: !!defaultValues.sellerSku,
       thumbnail: null
     }
     setVariants(prev => [...prev, newVariant])
@@ -1701,11 +1744,19 @@ export default function EditProductPage() {
           updated.price = value * 1.5
           updated.wholesalePrice = value * 1.2
         }
+        // Auto-generate SKU when variant name changes and SKU hasn't been manually edited
+        if (field === 'name' && !v.sellerSkuManuallyEdited) {
+          updated.sellerSku = generateSku(wholesaleName || productName || '', value)
+        }
+        // Mark sellerSku as manually edited when user changes it directly
+        if (field === 'sellerSku' && value !== v.sellerSku) {
+          updated.sellerSkuManuallyEdited = true
+        }
         return updated
       }
       return v
     }))
-  }, [])
+  }, [wholesaleName, productName])
 
   const handleApplyDefaultsToAll = useCallback(() => {
     const pc = typeof defaultValues.purchaseCost === 'number' ? defaultValues.purchaseCost : parseFloat(String(defaultValues.purchaseCost)) || 0
@@ -1823,7 +1874,7 @@ export default function EditProductPage() {
         includesInTheBoxBn: includesInTheBoxBn.trim() ? includesInTheBoxBn.trim() : null,
         seoTitle,
         seoDescription,
-        seoTags,
+        seoTags: seoTags.length > 0 ? seoTags.join(', ') : null,
         featuredImage: featuredImage?.mediaId ?? null,
         galleryImages: galleryImages.map(img => img.mediaId),
         variants: variants.map(v => ({
@@ -1842,6 +1893,9 @@ export default function EditProductPage() {
           thumbnail: v.thumbnail || null
         }))
       }
+
+      console.log('📦 Update payload prepared:', payload)
+      console.log('🖼️ Variant thumbnails:', payload.variants.map(v => ({ name: v.name, thumbnail: v.thumbnail })))
 
       // Call API - PUT for update
       const response = await apiMethods.put(`/catalog/products/${id}`, payload)
@@ -2007,7 +2061,7 @@ export default function EditProductPage() {
         includesInTheBoxBn: includesInTheBoxBn.trim() ? includesInTheBoxBn.trim() : null,
         seoTitle,
         seoDescription,
-        seoTags,
+        seoTags: seoTags.length > 0 ? seoTags.join(', ') : null,
         featuredImage: featuredImage?.mediaId ?? null,
         galleryImages: galleryImages.map(img => img.mediaId),
         variants: variants.map(v => ({
@@ -2241,7 +2295,21 @@ export default function EditProductPage() {
                         label={t('catalog.productsCreate.wholesaleName') || 'Wholesale Name'}
                         placeholder={t('catalog.productsCreate.wholesaleNamePlaceholder') || 'Enter wholesale name'}
                         value={wholesaleName}
-                        onChange={(value) => setWholesaleName(typeof value === 'string' ? value : value?.currentTarget?.value || '')}
+                        onChange={(value) => {
+                          const newValue = typeof value === 'string' ? value : value?.currentTarget?.value || ''
+                          setWholesaleName(newValue)
+                          // Update default sellerSku if not manually edited
+                          if (!manuallyEdited.defaultSellerSku) {
+                            setDefaultValues(prev => ({ ...prev, sellerSku: generateSku(newValue) }))
+                          }
+                          // Update variant SKUs that haven't been manually edited
+                          setVariants(prev => prev.map(v => {
+                            if (!v.sellerSkuManuallyEdited && v.name) {
+                              return { ...v, sellerSku: generateSku(newValue, v.name) }
+                            }
+                            return v
+                          }))
+                        }}
                         onFocus={collapseSidebarIfNeeded}
                         maxLength={255}
                         required
@@ -2297,7 +2365,7 @@ export default function EditProductPage() {
 
                     <Divider />
 
-                    {/* Featured Image Section */}
+                    {/* Featured Image */}
                     <Group justify="space-between">
                       <Group>
                         <IconPhoto size={20} className="text-blue-600" />
@@ -2305,14 +2373,17 @@ export default function EditProductPage() {
                           {t('catalog.productsCreate.featuredImage') || 'Featured Image'}
                         </Text>
                       </Group>
-                      <Button
-                        size="xs"
+                      <ActionIcon
                         variant="light"
-                        leftSection={<IconUpload size={14} />}
-                        onClick={handleSelectFeaturedImage}
+                        size="lg"
+                        onClick={() => {
+                          openSingleSelect((mediaFile: MediaFile) => {
+                            setFeaturedImage({ mediaId: mediaFile.id, url: mediaFile.url })
+                          }, featuredImage ? [featuredImage.mediaId] : [])
+                        }}
                       >
-                        {t('catalog.productsCreate.selectFeaturedImage') || 'Select Image'}
-                      </Button>
+                        <IconUpload size={18} />
+                      </ActionIcon>
                     </Group>
 
                     {!featuredImage ? (
@@ -2320,14 +2391,26 @@ export default function EditProductPage() {
                         withBorder
                         p="xl"
                         className="border-dashed"
-                        h={200}
+                        h={150}
                         display="flex"
                         style={{ alignItems: 'center', justifyContent: 'center' }}
                       >
                         <Stack align="center" gap="sm">
                           <IconPhoto size={48} className="text-gray-400" />
                           <Text c="dimmed">{t('catalog.productsCreate.noFeaturedImageSelected') || 'No featured image selected'}</Text>
-                          <Text size="xs" c="dimmed">{t('catalog.productsCreate.featuredImageDescription') || 'Select from media library'}</Text>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            leftSection={<IconUpload size={14} />}
+                            onClick={() => {
+                              openSingleSelect((mediaFile: MediaFile) => {
+                                setFeaturedImage({ mediaId: mediaFile.id, url: mediaFile.url })
+                              }, featuredImage ? [featuredImage.mediaId] : [])
+                            }}
+                          >
+                            {t('catalog.productsCreate.selectFeaturedImage') || 'Select Image'}
+                          </Button>
+                          <Text size="xs" c="dimmed">{t('catalog.productsCreate.featuredImageDescription') || 'Or click on a gallery image to set it as featured'}</Text>
                         </Stack>
                       </Paper>
                     ) : (
@@ -2348,7 +2431,7 @@ export default function EditProductPage() {
                           color="red"
                           variant="filled"
                           size="sm"
-                          onClick={handleRemoveFeaturedImage}
+                          onClick={() => setFeaturedImage(null)}
                         >
                           <IconX size={16} />
                         </ActionIcon>
@@ -2374,7 +2457,7 @@ export default function EditProductPage() {
                           {t('catalog.productsCreate.galleryImages') || 'Gallery Images'}
                         </Text>
                         <Badge size="sm" variant="light">
-                          {galleryImages.length}/6
+                          {galleryImages.length}
                         </Badge>
                       </Group>
                       <Button
@@ -2382,7 +2465,7 @@ export default function EditProductPage() {
                         variant="light"
                         leftSection={<IconUpload size={14} />}
                         onClick={handleSelectGalleryImages}
-                        disabled={galleryImages.length >= 6}
+                        disabled={false}
                       >
                         {t('catalog.productsCreate.addGalleryImages') || 'Add Images'}
                       </Button>
@@ -2420,6 +2503,8 @@ export default function EditProductPage() {
                                 image={image}
                                 index={index}
                                 onRemove={handleRemoveGalleryImage}
+                                isFeatured={featuredImage?.mediaId === image.mediaId}
+                                onSetFeatured={() => setFeaturedImage({ mediaId: image.mediaId, url: image.url })}
                               />
                             ))}
                           </Group>
@@ -2508,7 +2593,12 @@ export default function EditProductPage() {
                             <TextInput
                               placeholder={t('catalog.productsCreate.sellerSkuPlaceholder') || 'SKU'}
                               value={defaultValues.sellerSku}
-                              onChange={(value) => setDefaultValues(prev => ({ ...prev, sellerSku: typeof value === 'string' ? value : value?.currentTarget?.value || '' }))}
+                              onChange={(value) => {
+                                if (!manuallyEdited.defaultSellerSku) {
+                                  setManuallyEdited(prev => ({ ...prev, defaultSellerSku: true }))
+                                }
+                                setDefaultValues(prev => ({ ...prev, sellerSku: typeof value === 'string' ? value : value?.currentTarget?.value || '' }))
+                              }}
                               onFocus={collapseSidebarIfNeeded}
                               size="xs"
                             />
@@ -2547,24 +2637,6 @@ export default function EditProductPage() {
                             </Text>
                           </Stack>
 
-                          {/* Wholesale Price */}
-                          <Stack gap={4}>
-                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.wholesalePrice') || 'WS PRICE'}</Text>
-                            <NumberInput
-                              placeholder="0"
-                              value={defaultValues.wholesalePrice}
-                              onChange={(value) => setDefaultValues(prev => ({ ...prev, wholesalePrice: typeof value === 'number' ? value : prev.wholesalePrice }))}
-                              onFocus={collapseSidebarIfNeeded}
-                              min={0}
-                              step={0.01}
-                              decimalScale={2}
-                              size="xs"
-                            />
-                            <Text size="xs" c={defaultValues.wholesalePrice - defaultValues.purchaseCost < 0 ? 'red' : 'green'}>
-                              {defaultValues.wholesalePrice - defaultValues.purchaseCost > 0 ? '+' : ''}{(defaultValues.wholesalePrice - defaultValues.purchaseCost).toFixed(2)} ({defaultValues.purchaseCost > 0 ? ((defaultValues.wholesalePrice - defaultValues.purchaseCost) / defaultValues.purchaseCost * 100).toFixed(0) : 0}%)
-                            </Text>
-                          </Stack>
-
                           {/* Retail Offer Price */}
                           <Stack gap={4}>
                             <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.retailOfferPrice') || 'R. OFFER'}</Text>
@@ -2584,6 +2656,24 @@ export default function EditProductPage() {
                                 {(defaultValues.specialPrice - defaultValues.purchaseCost) > 0 ? '+' : ''}{(defaultValues.specialPrice - defaultValues.purchaseCost).toFixed(2)} ({defaultValues.purchaseCost > 0 ? ((defaultValues.specialPrice - defaultValues.purchaseCost) / defaultValues.purchaseCost * 100).toFixed(0) : 0}%)
                               </Text>
                             )}
+                          </Stack>
+
+                          {/* Wholesale Price */}
+                          <Stack gap={4}>
+                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.wholesalePrice') || 'WS PRICE'}</Text>
+                            <NumberInput
+                              placeholder="0"
+                              value={defaultValues.wholesalePrice}
+                              onChange={(value) => setDefaultValues(prev => ({ ...prev, wholesalePrice: typeof value === 'number' ? value : prev.wholesalePrice }))}
+                              onFocus={collapseSidebarIfNeeded}
+                              min={0}
+                              step={0.01}
+                              decimalScale={2}
+                              size="xs"
+                            />
+                            <Text size="xs" c={defaultValues.wholesalePrice - defaultValues.purchaseCost < 0 ? 'red' : 'green'}>
+                              {defaultValues.wholesalePrice - defaultValues.purchaseCost > 0 ? '+' : ''}{(defaultValues.wholesalePrice - defaultValues.purchaseCost).toFixed(2)} ({defaultValues.purchaseCost > 0 ? ((defaultValues.wholesalePrice - defaultValues.purchaseCost) / defaultValues.purchaseCost * 100).toFixed(0) : 0}%)
+                            </Text>
                           </Stack>
 
                           {/* Wholesale Offer Price */}
@@ -2673,8 +2763,8 @@ export default function EditProductPage() {
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.sellerSku') || 'SKU'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.purchaseCost') || 'COST'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.retailPrice') || 'RETAIL'}</Text>
-                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.wholesalePrice') || 'WS PRICE'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.retailOfferPrice') || 'R. OFFER'}</Text>
+                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.wholesalePrice') || 'WS PRICE'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.wholesaleOfferPrice') || 'WS OFFER'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.wholesaleMoq') || 'MOQ'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.weight') || 'WT'}</Text>
@@ -2757,26 +2847,6 @@ export default function EditProductPage() {
                                   )}
                                 </Stack>
 
-                                {/* Wholesale Price */}
-                                <Stack gap={4}>
-                                  <NumberInput
-                                    placeholder="0"
-                                    value={variant.wholesalePrice}
-                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'wholesalePrice', value)}
-                                    onFocus={collapseSidebarIfNeeded}
-                                    min={0}
-                                    step={0.01}
-                                    decimalScale={2}
-                                    size="sm"
-                                    error={errors[`variant.${index}.wholesalePrice`]}
-                                  />
-                                  {variant.wholesalePrice > 0 && (
-                                    <Text size="xs" c={(variant.wholesalePrice - variant.purchaseCost) < 0 ? 'red' : 'green'}>
-                                      {(variant.wholesalePrice - variant.purchaseCost) > 0 ? '+' : ''}{(variant.wholesalePrice - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.wholesalePrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
-                                    </Text>
-                                  )}
-                                </Stack>
-
                                 {/* Retail Offer Price */}
                                 <Stack gap={4}>
                                   <NumberInput
@@ -2794,6 +2864,26 @@ export default function EditProductPage() {
                                   {variant.specialPrice > 0 && (
                                     <Text size="xs" c={(variant.specialPrice - variant.purchaseCost) < 0 ? 'red' : 'green'}>
                                       {(variant.specialPrice - variant.purchaseCost) > 0 ? '+' : ''}{(variant.specialPrice - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.specialPrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
+                                    </Text>
+                                  )}
+                                </Stack>
+
+                                {/* Wholesale Price */}
+                                <Stack gap={4}>
+                                  <NumberInput
+                                    placeholder="0"
+                                    value={variant.wholesalePrice}
+                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'wholesalePrice', value)}
+                                    onFocus={collapseSidebarIfNeeded}
+                                    min={0}
+                                    step={0.01}
+                                    decimalScale={2}
+                                    size="sm"
+                                    error={errors[`variant.${index}.wholesalePrice`]}
+                                  />
+                                  {variant.wholesalePrice > 0 && (
+                                    <Text size="xs" c={(variant.wholesalePrice - variant.purchaseCost) < 0 ? 'red' : 'green'}>
+                                      {(variant.wholesalePrice - variant.purchaseCost) > 0 ? '+' : ''}{(variant.wholesalePrice - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.wholesalePrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
                                     </Text>
                                   )}
                                 </Stack>
@@ -3080,7 +3170,7 @@ export default function EditProductPage() {
                     <Group>
                       <IconTag size={20} className="text-purple-600" />
                       <Text className="text-base md:text-lg" fw={600}>
-                        {t('catalog.productsCreate.seoSection') || 'SEO (Search Engine Optimization)'}
+                        {t('catalog.productsCreate.seoSection') || 'Search Keyword'}
                       </Text>
                     </Group>
 
@@ -3136,16 +3226,18 @@ export default function EditProductPage() {
                           {/* SEO Tags */}
                           <Stack gap="sm">
                             <Text size="sm" fw={500}>
-                              {t('catalog.productsCreate.seoTags') || 'SEO Tags'}
+                              {t('catalog.productsCreate.seoTags') || 'Search Keyword'}
                             </Text>
-                            <TextInput
-                              placeholder={t('catalog.productsCreate.seoTagsPlaceholder') || 'product, category, brand, feature, benefit'}
+                            <TagsInput
+                              placeholder={t('catalog.productsCreate.seoTagsPlaceholder') || 'Enter search keyword'}
                               value={seoTags}
-                              onChange={(value) => setSeoTags(typeof value === 'string' ? value : value?.currentTarget?.value || '')}
+                              onChange={setSeoTags}
                               onFocus={collapseSidebarIfNeeded}
+                              clearable
+                              splitChars={[',', ' ']}
                             />
                             <Text size="xs" c="dimmed">
-                              {t('catalog.productsCreate.seoTagsTip') || 'Comma-separated search keywords. Examples: product type, features, benefits, use cases.'}
+                              {t('catalog.productsCreate.seoTagsTip') || 'Search keyword helps users find your product easily'}
                             </Text>
                           </Stack>
                         </Stack>

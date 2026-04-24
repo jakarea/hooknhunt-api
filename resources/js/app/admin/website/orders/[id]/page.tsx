@@ -1,32 +1,33 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   Box, Stack, Group, Title, Text, Badge, Button, Card, SimpleGrid, Grid,
   Select, NumberInput, Divider, Table, ActionIcon, Skeleton, TextInput,
-  Image, Drawer, LoadingOverlay, Textarea, Progress,
+  Image, Drawer, LoadingOverlay, Textarea, Progress, Anchor,
 } from '@mantine/core'
 import {
   IconArrowLeft, IconPackage, IconUser, IconCreditCard,
   IconMapPin, IconClock, IconShoppingCart, IconTruckDelivery, IconExternalLink,
   IconTrash, IconPlus, IconSearch, IconReplace, IconChevronDown,
-  IconMessage, IconSend,
+  IconMessage, IconSend, IconPrinter,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { modals } from '@mantine/modals'
 import {
   getWebsiteOrder, updateWebsiteOrderStatus, updateWebsiteOrderPayment,
-  updateWebsiteOrder, sendOrderToCourier, syncCourierStatus,
+  updateWebsiteOrder,
   addWebsiteOrderItem, updateWebsiteOrderItem, removeWebsiteOrderItem,
   searchProductVariants, getProductVariants,
   searchProducts, getTopSellingProducts,
   sendOrderSms,
-  formatCurrency, statusColors, statusLabels, paymentStatusColors,
+  formatCurrency, statusColors, statusLabels, paymentStatusColors, decodeHtmlEntities,
   type WebsiteOrderDetail, type WebsiteOrderStatus, type PaymentStatus,
   type ProductVariantSearchResult,
   type ProductSearchResult,
 } from '@/utils/websiteApi'
+import { useCourierStore } from '@/stores/courierStore'
 
 type OrderData = WebsiteOrderDetail & {
   channel?: string
@@ -55,8 +56,6 @@ export default function WebsiteOrderDetailPage() {
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null)
   const [changeNote, setChangeNote] = useState('')
   const [savingNote, setSavingNote] = useState(false)
-  const [sendingCourier, setSendingCourier] = useState(false)
-  const [syncingCourier, setSyncingCourier] = useState(false)
   const [editingDiscount, setEditingDiscount] = useState(false)
   const [discountValue, setDiscountValue] = useState(0)
   const [savingDiscount, setSavingDiscount] = useState(false)
@@ -83,6 +82,7 @@ export default function WebsiteOrderDetailPage() {
   const [changingVariantId, setChangingVariantId] = useState<number | null>(null)
   const [smsMessage, setSmsMessage] = useState('')
   const [sendingSms, setSendingSms] = useState(false)
+  const [printDialogOpen, setPrintDialogOpen] = useState(false)
 
   const fetchOrder = useCallback(async () => {
     if (!id) return
@@ -219,39 +219,25 @@ export default function WebsiteOrderDetailPage() {
       labels: { confirm: 'Send', cancel: 'Cancel' },
       confirmProps: { color: 'blue' },
       onConfirm: async () => {
-        try {
-          setSendingCourier(true)
-          const res = await sendOrderToCourier(Number(id))
-          if (res.success) {
-            setOrder(res.data)
-            await appendChangeNote()
-            notifications.show({ title: 'Success', message: 'Order sent to Steadfast', color: 'green' })
-          } else {
-            notifications.show({ title: 'Error', message: res.message || 'Failed to send', color: 'red' })
-          }
-        } catch (err: any) {
-          notifications.show({ title: 'Error', message: err?.response?.data?.message || 'Failed to send to courier', color: 'red' })
-        } finally {
-          setSendingCourier(false)
+        const res = await useCourierStore.getState().sendToCourier(Number(id))
+        if (res.success) {
+          setOrder(res.data)
+          await appendChangeNote()
+          notifications.show({ title: 'Success', message: 'Order sent to Steadfast', color: 'green' })
+        } else {
+          notifications.show({ title: 'Error', message: res.message || 'Failed to send', color: 'red' })
         }
       },
     })
   }
 
   const handleSyncCourier = async () => {
-    try {
-      setSyncingCourier(true)
-      const res = await syncCourierStatus(Number(id))
-      if (res.success) {
-        setOrder(res.data)
-        notifications.show({ title: 'Synced', message: 'Courier status updated', color: 'green' })
-      } else {
-        notifications.show({ title: 'Error', message: res.message || 'Sync failed', color: 'red' })
-      }
-    } catch (err: any) {
-      notifications.show({ title: 'Error', message: err?.response?.data?.message || 'Failed to sync', color: 'red' })
-    } finally {
-      setSyncingCourier(false)
+    const res = await useCourierStore.getState().syncStatus(Number(id))
+    if (res.success) {
+      setOrder(res.data)
+      notifications.show({ title: 'Synced', message: 'Courier status updated', color: 'green' })
+    } else {
+      notifications.show({ title: 'Error', message: res.message || 'Sync failed', color: 'red' })
     }
   }
 
@@ -474,6 +460,8 @@ export default function WebsiteOrderDetailPage() {
   }
 
   const isItemEditable = order?.isEditable && !['shipped', 'delivered', 'completed', 'cancelled'].includes(order?.status)
+  const isSending = useCourierStore((state) => state.isSending(Number(id)))
+  const isSyncing = useCourierStore((state) => state.isSyncing(Number(id)))
 
   if (loading) {
     return (
@@ -506,6 +494,8 @@ export default function WebsiteOrderDetailPage() {
   const orderDate = new Date(order.timestamps?.createdAt || (order as any).createdAt)
   const customerSummary = (order.customerInfo as any)?.summary
   const shipping = order.shipping
+  const totalWeight = order.items?.reduce((sum, item) => sum + ((item.variantWeight || 0) * item.quantity), 0) || 0
+  const totalProfit = order.items?.reduce((sum, item) => sum + (item.profit || 0), 0) || 0
 
   return (
     <Box p={{ base: 'md', md: 'xl' }}>
@@ -531,6 +521,14 @@ export default function WebsiteOrderDetailPage() {
               </Text>
             </div>
           </Group>
+          <Button
+            size="sm"
+            variant="light"
+            leftSection={<IconPrinter size={16} />}
+            onClick={() => setPrintDialogOpen(true)}
+          >
+            Print Invoice
+          </Button>
         </Group>
 
         {/* Status Update Card */}
@@ -738,16 +736,16 @@ export default function WebsiteOrderDetailPage() {
                 <Text size="xs" c="dimmed">Due</Text>
                 <Text size="xs" c={order.dueAmount > 0 ? 'red' : 'dimmed'}>{formatCurrency(order.dueAmount)}</Text>
               </Group>
-              {order.totalWeight > 0 && (
+              {totalWeight > 0 && (
                 <Group justify="space-between" px="xs" py={4} style={{ backgroundColor: 'var(--mantine-color-gray-0)', borderRadius: 4 }}>
                   <Text size="xs" c="dimmed" fw={500}>Weight</Text>
-                  <Text size="xs" fw={600}>{order.totalWeight}g</Text>
+                  <Text size="xs" fw={600}>{totalWeight}g</Text>
                 </Group>
               )}
-              {(order as any).totalProfit !== undefined && (
-                <Group justify="space-between" px="xs" py={4} style={{ backgroundColor: (order as any).totalProfit >= 0 ? 'var(--mantine-color-green-0)' : 'var(--mantine-color-red-0)', borderRadius: 4 }}>
-                  <Text size="xs" fw={500} c={(order as any).totalProfit >= 0 ? 'green.8' : 'red.8'}>Profit</Text>
-                  <Text size="xs" fw={700} c={(order as any).totalProfit >= 0 ? 'green.8' : 'red.8'}>{formatCurrency((order as any).totalProfit)}</Text>
+              {totalProfit !== undefined && (
+                <Group justify="space-between" px="xs" py={4} style={{ backgroundColor: totalProfit >= 0 ? 'var(--mantine-color-green-0)' : 'var(--mantine-color-red-0)', borderRadius: 4 }}>
+                  <Text size="xs" fw={500} c={totalProfit >= 0 ? 'green.8' : 'red.8'}>Profit</Text>
+                  <Text size="xs" fw={700} c={totalProfit >= 0 ? 'green.8' : 'red.8'}>{formatCurrency(totalProfit)}</Text>
                 </Group>
               )}
             </Stack>
@@ -757,16 +755,30 @@ export default function WebsiteOrderDetailPage() {
           <Card withBorder p="md">
             <Group justify="space-between" align="flex-start">
               <Text fw={600} size="sm">Customer</Text>
-              {customerSummary && (
-                <Badge
-                  size="lg"
-                  variant="light"
-                  color={customerSummary.rating >= 4 ? 'green' : customerSummary.rating >= 2.5 ? 'yellow' : 'red'}
-                  style={{ minWidth: 42, justifyContent: 'center' }}
-                >
-                  {customerSummary.rating}/5
-                </Badge>
-              )}
+              <Group gap="xs">
+                {customerSummary && (
+                  <Badge
+                    size="lg"
+                    variant="light"
+                    color={customerSummary.rating >= 4 ? 'green' : customerSummary.rating >= 2.5 ? 'yellow' : 'red'}
+                    style={{ minWidth: 42, justifyContent: 'center' }}
+                  >
+                    {customerSummary.rating}/5
+                  </Badge>
+                )}
+                {order.customerInfo?.id && (
+                  <ActionIcon
+                    size="sm"
+                    variant="light"
+                    color="blue"
+                    component={Link}
+                    to={`/crm/customers/${order.customerInfo.id}`}
+                    aria-label="View Customer Profile"
+                  >
+                    <IconExternalLink size={14} />
+                  </ActionIcon>
+                )}
+              </Group>
             </Group>
             {(order.customerInfo || (order as any).customer) ? (
               <Stack gap={4} mt="xs">
@@ -801,6 +813,18 @@ export default function WebsiteOrderDetailPage() {
                       <Text size="xs" fw={500}>{formatCurrency(customerSummary.totalSpent)}</Text>
                     </Group>
                   </>
+                )}
+                {order.customerInfo?.id && (
+                  <Button
+                    size="xs"
+                    variant="light"
+                    leftSection={<IconUser size={14} />}
+                    component={Link}
+                    to={`/crm/customers/${order.customerInfo.id}`}
+                    mt="xs"
+                  >
+                    View Customer Profile
+                  </Button>
                 )}
               </Stack>
             ) : (
@@ -857,7 +881,7 @@ export default function WebsiteOrderDetailPage() {
                       variant="outline"
                       leftSection={<IconExternalLink size={12} />}
                       component="a"
-                      href={`https://portal.steadfast.com.bd/tracking?id=${order.trackingCode}`}
+                      href={order.trackingLink || `https://steadfast.com.bd/tl/${order.trackingCode}`}
                       target="_blank"
                     >
                       Track Order
@@ -865,7 +889,7 @@ export default function WebsiteOrderDetailPage() {
                     <Button
                       size="xs"
                       variant="light"
-                      loading={syncingCourier}
+                      loading={isSyncing}
                       onClick={handleSyncCourier}
                     >
                       Sync Status
@@ -880,7 +904,7 @@ export default function WebsiteOrderDetailPage() {
                     color="blue"
                     fullWidth
                     leftSection={<IconTruckDelivery size={14} />}
-                    loading={sendingCourier}
+                    loading={isSending}
                     onClick={handleSendToCourier}
                   >
                     Send to Steadfast
@@ -921,21 +945,39 @@ export default function WebsiteOrderDetailPage() {
                     <Table.Td>
                       <Group gap="sm" wrap="nowrap">
                         {item.thumbnail ? (
-                          <Image src={item.thumbnail} alt={item.productName} w={40} h={40} radius={4} fit="contain" bg="gray.0" />
+                          <Image src={item.thumbnail} alt={decodeHtmlEntities(item.productName)} w={40} h={40} radius={4} fit="contain" bg="gray.0" />
                         ) : (
                           <Box w={40} h={40} bg="gray.1" style={{ borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <IconPackage size={18} color="gray" />
                           </Box>
                         )}
                         <div>
-                          <Text size="sm" fw={500}>{item.productName}</Text>
-                          {item.wholesaleName && <Text size="xs" c="blue">{item.wholesaleName}</Text>}
+                          <Anchor
+                            href={`https://hooknhunt.com/products/${item.slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            size="sm"
+                            fw={500}
+                          >
+                            {decodeHtmlEntities(item.productName)}
+                          </Anchor>
+                          <br />
+                          {item.wholesaleName && (
+                            <Anchor
+                              component={Link}
+                              to={`/catalog/products/${item.productId}`}
+                              size="xs"
+                              c="blue"
+                            >
+                              {decodeHtmlEntities(item.wholesaleName)}
+                            </Anchor>
+                          )}
                         </div>
                       </Group>
                     </Table.Td>
                     <Table.Td>
                       <Group gap="xs" wrap="nowrap">
-                        <Text size="xs">{item.variantName}</Text>
+                        <Text size="xs">{decodeHtmlEntities(item.variantName)}</Text>
                         {isItemEditable && (
                           <ActionIcon size="xs" variant="subtle" color="blue" onClick={() => handleOpenChangeVariant(item.id, item.productId, item.productVariantId)}>
                             <IconReplace size={12} />
@@ -972,8 +1014,17 @@ export default function WebsiteOrderDetailPage() {
                         </Text>
                       )}
                     </Table.Td>
-                    <Table.Td><Text size="xs">{item.weight || 0}g</Text></Table.Td>
-                    <Table.Td><Text size="sm">{formatCurrency(item.unitPrice)}</Text></Table.Td>
+                    <Table.Td><Text size="xs">{item.variantWeight || 0}g</Text></Table.Td>
+                    <Table.Td>
+                      {(item.originalPrice && item.originalPrice > item.unitPrice) ? (
+                        <Group gap={4} wrap="nowrap">
+                          <Text size="sm" c="red" fw={500}>{formatCurrency(item.unitPrice)}</Text>
+                          <Text size="xs" td="line-through" c="dimmed">{formatCurrency(item.originalPrice)}</Text>
+                        </Group>
+                      ) : (
+                        <Text size="sm">{formatCurrency(item.unitPrice)}</Text>
+                      )}
+                    </Table.Td>
                     <Table.Td><Text size="sm" fw={500}>{formatCurrency(item.totalPrice)}</Text></Table.Td>
                     {isItemEditable && (
                       <Table.Td>
@@ -1001,23 +1052,40 @@ export default function WebsiteOrderDetailPage() {
                   <Group justify="space-between" wrap="nowrap">
                     <Group gap="sm" wrap="nowrap">
                       {item.thumbnail ? (
-                        <Image src={item.thumbnail} alt={item.productName} w={36} h={36} radius={4} fit="contain" bg="gray.0" />
+                        <Image src={item.thumbnail} alt={decodeHtmlEntities(item.productName)} w={36} h={36} radius={4} fit="contain" bg="gray.0" />
                       ) : (
                         <Box w={36} h={36} bg="gray.1" style={{ borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <IconPackage size={16} color="gray" />
                         </Box>
                       )}
                       <div>
-                        <Text size="sm" fw={500}>{item.productName}</Text>
+                        <Anchor
+                          href={`https://hooknhunt.com/products/${item.slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          size="sm"
+                          fw={500}
+                        >
+                          {decodeHtmlEntities(item.productName)}
+                        </Anchor>
                         <Group gap="xs" wrap="nowrap">
-                          <Text size="xs" c="dimmed">{item.variantName}</Text>
+                          <Text size="xs" c="dimmed">{decodeHtmlEntities(item.variantName)}</Text>
                           {isItemEditable && (
                             <ActionIcon size="xs" variant="subtle" color="blue" onClick={() => handleOpenChangeVariant(item.id, item.productId, item.productVariantId)}>
                               <IconReplace size={12} />
                             </ActionIcon>
                           )}
                         </Group>
-                        {item.wholesaleName && <Text size="xs" c="blue">{item.wholesaleName}</Text>}
+                        {item.wholesaleName && (
+                          <Anchor
+                            component={Link}
+                            to={`/catalog/products/${item.productId}`}
+                            size="xs"
+                            c="blue"
+                          >
+                            {decodeHtmlEntities(item.wholesaleName)}
+                          </Anchor>
+                        )}
                       </div>
                     </Group>
                     <Group gap="xs" wrap="nowrap">
@@ -1045,7 +1113,12 @@ export default function WebsiteOrderDetailPage() {
                             style={isItemEditable ? { cursor: 'pointer', borderBottom: '1px dashed var(--mantine-color-gray-4)' } : undefined}
                             onClick={() => isItemEditable && handleStartEditQty(item.id, item.quantity)}
                           >
-                            {item.quantity} x {formatCurrency(item.unitPrice)}
+                            {item.quantity} x {(item.originalPrice && item.originalPrice > item.unitPrice) ? (
+                              <span>
+                                <span style={{ color: '#fa5252' }}>{formatCurrency(item.unitPrice)}</span>
+                                <span style={{ textDecoration: 'line-through', marginLeft: 4, color: '#999' }}>{formatCurrency(item.originalPrice)}</span>
+                              </span>
+                            ) : formatCurrency(item.unitPrice)}
                           </Text>
                         )}
                       </div>
@@ -1114,8 +1187,8 @@ export default function WebsiteOrderDetailPage() {
                     </Box>
                   )}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <Text size="sm" fw={500} truncate>{product.name}</Text>
-                    {product.wholesaleName && <Text size="xs" c="blue" truncate>{product.wholesaleName}</Text>}
+                    <Text size="sm" fw={500} truncate>{decodeHtmlEntities(product.name)}</Text>
+                    {product.wholesaleName && <Text size="xs" c="blue" truncate>{decodeHtmlEntities(product.wholesaleName)}</Text>}
                   </div>
                   <Group gap="xs" wrap="nowrap">
                     {product.totalSold != null && (
@@ -1148,7 +1221,7 @@ export default function WebsiteOrderDetailPage() {
                           style={{ borderBottom: '1px solid var(--mantine-color-gray-1)', backgroundColor: 'var(--mantine-color-gray-0)' }}
                         >
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <Text size="xs" fw={500}>{variant.variantName || variant.sku}</Text>
+                            <Text size="xs" fw={500}>{decodeHtmlEntities(variant.variantName || variant.sku)}</Text>
                             <Group gap="xs">
                               <Text size="xs" fw={500}>{formatCurrency(variant.price)}</Text>
                               <Text size="xs" c="dimmed">{variant.weight}g</Text>
@@ -1221,7 +1294,7 @@ export default function WebsiteOrderDetailPage() {
                         </Box>
                       )}
                       <div style={{ minWidth: 0 }}>
-                        <Text size="sm" fw={500} truncate>{variant.variantName || variant.sku}</Text>
+                        <Text size="sm" fw={500} truncate>{decodeHtmlEntities(variant.variantName || variant.sku)}</Text>
                         <Group gap="xs">
                           <Text size="xs" fw={500}>{formatCurrency(variant.price)}</Text>
                           <Text size="xs" c="dimmed">{variant.weight}g</Text>
@@ -1251,7 +1324,343 @@ export default function WebsiteOrderDetailPage() {
             })}
           </Stack>
         </Drawer>
+
+        {/* Print Invoice Modal */}
+        {printDialogOpen && (
+          <iframe
+            srcDoc={generateInvoiceHTML(order)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100vw',
+              height: '100vh',
+              border: 'none',
+              zIndex: 9999,
+            }}
+            onLoad={(e) => {
+              setTimeout(() => {
+                e.target.contentWindow?.print()
+                setPrintDialogOpen(false)
+              }, 500)
+            }}
+          />
+        )}
       </Stack>
     </Box>
   )
+}
+
+// Generate professional invoice HTML for printing (optimized for thermal/pad printing)
+function generateInvoiceHTML(order: OrderData): string {
+  const orderDate = new Date(order.timestamps?.createdAt || (order as any).createdAt)
+  const shipping = order.shipping
+  const items = order.items || []
+
+  const totalWeight = items.reduce((sum, item) => sum + ((item.variantWeight || 0) * item.quantity), 0)
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Invoice #${order.invoiceNo}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    @page {
+      margin-top: 25mm;
+      margin-bottom: 25mm;
+      margin-left: 15mm;
+      margin-right: 15mm;
+      size: A4;
+    }
+    body {
+      font-family: 'Arial', sans-serif;
+      font-size: 13px;
+      color: #000;
+      line-height: 1.4;
+      background: white;
+    }
+    @media print {
+      body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .invoice {
+        padding-top: 10px;
+        padding-bottom: 10px;
+      }
+    }
+    .invoice {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 15px;
+      padding-top: 20px;
+      padding-bottom: 20px;
+      background: white;
+    }
+    .header {
+      text-align: center;
+      margin-top: 10px;
+      margin-bottom: 20px;
+      padding: 15px 10px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #000;
+    }
+    .header h1 {
+      font-size: 24px;
+      color: #000;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .header p {
+      color: #333;
+      font-size: 12px;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+    .info-box {
+      border: 1px solid #ddd;
+      padding: 10px;
+      background: #fafafa;
+    }
+    .info-box h3 {
+      font-size: 11px;
+      color: #555;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+    .info-box p {
+      font-size: 12px;
+      margin: 3px 0;
+    }
+    .info-box strong {
+      color: #000;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 15px;
+      font-size: 12px;
+    }
+    table th {
+      background: #eee;
+      border: 1px solid #333;
+      color: #000;
+      padding: 8px 6px;
+      text-align: left;
+      font-weight: 700;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    table td {
+      padding: 8px 6px;
+      border: 1px solid #ddd;
+      vertical-align: top;
+    }
+    table tr:last-child td {
+      border-bottom: 1px solid #333;
+    }
+    .product-image {
+      width: 40px;
+      height: 40px;
+      object-fit: contain;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+      background: #fff;
+    }
+    .no-image {
+      width: 40px;
+      height: 40px;
+      background: #f0f0f0;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: #999;
+    }
+    .price-display {
+      white-space: nowrap;
+    }
+    .original-price {
+      text-decoration: line-through;
+      color: #999;
+      font-size: 11px;
+    }
+    .offer-price {
+      color: #000;
+      font-weight: 600;
+    }
+    .totals {
+      margin-left: auto;
+      width: 280px;
+    }
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #ddd;
+      font-size: 12px;
+    }
+    .total-row:last-child {
+      border-bottom: none;
+    }
+    .total-row.grand-total {
+      background: #000;
+      color: #fff;
+      padding: 10px 12px;
+      font-weight: 700;
+      font-size: 13px;
+      margin-top: 5px;
+      border: 1px solid #000;
+    }
+    .footer {
+      margin-top: 20px;
+      margin-bottom: 15px;
+      padding: 15px 10px;
+      padding-top: 12px;
+      border-top: 1px solid #ddd;
+      text-align: center;
+      color: #666;
+      font-size: 10px;
+    }
+    .status-paid { color: #000; font-weight: 600; }
+    .status-partial { color: #000; font-weight: 600; }
+    .status-unpaid { color: #000; font-weight: 600; }
+    @media print {
+      .invoice {
+        padding: 10px;
+        padding-top: 15px;
+        padding-bottom: 15px;
+      }
+      .header {
+        margin-top: 5px;
+        margin-bottom: 15px;
+        padding: 12px 10px;
+        padding-bottom: 10px;
+      }
+      .info-grid { gap: 10px; margin-bottom: 12px; }
+      .info-box { padding: 8px; }
+      table th, table td { padding: 6px 4px; }
+      .totals { margin-bottom: 10px; }
+      .footer {
+        margin-top: 15px;
+        margin-bottom: 10px;
+        padding: 12px 10px;
+        padding-top: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="invoice">
+    <!-- Header -->
+    <div class="header">
+      <h1>INVOICE</h1>
+    </div>
+
+    <!-- Customer & Shipping Info -->
+    <div class="info-grid">
+      <div class="info-box">
+        <h3>Customer Details</h3>
+        <p><strong>${order.customerInfo?.name || (order as any).customer?.name || 'Customer'}</strong></p>
+        <p>📱 ${order.customerInfo?.phone || (order as any).customer?.phone || 'N/A'}</p>
+      </div>
+      <div class="info-box">
+        <h3>Shipping Address</h3>
+        <p><strong>${shipping.address || 'N/A'}</strong></p>
+        <p>${[shipping.thana, shipping.district, shipping.division].filter(Boolean).join(', ') || ''}</p>
+        ${order.trackingCode ? `<p style="margin-top: 5px;">📦 Tracking: ${order.trackingCode}</p>` : ''}
+      </div>
+    </div>
+
+    <!-- Items Table -->
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 50px;">Img</th>
+          <th>Product</th>
+          <th style="width: 60px;">SKU</th>
+          <th style="width: 40px; text-align: center;">Qty</th>
+          <th style="width: 90px; text-align: right;">Price</th>
+          <th style="width: 90px; text-align: right;">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${items.map(item => `
+          <tr>
+            <td style="text-align: center;">
+              ${item.thumbnail
+                ? `<img src="${item.thumbnail}" alt="" class="product-image" />`
+                : `<div class="no-image">N/A</div>`
+              }
+            </td>
+            <td>
+              <div style="font-weight: 500; margin-bottom: 2px;">${decodeHtmlEntities(item.productName)}</div>
+              <div style="font-size: 11px; color: #666;">${decodeHtmlEntities(item.variantName)}</div>
+            </td>
+            <td>${item.sku || '-'}</td>
+            <td style="text-align: center;">${item.quantity}</td>
+            <td style="text-align: right;" class="price-display">
+              ${item.originalPrice && item.originalPrice > item.unitPrice
+                ? `<span class="offer-price">${formatCurrency(item.unitPrice)}</span><br><span class="original-price">${formatCurrency(item.originalPrice)}</span>`
+                : formatCurrency(item.unitPrice)
+              }
+            </td>
+            <td style="text-align: right; font-weight: 500;">${formatCurrency(item.totalPrice)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+
+    <!-- Totals -->
+    <div class="totals">
+      <div class="total-row">
+        <span>Subtotal</span>
+        <span>${formatCurrency(order.subTotal)}</span>
+      </div>
+      ${order.discountAmount > 0 ? `
+      <div class="total-row">
+        <span>Discount ${order.subTotal > 0 ? `(${((order.discountAmount / order.subTotal) * 100).toFixed(1)}%)` : ''}</span>
+        <span style="color: #000;">-${formatCurrency(order.discountAmount)}</span>
+      </div>
+      ` : ''}
+      <div class="total-row">
+        <span>Delivery Charge</span>
+        <span>${formatCurrency(order.deliveryCharge)}</span>
+      </div>
+      <div class="total-row">
+        <span>Total Weight</span>
+        <span>${totalWeight}g</span>
+      </div>
+      <div class="total-row grand-total">
+        <span>GRAND TOTAL</span>
+        <span>${formatCurrency(order.totalAmount)}</span>
+      </div>
+      <div class="total-row">
+        <span>Amount Paid</span>
+        <span class="status-${order.paymentStatus}">${formatCurrency(order.paidAmount)}</span>
+      </div>
+      <div class="total-row">
+        <span>Due Amount</span>
+        <span style="font-weight: 700;">${formatCurrency(order.dueAmount)}</span>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      ${order.note ? `<p>Note: ${order.note}</p>` : '<p>&nbsp;</p>'}
+    </div>
+  </div>
+</body>
+</html>
+  `
 }

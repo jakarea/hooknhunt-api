@@ -165,7 +165,7 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
       const response = await getMediaFiles({
         folderId: folderId ?? undefined,
         page: 1,
-        per_page: 50, // Load in batches for infinite scroll
+        per_page: 24,
       })
       if (response?.data) {
         const raw = Array.isArray(response.data) ? response.data : response.data.data || []
@@ -173,7 +173,7 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
         set({
           files: filtered,
           filesCache: { ...cache, [folderId]: filtered },
-          hasMoreFiles: filtered.length >= 50,
+          hasMoreFiles: filtered.length >= 24,
         })
       }
     } catch {
@@ -189,11 +189,11 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
 
     set({ loadingMore: true })
     try {
-      const currentPage = Math.ceil(files.length / 50) + 1
+      const currentPage = Math.ceil(files.length / 24) + 1
       const response = await getMediaFiles({
         folderId: currentFolder ?? undefined,
         page: currentPage,
-        per_page: 50,
+        per_page: 24,
       })
       if (response?.data) {
         const raw = Array.isArray(response.data) ? response.data : response.data.data || []
@@ -202,7 +202,7 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
         set((state) => ({
           files: updatedFiles,
           filesCache: { ...state.filesCache, [currentFolder]: updatedFiles },
-          hasMoreFiles: newFiles.length >= 50,
+          hasMoreFiles: newFiles.length >= 24,
           loadingMore: false,
         }))
       }

@@ -209,6 +209,7 @@ class CustomerController extends Controller
 
     /**
      * Get customer list for CRM
+     * Shows only Users with retail_customer (10) and wholesale_customer (11) roles
      */
     public function index(Request $request)
     {
@@ -217,8 +218,8 @@ class CustomerController extends Controller
             return $this->sendError('You do not have permission to view customers.', null, 403);
         }
 
-        $query = User::with(['customerProfile', 'addresses'])
-            ->whereIn('role_id', [10, 11]); // Only customers
+        $query = User::with(['customerProfile', 'customer', 'addresses'])
+            ->whereIn('role_id', [10, 11]); // Only retail & wholesale customers
 
         // Search
         if ($request->search) {
@@ -229,10 +230,15 @@ class CustomerController extends Controller
             });
         }
 
-        // Filter by customer type
-        if ($request->customer_type) {
-            $query->whereHas('customerProfile', function($q) use ($request) {
-                $q->where('type', $request->customer_type);
+        // Filter by customer type (retail/wholesale)
+        // Check both customerProfile.type and customer.type
+        if ($request->filled('type') && $request->type !== 'all') {
+            $query->where(function($q) use ($request) {
+                $q->whereHas('customerProfile', function($q1) use ($request) {
+                        $q1->where('type', $request->type);
+                    })->orWhereHas('customer', function($q2) use ($request) {
+                        $q2->where('type', $request->type);
+                    });
             });
         }
 
@@ -250,7 +256,35 @@ class CustomerController extends Controller
             });
         }
 
-        return $this->sendSuccess($query->paginate(20), 'Customers retrieved successfully.');
+        $users = $query->paginate(20);
+
+        // Enhance each user with real order data
+        $users->getCollection()->transform(function ($user) {
+            // Get actual order data from Customer table (website orders)
+            $actualOrders = 0;
+            $actualSpent = 0;
+            $customerType = 'retail'; // Default
+
+            if ($user->customer) {
+                $actualOrders = $user->customer->salesOrders()->count();
+                $actualSpent = (float) $user->customer->salesOrders()->sum('total_amount');
+                $customerType = $user->customer->type;
+            } elseif ($user->customerProfile) {
+                $customerType = $user->customerProfile->type;
+            }
+
+            // Merge real data with profile data
+            $user->customerProfile = (object) [
+                'type' => $customerType,
+                'totalOrders' => $actualOrders,
+                'totalSpent' => $actualSpent,
+                'loyaltyPoints' => $user->customerProfile->loyalty_points ?? 0,
+            ];
+
+            return $user;
+        });
+
+        return $this->sendSuccess($users, 'Customers retrieved successfully.');
     }
 
     /**

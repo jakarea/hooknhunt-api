@@ -50,6 +50,9 @@ class ProductController extends Controller
 
         // Sorting
         if ($request->sort_by) {
+            // Remove global scope when explicit sorting is applied
+            $query->withoutGlobalScope('ordered');
+
             switch ($request->sort_by) {
                 case 'created_at_desc':
                     $query->orderBy('created_at', 'desc');
@@ -88,10 +91,8 @@ class ProductController extends Controller
                     ->orderByRaw('MIN(pv.price) ASC');
                     break;
             }
-        } else {
-            // Default sorting
-            $query->orderBy('created_at', 'desc');
         }
+        // If no sort_by is provided (or 'all'), the global scope (sort_order, then id) will be used
 
         $perPage = $request->per_page ?? 20;
         $page = $request->page ?? 1;
@@ -250,6 +251,12 @@ class ProductController extends Controller
             foreach ($validated['variants'] as $index => $variant) {
                 $baseSku = $variant['sellerSku'] ?? $this->generateSkuFromNames($product->name, $variant['name']);
 
+                \Log::info('Creating variant', [
+                    'index' => $index,
+                    'name' => $variant['name'],
+                    'thumbnail' => $variant['thumbnail'] ?? null
+                ]);
+
                 // RETAIL VARIANT ROW
                 $retailVariant = ProductVariant::create([
                     'product_id' => $product->id,
@@ -380,6 +387,7 @@ class ProductController extends Controller
                 'variantSlug'           => $base->variant_slug,
                 'customSku'             => $base->custom_sku,
                 'sku'                   => $base->sku,
+                'thumbnail'             => $base->thumbnail,
                 'color'                 => $base->color,
                 'size'                  => $base->size,
                 'material'              => $base->material,
@@ -567,6 +575,13 @@ class ProductController extends Controller
                 $submittedWholesaleIds = [];
 
                 foreach ($request->variants as $variantData) {
+                    \Log::info('Updating variant', [
+                        'name' => $variantData['name'],
+                        'thumbnail' => $variantData['thumbnail'] ?? null,
+                        'retail_id' => $variantData['retail_id'] ?? null,
+                        'wholesale_id' => $variantData['wholesale_id'] ?? null
+                    ]);
+
                     // Common fields (same for both channels)
                     $commonFields = [
                         'variant_name' => $variantData['name'],
@@ -783,5 +798,32 @@ class ProductController extends Controller
         $product->update(['status' => $request->status]);
 
         return $this->sendSuccess($product, 'Product status updated successfully');
+    }
+
+    /**
+     * Reorder Products (Drag & Drop)
+     * POST /api/v2/catalog/products/reorder
+     */
+    public function reorder(Request $request)
+    {
+        $request->validate([
+            'products' => 'required|array',
+            'products.*.id' => 'required|integer|exists:products,id',
+            'products.*.sort_order' => 'required|integer|min:0',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            foreach ($request->products as $productData) {
+                Product::where('id', $productData['id'])
+                    ->update(['sort_order' => $productData['sort_order']]);
+            }
+
+            DB::commit();
+            return $this->sendSuccess(null, 'Products reordered successfully');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->sendError('Failed to reorder products', ['error' => $e->getMessage()], 500);
+        }
     }
 }

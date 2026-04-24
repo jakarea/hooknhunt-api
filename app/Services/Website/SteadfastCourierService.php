@@ -36,29 +36,99 @@ class SteadfastCourierService
 
         $payload = $this->buildPayload($order);
 
+        $debugInfo = [
+            'base_url' => $this->baseUrl,
+            'url' => "{$this->baseUrl}/create_order",
+            'payload' => $payload,
+            'headers' => $this->headers(),
+            'is_mock' => $this->isMockMode,
+        ];
+
+        Log::info('=== STEADFAST API REQUEST START ===');
+        Log::info('URL: ' . $debugInfo['url']);
+        Log::info('Payload: ' . json_encode($payload));
+        Log::info('Headers: ' . json_encode($this->headers()));
+
         try {
-            $response = Http::withHeaders($this->headers())
-                ->post("{$this->baseUrl}/create_order", $payload)
-                ->json();
+            $httpResponse = Http::withHeaders($this->headers())
+                ->withoutVerifying()
+                ->post("{$this->baseUrl}/create_order", $payload);
+
+            $statusCode = $httpResponse->status();
+            $responseBody = $httpResponse->body();
+
+            Log::info('HTTP Status: ' . $statusCode);
+            Log::info('Response Body: ' . (is_string($responseBody) ? $responseBody : json_encode($responseBody)));
+
+            $response = $httpResponse->json();
+            Log::info('Decoded Response: ' . json_encode($response));
+            Log::info('=== STEADFAST API REQUEST END ===');
 
             if (isset($response['status']) && $response['status'] == 200) {
                 return [
                     'success' => true,
                     'consignment_id' => $response['consignment']['consignment_id'],
                     'tracking_code' => $response['consignment']['tracking_code'],
+                    'tracking_link' => $response['consignment']['tracking_link'] ?? null,
                     'message' => 'Order sent to Steadfast successfully',
                 ];
             }
 
+            $errorMessage = 'Unknown error from Steadfast API';
+            if (isset($response['errors'])) {
+                $errors = $response['errors'];
+                if (is_array($errors)) {
+                    // Check if it's a simple array or nested array
+                    $firstValue = reset($errors);
+                    if (is_array($firstValue)) {
+                        // Nested array - flatten it
+                        $flattened = [];
+                        array_walk_recursive($errors, function($value) use (&$flattened) {
+                            if (is_scalar($value)) {
+                                $flattened[] = $value;
+                            }
+                        });
+                        $errorMessage = implode(', ', $flattened);
+                    } else {
+                        // Simple array of strings
+                        $errorMessage = implode(', ', $errors);
+                    }
+                } else {
+                    $errorMessage = $errors;
+                }
+            } elseif (isset($response['message'])) {
+                $errorMessage = $response['message'];
+            }
+
             return [
                 'success' => false,
-                'message' => $response['errors'] ?? 'Unknown error from Steadfast API',
+                'message' => $errorMessage,
             ];
         } catch (\Exception $e) {
-            Log::error('Steadfast API Error: ' . $e->getMessage());
+            $exceptionData = [
+                'message' => $e->getMessage(),
+                'message_type' => gettype($e->getMessage()),
+                'code' => $e->getCode(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ];
+
+            Log::error('=== STEADFAST API EXCEPTION ===');
+            Log::error(json_encode($exceptionData));
+            Log::error('=== END EXCEPTION ===');
+
+            $errorMessage = 'Connection error';
+            $exceptionMessage = $e->getMessage();
+            if (is_array($exceptionMessage)) {
+                $errorMessage .= ': ' . json_encode($exceptionMessage);
+            } elseif (!empty($exceptionMessage)) {
+                $errorMessage .= ': ' . $exceptionMessage;
+            }
+
             return [
                 'success' => false,
-                'message' => 'Connection error: ' . $e->getMessage(),
+                'message' => $errorMessage,
             ];
         }
     }
@@ -74,13 +144,18 @@ class SteadfastCourierService
 
         try {
             $response = Http::withHeaders($this->headers())
+                ->withoutVerifying()
                 ->get("{$this->baseUrl}/status_by_trackingcode/{$trackingCode}")
                 ->json();
 
             return is_array($response) ? $response : ['status' => 'error', 'message' => 'Empty response'];
         } catch (\Exception $e) {
-            Log::error('Steadfast Status Check Error: ' . $e->getMessage());
-            return ['status' => 'error', 'message' => $e->getMessage()];
+            $errorMessage = $e->getMessage();
+            if (is_array($errorMessage)) {
+                $errorMessage = json_encode($errorMessage);
+            }
+            Log::error('Steadfast Status Check Error: ' . $errorMessage);
+            return ['status' => 'error', 'message' => $errorMessage];
         }
     }
 
@@ -116,10 +191,15 @@ class SteadfastCourierService
         $customerData = $order->getCustomerData();
         $shippingData = $order->getShippingData();
 
+        // Format phone for Steadfast: 11 digits, remove +88, spaces, dashes
+        $phone = $customerData['phone'] ?? $order->customer?->phone ?? '';
+        $phone = preg_replace('/[^0-9]/', '', $phone); // Remove non-digits
+        $phone = preg_replace('/^88/', '', $phone); // Remove country code if present
+
         return [
             'invoice' => $order->invoice_no,
             'recipient_name' => $customerData['name'] ?? $order->customer?->name ?? 'Customer',
-            'recipient_phone' => $customerData['phone'] ?? $order->customer?->phone ?? '',
+            'recipient_phone' => $phone,
             'recipient_address' => trim(implode(', ', array_filter([
                 $shippingData['address'] ?? '',
                 $shippingData['thana'] ?? '',

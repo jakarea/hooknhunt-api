@@ -316,6 +316,11 @@ export function AppSidebarMantine({
             icon: IconLayout,
             url: "/website/sliders",
           },
+          {
+            title: t("nav.settings"),
+            icon: IconShield,
+            url: "/website/settings",
+          },
         ],
       },
       {

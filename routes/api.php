@@ -29,6 +29,16 @@ Route::group([
 });
 
 // ====================================================
+// MODULE: WEBSITE (Public - Frontend Tracking)
+// ====================================================
+Route::group([
+    'prefix' => 'v2/website',
+    'namespace' => 'App\Http\Controllers\Api\V2'
+], function () {
+    Route::get('tracking', 'WebsiteController@tracking');
+});
+
+// ====================================================
 // PROTECTED ROUTES (Middleware: Sanctum)
 // ====================================================
 Route::group([
@@ -121,6 +131,7 @@ Route::group([
         Route::post('products/{id}/duplicate', 'ProductController@duplicate')->middleware('permission:catalog.products.duplicate');
         Route::patch('products/{id}/status', 'ProductController@updateStatus')->middleware('permission:catalog.products.status');
         Route::post('products/{id}/variants', 'ProductController@storeVariant')->middleware('permission:catalog.products.variants.create');
+        Route::post('products/reorder', 'ProductController@reorder')->middleware('permission:catalog.products.edit');
         Route::get('variants/{id}/channel-prices', 'PricingController@getChannelPrices');
         Route::post('variants/{id}/channel-prices', 'PricingController@setChannelPrice')->middleware('permission:catalog.pricing.channel-price');
         Route::post('pricing/update', 'ProductPricingController@updatePrices')->middleware('permission:catalog.pricing.update');
@@ -645,6 +656,13 @@ Route::group([
     Route::get('categories', 'PublicController@categories');
     Route::post('crm/leads/checkout-capture', 'Crm\LeadController@captureCheckoutLead');
     Route::post('contact/submit', 'Crm\LeadController@contactSubmit');
+
+    // Product search and suggestions
+    Route::get('search/suggestions', 'Website\ProductController@searchSuggestions');
+    Route::get('search', 'Website\ProductController@search');
+
+    // Delivery charge calculation (public access for storefront)
+    Route::post('calculate-delivery', 'Website\OrderController@calculateDelivery');
 });
 
 // ====================================================
@@ -704,4 +722,13 @@ Route::group([
             'update' => 'permission:website.sliders.edit',
             'destroy' => 'permission:website.sliders.delete',
         ]);
+
+    // Settings
+    Route::get('settings', 'SettingController@index');
+    Route::put('settings', 'SettingController@update');
+
+    // Delivery Settings
+    Route::get('delivery-settings', 'DeliverySettingController@index');
+    Route::put('delivery-settings', 'DeliverySettingController@update');
+    Route::post('delivery-settings/calculate', 'DeliverySettingController@calculate');
 });

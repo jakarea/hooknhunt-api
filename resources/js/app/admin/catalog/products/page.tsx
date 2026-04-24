@@ -40,7 +40,25 @@ import {
   IconAlertCircle,
   IconDots,
   IconCube,
+  IconGripVertical,
 } from '@tabler/icons-react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { notifications } from '@mantine/notifications'
 import { useDebouncedValue, useDisclosure } from '@mantine/hooks'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -52,6 +70,7 @@ import {
   updateProductStatus,
   getCategoriesDropdown,
   getBrandsDropdown,
+  reorderProducts,
   type Product,
   type ProductFilters,
   type ProductSortBy,
@@ -89,8 +108,17 @@ export default function ProductsPage() {
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [brandFilter, setBrandFilter] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<SortByType>('all')
-  const [pagination, setPagination] = useState({ page: 1, total: 0, perPage: 20 })
+  const [pagination, setPagination] = useState({ page: 1, total: 0, perPage: 100 })
   const [duplicatedProductId, setDuplicatedProductId] = useState<number | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  // DnD Kit sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   // Fetch products
   const fetchProducts = useCallback(async () => {
@@ -332,6 +360,222 @@ export default function ProductsPage() {
         color: 'red',
       })
     }
+  }
+
+  // Handle drag end
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      setIsDragging(true)
+
+      const oldIndex = products.findIndex((p) => p.id === active.id)
+      const newIndex = products.findIndex((p) => p.id === over.id)
+
+      // Optimistic update - reorder immediately
+      const newProducts = arrayMove(products, oldIndex, newIndex)
+      setProducts(newProducts)
+
+      try {
+        // Prepare data for API - use existing sort_order values as base
+        const minSortOrder = Math.min(...products.map((p) => p.sortOrder || 0))
+
+        const reorderData = newProducts.map((product, index) => ({
+          id: product.id,
+          sort_order: minSortOrder + index,
+        }))
+
+        await reorderProducts(reorderData)
+        // Success - UI already updated, no need to refetch
+      } catch (error: any) {
+        // Revert on error
+        setProducts(products)
+        notifications.show({
+          title: t('common.error') || 'Error',
+          message: error.response?.data?.message || 'Failed to reorder products',
+          color: 'red',
+        })
+      } finally {
+        setIsDragging(false)
+      }
+    }
+  }
+
+  // Sortable Row Component
+  interface SortableRowProps {
+    product: Product
+    duplicatedProductId: number | null
+    getStockBadge: (product: Product) => React.ReactNode
+    onPublishToggle: (productId: number, currentStatus: string) => void
+    onDelete: (product: Product) => void
+    onDuplicate: (product: Product) => void
+    onNavigate: (path: string) => void
+    isSuperAdmin: () => boolean
+    hasPermission: (permission: string) => boolean
+    t: (key: string) => string
+  }
+
+  function SortableRow({
+    product,
+    duplicatedProductId,
+    getStockBadge,
+    onPublishToggle,
+    onDelete,
+    onDuplicate,
+    onNavigate,
+    isSuperAdmin,
+    hasPermission,
+    t,
+  }: SortableRowProps) {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: product.id })
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+    }
+
+    return (
+      <Table.Tr
+        ref={setNodeRef}
+        style={style}
+        bg={duplicatedProductId === product.id ? 'teal.0' : undefined}
+      >
+        <Table.Td style={{ width: '50px' }}>
+          <ActionIcon
+            {...attributes}
+            {...listeners}
+            style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+            variant="subtle"
+            color="gray"
+          >
+            <IconGripVertical size={18} />
+          </ActionIcon>
+        </Table.Td>
+        <Table.Td>
+          <Group gap="sm">
+            <Box
+              w={40}
+              h={40}
+              className="bg-gray-100 rounded flex items-center justify-center"
+            >
+              {product.thumbnail ? (
+                <Image
+                  src={product.thumbnail.fullUrl}
+                  alt={product.name}
+                  w={40}
+                  h={40}
+                  fit="cover"
+                  radius="sm"
+                />
+              ) : (
+                <IconPhoto size={20} className="text-gray-400" />
+              )}
+            </Box>
+            <Box>
+              <Anchor
+                className="text-sm md:text-base fw={500}"
+                lineClamp={1}
+                href={`/catalog/products/${product.id}`}
+                onClick={(e: React.MouseEvent) => {
+                  e.preventDefault()
+                  onNavigate(`/catalog/products/${product.id}`)
+                }}
+              >
+                {product.name?.length > 66
+                  ? product.name.substring(0, 66) + '...'
+                  : product.name}
+              </Anchor>
+              {product.variants && product.variants.length > 0 && (
+                <Text className="text-xs md:text-sm" c="dimmed">
+                  {product.variants.length} {t('catalog.productsPage.table.variants') || 'variant(s)'}
+                </Text>
+              )}
+            </Box>
+          </Group>
+        </Table.Td>
+        <Table.Td>
+          {product.category ? (
+            <Text className="text-sm md:text-base">{product.category.name}</Text>
+          ) : (
+            <Text className="text-sm md:text-base" c="dimmed">-</Text>
+          )}
+        </Table.Td>
+        <Table.Td>
+          {product.brand ? (
+            <Text className="text-sm md:text-base">{product.brand.name}</Text>
+          ) : (
+            <Text className="text-sm md:text-base" c="dimmed">-</Text>
+          )}
+        </Table.Td>
+        <Table.Td>{getStockBadge(product)}</Table.Td>
+        <Table.Td>
+          <Switch
+            checked={product.status === 'published'}
+            onChange={() => onPublishToggle(product.id, product.status)}
+            color="red"
+            size="md"
+            disabled={!isSuperAdmin() && !hasPermission('catalog.products.update')}
+          />
+        </Table.Td>
+        <Table.Td ta="center">
+          <Group gap="xs" justify="center" wrap="nowrap">
+            <Tooltip label={t('common.edit') || 'Edit'}>
+              <ActionIcon
+                size="lg"
+                variant="light"
+                color="blue"
+                onClick={() => onNavigate(`/catalog/products/${product.id}/edit`)}
+              >
+                <IconEdit size={18} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label={t('catalog.productsPage.menu.duplicate') || 'Duplicate'}>
+              <ActionIcon
+                size="lg"
+                variant="light"
+                color="gray"
+                onClick={() => onDuplicate(product)}
+              >
+                <IconCopy size={18} />
+              </ActionIcon>
+            </Tooltip>
+            <Menu shadow="md" width={160} position="bottom-end">
+              <Menu.Target>
+                <ActionIcon size="lg" variant="light">
+                  <IconDots size={18} />
+                </ActionIcon>
+              </Menu.Target>
+
+              <Menu.Dropdown>
+                <Menu.Label>{t('catalog.productsPage.menu.actions') || 'Actions'}</Menu.Label>
+                <Menu.Item
+                  leftSection={<IconEye size={16} />}
+                  onClick={() => onNavigate(`/catalog/products/${product.id}`)}
+                >
+                  {t('catalog.productsPage.menu.viewDetails') || 'View Details'}
+                </Menu.Item>
+                <Menu.Divider />
+                <Menu.Item
+                  leftSection={<IconTrash size={16} />}
+                  c="red"
+                  onClick={() => onDelete(product)}
+                >
+                  {t('common.delete') || 'Delete'}
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          </Group>
+        </Table.Td>
+      </Table.Tr>
+    )
   }
 
   // Memoized product cards for mobile
@@ -584,6 +828,7 @@ export default function ProductsPage() {
             <Table striped highlightOnHover>
               <Table.Thead>
                 <Table.Tr>
+                  <Table.Th style={{ width: '50px' }}></Table.Th>
                   <Table.Th>{t('catalog.productsPage.table.product') || 'Product'}</Table.Th>
                   <Table.Th>{t('catalog.productsPage.table.category') || 'Category'}</Table.Th>
                   <Table.Th>{t('catalog.productsPage.table.brand') || 'Brand'}</Table.Th>
@@ -592,146 +837,47 @@ export default function ProductsPage() {
                   <Table.Th ta="center">{t('catalog.productsPage.table.actions') || 'Actions'}</Table.Th>
                 </Table.Tr>
               </Table.Thead>
-              <Table.Tbody>
-                {products.length === 0 ? (
-                  <Table.Tr>
-                    <Table.Td colSpan={6} ta="center">
-                      <Stack py="xl" align="center" gap="sm">
-                        <IconPackages size={48} className="text-gray-300" />
-                        <Text c="dimmed" className="text-sm md:text-base">
-                          {t('catalog.productsPage.table.noProducts') || 'No products found'}
-                        </Text>
-                      </Stack>
-                    </Table.Td>
-                  </Table.Tr>
-                ) : (
-                  products.map((product) => (
-                    <Table.Tr
-                      key={product.id}
-                      bg={duplicatedProductId === product.id ? 'teal.0' : undefined}
-                      style={{
-                        transition: 'background-color 0.3s ease',
-                      }}
-                    >
-                      <Table.Td>
-                        <Group gap="sm">
-                          <Box
-                            w={40}
-                            h={40}
-                            className="bg-gray-100 rounded flex items-center justify-center"
-                          >
-                            {product.thumbnail ? (
-                              <Image
-                                src={product.thumbnail.fullUrl}
-                                alt={product.name}
-                                w={40}
-                                h={40}
-                                fit="cover"
-                                radius="sm"
-                              />
-                            ) : (
-                              <IconPhoto size={20} className="text-gray-400" />
-                            )}
-                          </Box>
-                          <Box>
-                            <Anchor
-                              className="text-sm md:text-base fw={500}"
-                              lineClamp={1}
-                              href={`/catalog/products/${product.id}`}
-                              onClick={(e: React.MouseEvent) => {
-                                e.preventDefault()
-                                navigate(`/catalog/products/${product.id}`)
-                              }}
-                            >
-                              {product.name?.length > 66
-                                ? product.name.substring(0, 66) + '...'
-                                : product.name}
-                            </Anchor>
-                            {product.variants && product.variants.length > 0 && (
-                              <Text className="text-xs md:text-sm" c="dimmed">
-                                {product.variants.length} {t('catalog.productsPage.table.variants') || 'variant(s)'}
-                              </Text>
-                            )}
-                          </Box>
-                        </Group>
-                      </Table.Td>
-                      <Table.Td>
-                        {product.category ? (
-                          <Text className="text-sm md:text-base">{product.category.name}</Text>
-                        ) : (
-                          <Text className="text-sm md:text-base" c="dimmed">-</Text>
-                        )}
-                      </Table.Td>
-                      <Table.Td>
-                        {product.brand ? (
-                          <Text className="text-sm md:text-base">{product.brand.name}</Text>
-                        ) : (
-                          <Text className="text-sm md:text-base" c="dimmed">-</Text>
-                        )}
-                      </Table.Td>
-                      <Table.Td>{getStockBadge(product)}</Table.Td>
-                      <Table.Td>
-                        <Switch
-                          checked={product.status === 'published'}
-                          onChange={() => handlePublishToggle(product.id, product.status)}
-                          color="red"
-                          size="md"
-                          disabled={!isSuperAdmin() && !hasPermission('catalog.products.update')}
-                        />
-                      </Table.Td>
-                      <Table.Td ta="center">
-                        <Group gap="xs" justify="center" wrap="nowrap">
-                          <Tooltip label={t('common.edit') || 'Edit'}>
-                            <ActionIcon
-                              size="lg"
-                              variant="light"
-                              color="blue"
-                              onClick={() => navigate(`/catalog/products/${product.id}/edit`)}
-                            >
-                              <IconEdit size={18} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip label={t('catalog.productsPage.menu.duplicate') || 'Duplicate'}>
-                            <ActionIcon
-                              size="lg"
-                              variant="light"
-                              color="gray"
-                              onClick={() => handleDuplicate(product)}
-                            >
-                              <IconCopy size={18} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Menu shadow="md" width={160} position="bottom-end">
-                            <Menu.Target>
-                              <ActionIcon size="lg" variant="light">
-                                <IconDots size={18} />
-                              </ActionIcon>
-                            </Menu.Target>
-
-                            <Menu.Dropdown>
-                              <Menu.Label>{t('catalog.productsPage.menu.actions') || 'Actions'}</Menu.Label>
-                              <Menu.Item
-                                leftSection={<IconEye size={16} />}
-                                onClick={() => navigate(`/catalog/products/${product.id}`)}
-                              >
-                                {t('catalog.productsPage.menu.viewDetails') || 'View Details'}
-                              </Menu.Item>
-                              <Menu.Divider />
-                              <Menu.Item
-                                leftSection={<IconTrash size={16} />}
-                                c="red"
-                                onClick={() => handleDelete(product)}
-                              >
-                                {t('common.delete') || 'Delete'}
-                              </Menu.Item>
-                            </Menu.Dropdown>
-                          </Menu>
-                        </Group>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <Table.Tbody>
+                  {products.length === 0 ? (
+                    <Table.Tr>
+                      <Table.Td colSpan={7} ta="center">
+                        <Stack py="xl" align="center" gap="sm">
+                          <IconPackages size={48} className="text-gray-300" />
+                          <Text c="dimmed" className="text-sm md:text-base">
+                            {t('catalog.productsPage.table.noProducts') || 'No products found'}
+                          </Text>
+                        </Stack>
                       </Table.Td>
                     </Table.Tr>
-                  ))
-                )}
-              </Table.Tbody>
+                  ) : (
+                    <SortableContext
+                      items={products.map((p) => p.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {products.map((product) => (
+                        <SortableRow
+                          key={product.id}
+                          product={product}
+                          duplicatedProductId={duplicatedProductId}
+                          getStockBadge={getStockBadge}
+                          onPublishToggle={handlePublishToggle}
+                          onDelete={handleDelete}
+                          onDuplicate={handleDuplicate}
+                          onNavigate={navigate}
+                          isSuperAdmin={isSuperAdmin}
+                          hasPermission={hasPermission}
+                          t={t}
+                        />
+                      ))}
+                    </SortableContext>
+                  )}
+                </Table.Tbody>
+              </DndContext>
             </Table>
           </Paper>
         </div>

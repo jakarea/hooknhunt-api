@@ -143,6 +143,14 @@ class User extends Authenticatable
     }
 
     /**
+     * Get customer record (for website orders)
+     */
+    public function customer()
+    {
+        return $this->hasOne(\App\Models\Customer::class);
+    }
+
+    /**
      * CRM: Customer addresses
      */
     public function addresses()

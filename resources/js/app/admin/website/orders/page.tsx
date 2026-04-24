@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import {
   Box, Stack, Group, Title, Text, TextInput, Select, Badge, Button,
-  ActionIcon, NumberFormatter, Skeleton, Card, SimpleGrid, Pagination,
+  ActionIcon, NumberFormatter, Skeleton, Card, SimpleGrid, Tabs, Pagination,
 } from '@mantine/core'
 import { IconSearch, IconRefresh, IconEye, IconShoppingCart } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
@@ -21,32 +21,32 @@ export default function WebsiteOrdersPage() {
   const [orders, setOrders] = useState<WebsiteOrder[]>([])
   const [stats, setStats] = useState<WebsiteOrderStats | null>(null)
   const [totalPages, setTotalPages] = useState(1)
+  const [page, setPage] = useState(1)
 
   // Filters
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState<WebsiteOrderStatus | ''>('')
+  const [status, setStatus] = useState<WebsiteOrderStatus | 'all'>('all')
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | ''>('')
-  const [channel, setChannel] = useState<OrderChannel | ''>('')
+  const [channel, setChannel] = useState<OrderChannel | ''>('retail_web')
   const [fromDate, setFromDate] = useState<Date | null>(null)
   const [toDate, setToDate] = useState<Date | null>(null)
-  const [page, setPage] = useState(1)
 
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true)
       const filters: WebsiteOrderFilters = {
         search: search || undefined,
-        status: status || undefined,
+        status: (status && status !== 'all') ? status as WebsiteOrderStatus : undefined,
         paymentStatus: paymentStatus || undefined,
         channel: channel || undefined,
         fromDate: fromDate ? fromDate.toISOString().split('T')[0] : undefined,
         toDate: toDate ? toDate.toISOString().split('T')[0] : undefined,
         page,
-        perPage: 20,
+        perPage: 100,
       }
       const res = await getWebsiteOrders(filters)
       setOrders(res.data.data || [])
-      setTotalPages(res.data.last_page || 1)
+      setTotalPages(res.data.lastPage || 1)
     } catch {
       notifications.show({ title: 'Error', message: 'Failed to load orders', color: 'red' })
     } finally {
@@ -111,6 +111,20 @@ export default function WebsiteOrdersPage() {
           </SimpleGrid>
         )}
 
+        {/* Status Tabs */}
+        <Card withBorder p="xs">
+          <Tabs value={status} onChange={(v) => { setStatus(v as WebsiteOrderStatus | 'all'); setPage(1) }}>
+            <Tabs.List>
+              <Tabs.Tab value="all">All ({stats?.total || 0})</Tabs.Tab>
+              <Tabs.Tab value="pending">Pending ({stats?.pending || 0})</Tabs.Tab>
+              <Tabs.Tab value="processing">Processing ({stats?.processing || 0})</Tabs.Tab>
+              <Tabs.Tab value="shipped">Shipped ({stats?.shipped || 0})</Tabs.Tab>
+              <Tabs.Tab value="cancelled">Cancelled ({stats?.cancelled || 0})</Tabs.Tab>
+              <Tabs.Tab value="completed">Completed ({stats?.completed || 0})</Tabs.Tab>
+            </Tabs.List>
+          </Tabs>
+        </Card>
+
         {/* Filters */}
         <Card withBorder p="md">
           <Stack gap="sm">
@@ -120,13 +134,6 @@ export default function WebsiteOrdersPage() {
                 leftSection={<IconSearch size={16} />}
                 value={search}
                 onChange={(e) => { setSearch(e.currentTarget.value); setPage(1) }}
-              />
-              <Select
-                placeholder="Status"
-                clearable
-                data={Object.entries(statusLabels).map(([v, l]) => ({ value: v, label: l }))}
-                value={status || null}
-                onChange={(v) => { setStatus(v as WebsiteOrderStatus | ''); setPage(1) }}
               />
               <Select
                 placeholder="Payment"
@@ -181,7 +188,7 @@ export default function WebsiteOrdersPage() {
           <Stack gap="xs">
             {orders.map((order) => (
               <Card key={order.id} withBorder p="sm" component={Link} to={`/website/orders/${order.id}`}
-                style={{ textDecoration: 'none', cursor: 'pointer' }}
+                style={{ textDecoration: 'none', cursor: 'pointer', backgroundColor: order.status === 'pending' ? '#fef2f2' : 'transparent' }}
                 className="hover:bg-gray-50 transition-colors">
                 <Group justify="space-between" wrap="nowrap">
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -222,7 +229,7 @@ export default function WebsiteOrdersPage() {
               </Card>
             ))}
 
-            {totalPages > 1 && (
+            {totalPages > 0 && (
               <Group justify="center" mt="md">
                 <Pagination total={totalPages} value={page} onChange={setPage} />
               </Group>

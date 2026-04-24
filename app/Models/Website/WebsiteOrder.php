@@ -203,6 +203,8 @@ class WebsiteOrder extends Model
     public function canSendToCourier(): bool
     {
         return in_array($this->status, [
+            self::STATUS_PENDING,
+            self::STATUS_PROCESSING,
             self::STATUS_APPROVED,
             self::STATUS_ON_SHIPPING,
         ]) && !$this->sent_to_courier;
@@ -218,7 +220,7 @@ class WebsiteOrder extends Model
 
         $subTotal = $items->sum('total_price');
         $totalWeight = $items->sum(function ($item) {
-            return $item->weight * $item->quantity;
+            return ($item->variant?->weight ?? 0) * $item->quantity;
         });
         $totalCost = $items->sum('total_cost');
         $totalProfit = $subTotal - $this->discount_amount - $totalCost - $this->delivery_charge;
@@ -227,6 +229,12 @@ class WebsiteOrder extends Model
         $this->total_weight = $totalWeight;
         $this->total_profit = $totalProfit;
         $this->total_amount = $subTotal - $this->discount_amount + $this->delivery_charge;
+
+        // Update item weight from variant
+        foreach ($items as $item) {
+            $item->weight = $item->variant?->weight ?? 0;
+            $item->saveQuietly();
+        }
 
         if ((float) $this->paid_amount >= (float) $this->total_amount) {
             $this->payment_status = 'paid';

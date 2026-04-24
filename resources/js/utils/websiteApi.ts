@@ -27,11 +27,14 @@ export type WebsiteOrderItem = {
   variantWeight: number
   quantity: number
   unitPrice: number
+  originalPrice: number | null
+  offerPrice: number | null
   totalPrice: number
   totalCost: number
   profit: number
   weight: number
   totalWeight: number
+  slug: string | null
 }
 
 export type WebsiteOrderDetail = {
@@ -57,6 +60,7 @@ export type WebsiteOrderDetail = {
   sentToCourier: boolean
   consignmentId: string | null
   trackingCode: string | null
+  trackingLink: string | null
   shipping: {
     address: string | null
     district: string | null
@@ -282,6 +286,37 @@ export const sendOrderSms = async (id: number, message: string) => {
 }
 
 // ============================================
+// WEBSITE SETTINGS API
+// ============================================
+
+export const getWebsiteSettings = async () => {
+  const response = await api.get('website-admin/settings')
+  return response.data
+}
+
+export const updateWebsiteSettings = async (settings: {
+  facebook_pixel_id?: string | null
+  facebook_pixel_code?: string | null
+  google_analytics_id?: string | null
+  google_analytics_code?: string | null
+  google_tag_manager_id?: string | null
+  google_tag_manager_code?: string | null
+}) => {
+  const response = await api.put('website-admin/settings', settings)
+  return response.data
+}
+
+export type WebsiteSettings = {
+  facebook_pixel_id: string | null
+  facebook_pixel_code: string | null
+  google_analytics_id: string | null
+  google_analytics_code: string | null
+  google_tag_manager_id: string | null
+  google_tag_manager_code: string | null
+}
+
+
+// ============================================
 // HELPERS
 // ============================================
 
@@ -329,6 +364,13 @@ export const channelLabels: Record<OrderChannel, string> = {
 
 export const formatCurrency = (amount: number | string | undefined | null): string => {
   return (Number(amount ?? 0)).toLocaleString('en-BD', { style: 'currency', currency: 'BDT', minimumFractionDigits: 0 })
+}
+
+export const decodeHtmlEntities = (text: string | undefined | null): string => {
+  if (!text) return ''
+  const txt = document.createElement('textarea')
+  txt.innerHTML = text
+  return txt.value
 }
 
 // ============================================

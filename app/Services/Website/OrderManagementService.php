@@ -299,10 +299,6 @@ class OrderManagementService
             return ['success' => false, 'message' => 'Shipping address is required', 'code' => 422];
         }
 
-        if ((float) ($order->total_weight ?? 0) <= 0) {
-            return ['success' => false, 'message' => 'Order weight must be greater than 0', 'code' => 422];
-        }
-
         // Prevent duplicate send
         if ($order->sent_to_courier) {
             return ['success' => false, 'message' => 'Order already sent to courier', 'code' => 422];
@@ -312,18 +308,23 @@ class OrderManagementService
         $result = $this->courierService->createOrder($order);
 
         if (!$result['success']) {
+            $errorMessage = $result['message'] ?? 'Unknown error';
+            if (is_array($errorMessage)) {
+                $errorMessage = implode(', ', $errorMessage);
+            }
+
             WebsiteOrderActivityLog::log(
                 $order->id,
                 'courier_failed',
-                'Courier API failed: ' . ($result['message'] ?? 'Unknown error'),
+                'Courier API failed: ' . $errorMessage,
                 null,
-                ['error' => $result['message']],
+                ['error' => $errorMessage],
                 Auth::id()
             );
 
             return [
                 'success' => false,
-                'message' => 'Courier API error: ' . ($result['message'] ?? 'Unknown error'),
+                'message' => 'Courier API error: ' . $errorMessage,
                 'code' => 502,
             ];
         }
@@ -332,6 +333,7 @@ class OrderManagementService
         DB::transaction(function () use ($order, $result) {
             $order->consignment_id = $result['consignment_id'];
             $order->tracking_code = $result['tracking_code'];
+            $order->tracking_link = $result['tracking_link'] ?? null;
             $order->sent_to_courier = true;
             $order->delivery_status = 'in_review';
             $order->status = 'shipped';
@@ -352,7 +354,7 @@ class OrderManagementService
                 'sent_to_courier',
                 'Order sent to Steadfast. Consignment: ' . $result['consignment_id'],
                 null,
-                ['consignment_id' => $result['consignment_id'], 'tracking_code' => $result['tracking_code']],
+                ['consignment_id' => $result['consignment_id'], 'tracking_code' => $result['tracking_code'], 'tracking_link' => $result['tracking_link'] ?? null],
                 Auth::id()
             );
         });

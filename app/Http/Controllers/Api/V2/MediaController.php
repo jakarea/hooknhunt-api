@@ -141,7 +141,8 @@ class MediaController extends Controller
             $query->where('mime_type', 'like', '%' . $request->type . '%');
         }
 
-        $files = $query->paginate(20);
+        $perPage = $request->per_page ?? 100;
+        $files = $query->paginate($perPage);
         return $this->sendSuccess($files);
     }
 

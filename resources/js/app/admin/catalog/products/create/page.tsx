@@ -24,6 +24,7 @@ import {
   Grid,
   SimpleGrid,
   Table,
+  TagsInput,
   useMantineColorScheme
 } from '@mantine/core'
 import {
@@ -91,10 +92,14 @@ function SortableGalleryImage({
   image,
   index,
   onRemove,
+  isFeatured,
+  onSetFeatured,
 }: {
   image: GalleryImage
   index: number
   onRemove: (id: string) => void
+  isFeatured: boolean
+  onSetFeatured: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: image.id })
   const style: React.CSSProperties = {
@@ -107,7 +112,17 @@ function SortableGalleryImage({
 
   return (
     <Box ref={setNodeRef} style={style} {...attributes} {...listeners} w={80}>
-      <Paper shadow="sm" p={4} withBorder>
+      <Paper
+        shadow="sm"
+        p={4}
+        withBorder
+        onClick={onSetFeatured}
+        style={{
+          cursor: 'pointer',
+          border: isFeatured ? '2px solid #bc1215' : undefined,
+          backgroundColor: isFeatured ? '#fff5f5' : undefined
+        }}
+      >
         <Image
           src={image.url}
           alt={`Gallery ${index + 1}`}
@@ -115,11 +130,23 @@ function SortableGalleryImage({
           radius="md"
           fit="cover"
         />
+        {isFeatured && (
+          <Badge
+            pos="absolute"
+            top={4}
+            left={4}
+            size="sm"
+            variant="filled"
+            color="blue"
+          >
+            Featured
+          </Badge>
+        )}
       </Paper>
       <Badge
         pos="absolute"
         top={4}
-        left={4}
+        right={4}
         size="sm"
         variant="filled"
         color="gray"
@@ -128,7 +155,7 @@ function SortableGalleryImage({
       </Badge>
       <ActionIcon
         pos="absolute"
-        top={4}
+        bottom={4}
         right={4}
         color="red"
         variant="filled"
@@ -158,6 +185,7 @@ interface ProductVariant {
   weight: number
   stock: number
   sellerSku: string
+  sellerSkuManuallyEdited?: boolean
   thumbnail?: string | null
 }
 
@@ -222,23 +250,30 @@ export default function CreateProductPage() {
   // SEO state
   const [seoTitle, setSeoTitle] = useState('')
   const [seoDescription, setSeoDescription] = useState('')
-  const [seoTags, setSeoTags] = useState('')
+  const [seoTags, setSeoTags] = useState<string[]>([])
 
   // Track which fields have been manually edited by the user
   const [manuallyEdited, setManuallyEdited] = useState({
-    wholesaleName: false,
-    seoTitle: false
+    seoTitle: false,
+    defaultSellerSku: false
   })
 
-  // Auto-fill wholesale name and SEO title from product name
+  // Helper function to generate SKU from name and variant
+  const generateSku = (name: string, variant?: string): string => {
+    const cleanName = name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    const cleanVariant = variant?.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    return cleanVariant ? `${cleanName}-${cleanVariant}` : cleanName
+  }
+
+  // Auto-fill wholesale name, SEO title, and default seller SKU from product name
   // Only updates fields that haven't been manually edited by the user
   useEffect(() => {
     if (productName) {
-      if (!manuallyEdited.wholesaleName) {
-        setWholesaleName(productName)
-      }
       if (!manuallyEdited.seoTitle) {
         setSeoTitle(productName.slice(0, 60))
+      }
+      if (!manuallyEdited.defaultSellerSku) {
+        setDefaultValues(prev => ({ ...prev, sellerSku: generateSku(productName) }))
       }
     }
   }, [productName])
@@ -1429,16 +1464,6 @@ export default function CreateProductPage() {
     }
   }, [])
 
-  // Featured image handlers
-  const handleSelectFeaturedImage = () => {
-    openSingleSelect((mediaFile: MediaFile) => {
-      setFeaturedImage({ mediaId: mediaFile.id, url: mediaFile.url })
-    }, featuredImage ? [featuredImage.mediaId] : [])
-  }
-
-  const handleRemoveFeaturedImage = () => {
-    setFeaturedImage(null)
-  }
 
   // Gallery images handlers
   const handleSelectGalleryImages = () => {
@@ -1450,7 +1475,7 @@ export default function CreateProductPage() {
         url: file.url,
         order: galleryImages.length + index
       }))
-      setGalleryImages([...galleryImages, ...newImages].slice(0, 6)) // Max 6 images
+      setGalleryImages([...galleryImages, ...newImages])
     }, currentSelection)
   }
 
@@ -1479,6 +1504,7 @@ export default function CreateProductPage() {
         weight: 0,
         stock: 0,
         sellerSku: '',
+        sellerSkuManuallyEdited: false,
         thumbnail: null
       }
     ])
@@ -1500,11 +1526,23 @@ export default function CreateProductPage() {
     setVariants(variants.map(v => {
       if (v.id !== id) return v
       const updated = { ...v, [field]: value }
+
       // Auto-calculate retail & wholesale price when purchase cost changes
       if (field === 'purchaseCost' && typeof value === 'number' && value > 0) {
         updated.price = value * 1.5
         updated.wholesalePrice = value * 1.2
       }
+
+      // Auto-generate SKU when variant name changes and SKU hasn't been manually edited
+      if (field === 'name' && !v.sellerSkuManuallyEdited) {
+        updated.sellerSku = generateSku(wholesaleName || productName || '', value)
+      }
+
+      // Mark sellerSku as manually edited when user changes it directly
+      if (field === 'sellerSku' && value !== v.sellerSku) {
+        updated.sellerSkuManuallyEdited = true
+      }
+
       return updated
     }))
   }
@@ -1649,7 +1687,7 @@ export default function CreateProductPage() {
         includesInTheBoxBn: includesInTheBoxBn.trim() || undefined,
         seoTitle,
         seoDescription,
-        seoTags,
+        seoTags: seoTags.length > 0 ? seoTags.join(', ') : null,
         featuredImage: featuredImage?.mediaId ?? null,
         galleryImages: galleryImages.map(img => img.mediaId),
         variants: variants.map(v => ({
@@ -1906,7 +1944,7 @@ export default function CreateProductPage() {
 
                     <Divider />
 
-                    {/* Featured Image Section */}
+                    {/* Featured Image */}
                     <Group justify="space-between">
                       <Group>
                         <IconPhoto size={20} className="text-blue-600" />
@@ -1914,14 +1952,17 @@ export default function CreateProductPage() {
                           {t('catalog.productsCreate.featuredImage') || 'Featured Image'}
                         </Text>
                       </Group>
-                      <Button
-                        size="xs"
+                      <ActionIcon
                         variant="light"
-                        leftSection={<IconUpload size={14} />}
-                        onClick={handleSelectFeaturedImage}
+                        size="lg"
+                        onClick={() => {
+                          openSingleSelect((mediaFile: MediaFile) => {
+                            setFeaturedImage({ mediaId: mediaFile.id, url: mediaFile.url })
+                          }, featuredImage ? [featuredImage.mediaId] : [])
+                        }}
                       >
-                        {t('catalog.productsCreate.selectFeaturedImage') || 'Select Image'}
-                      </Button>
+                        <IconUpload size={18} />
+                      </ActionIcon>
                     </Group>
 
                     {!featuredImage ? (
@@ -1929,14 +1970,26 @@ export default function CreateProductPage() {
                         withBorder
                         p="xl"
                         className="border-dashed"
-                        h={200}
+                        h={150}
                         display="flex"
                         style={{ alignItems: 'center', justifyContent: 'center' }}
                       >
                         <Stack align="center" gap="sm">
                           <IconPhoto size={48} className="text-gray-400" />
                           <Text c="dimmed">{t('catalog.productsCreate.noFeaturedImageSelected') || 'No featured image selected'}</Text>
-                          <Text size="xs" c="dimmed">{t('catalog.productsCreate.featuredImageDescription') || 'Select from media library'}</Text>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            leftSection={<IconUpload size={14} />}
+                            onClick={() => {
+                              openSingleSelect((mediaFile: MediaFile) => {
+                                setFeaturedImage({ mediaId: mediaFile.id, url: mediaFile.url })
+                              }, featuredImage ? [featuredImage.mediaId] : [])
+                            }}
+                          >
+                            {t('catalog.productsCreate.selectFeaturedImage') || 'Select Image'}
+                          </Button>
+                          <Text size="xs" c="dimmed">{t('catalog.productsCreate.featuredImageDescription') || 'Or click on a gallery image to set it as featured'}</Text>
                         </Stack>
                       </Paper>
                     ) : (
@@ -1957,7 +2010,7 @@ export default function CreateProductPage() {
                           color="red"
                           variant="filled"
                           size="sm"
-                          onClick={handleRemoveFeaturedImage}
+                          onClick={() => setFeaturedImage(null)}
                         >
                           <IconX size={16} />
                         </ActionIcon>
@@ -1983,7 +2036,7 @@ export default function CreateProductPage() {
                           {t('catalog.productsCreate.galleryImages') || 'Gallery Images'}
                         </Text>
                         <Badge size="sm" variant="light">
-                          {galleryImages.length}/6
+                          {galleryImages.length}
                         </Badge>
                       </Group>
                       <Button
@@ -1991,7 +2044,7 @@ export default function CreateProductPage() {
                         variant="light"
                         leftSection={<IconUpload size={14} />}
                         onClick={handleSelectGalleryImages}
-                        disabled={galleryImages.length >= 6}
+                        disabled={false}
                       >
                         {t('catalog.productsCreate.addGalleryImages') || 'Add Images'}
                       </Button>
@@ -2029,6 +2082,8 @@ export default function CreateProductPage() {
                                 image={image}
                                 index={index}
                                 onRemove={handleRemoveGalleryImage}
+                                isFeatured={featuredImage?.mediaId === image.mediaId}
+                                onSetFeatured={() => setFeaturedImage({ mediaId: image.mediaId, url: image.url })}
                               />
                             ))}
                           </Group>
@@ -2700,7 +2755,7 @@ export default function CreateProductPage() {
                     <Group>
                       <IconTag size={20} className="text-purple-600" />
                       <Text className="text-base md:text-lg" fw={600}>
-                        {t('catalog.productsCreate.seoSection') || 'SEO (Search Engine Optimization)'}
+                        {t('catalog.productsCreate.seoSection') || 'Search Keyword'}
                       </Text>
                     </Group>
 
@@ -2761,16 +2816,18 @@ export default function CreateProductPage() {
                           {/* SEO Tags */}
                           <Stack gap="sm">
                             <Text size="sm" fw={500}>
-                              {t('catalog.productsCreate.seoTags') || 'SEO Tags'}
+                              {t('catalog.productsCreate.seoTags') || 'Search Keyword'}
                             </Text>
-                            <TextInput
-                              placeholder={t('catalog.productsCreate.seoTagsPlaceholder') || 'product, category, brand, feature, benefit'}
+                            <TagsInput
+                              placeholder={t('catalog.productsCreate.seoTagsPlaceholder') || 'Enter search keyword'}
                               value={seoTags}
-                              onChange={(value) => setSeoTags(typeof value === 'string' ? value : value?.currentTarget?.value || '')}
+                              onChange={setSeoTags}
                               onFocus={collapseSidebarIfNeeded}
+                              clearable
+                              splitChars={[',', ' ']}
                             />
                             <Text size="xs" c="dimmed">
-                              {t('catalog.productsCreate.seoTagsTip') || 'Comma-separated search keywords. Examples: product type, features, benefits, use cases.'}
+                              {t('catalog.productsCreate.seoTagsTip') || 'Search keyword helps users find your product easily'}
                             </Text>
                           </Stack>
                         </Stack>

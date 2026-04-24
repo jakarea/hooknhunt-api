@@ -34,26 +34,20 @@ import dayjs from 'dayjs'
 interface Customer {
   id: number
   name: string
-  email: string | null
   phone: string
-  roleId: number
-  isActive: boolean
-  phoneVerifiedAt: string | null
-  lastLoginAt: string | null
+  email: string | null
+  customerProfile?: {
+	type: 'retail' | 'wholesale'
+	totalOrders: number
+	totalSpent: number
+	loyaltyPoints: number
+  }
+  addresses?: Array<{
+	city: string
+	division: string
+  }>
   createdAt: string
   updatedAt: string
-  role?: {
-    id: number
-    name: string
-    slug: string
-  }
-  customerProfile?: {
-    id: number
-    type: string
-    totalOrders: number
-    totalSpent: number
-    loyaltyPoints: number
-  }
 }
 
 interface PaginatedResponse {
@@ -317,9 +311,8 @@ export default function CustomersPage() {
       }
 
       const params = new URLSearchParams({
-        type: 'customer',
         page: page.toString(),
-        per_page: '10',
+        per_page: pagination.per_page.toString(),
       })
 
       if (searchQuery.trim()) {
@@ -328,69 +321,10 @@ export default function CustomersPage() {
 
       // Add type filter if selected (retail or wholesale)
       if (typeFilter && typeFilter !== 'all') {
-        params.append('customer_type', typeFilter)
+        params.append('type', typeFilter)
       }
 
-      // Status filter
-      if (statusFilter && statusFilter !== 'all') {
-        params.append('status', statusFilter)
-      }
-
-      // Location filter
-      if (locationFilter) {
-        params.append('location', locationFilter)
-      }
-
-      // City filter (multiple cities)
-      if (cityFilter.length > 0) {
-        params.append('cities', cityFilter.join(','))
-      }
-
-      // Purchase history filters
-      if (spentRangeFilter[0] > 0) {
-        params.append('min_spent', spentRangeFilter[0].toString())
-      }
-      if (spentRangeFilter[1] < 100000) {
-        params.append('max_spent', spentRangeFilter[1].toString())
-      }
-
-      if (ordersRangeFilter[0] > 0) {
-        params.append('min_orders', ordersRangeFilter[0].toString())
-      }
-      if (ordersRangeFilter[1] < 100) {
-        params.append('max_orders', ordersRangeFilter[1].toString())
-      }
-
-      // Loyalty points filter
-      if (loyaltyPointsFilter[0] > 0) {
-        params.append('min_loyalty_points', loyaltyPointsFilter[0].toString())
-      }
-      if (loyaltyPointsFilter[1] < 10000) {
-        params.append('max_loyalty_points', loyaltyPointsFilter[1].toString())
-      }
-
-      // VIP status filter
-      if (vipStatusFilter && vipStatusFilter !== 'all') {
-        params.append('vip_status', vipStatusFilter)
-      }
-
-      // Date filters - Registration date range
-      if (registrationDateFrom) {
-        params.append('registration_date_from', formatDateForApi(registrationDateFrom))
-      }
-      if (registrationDateTo) {
-        params.append('registration_date_to', formatDateForApi(registrationDateTo))
-      }
-
-      // Date filters - Last purchase date range
-      if (lastPurchaseFrom) {
-        params.append('last_purchase_from', formatDateForApi(lastPurchaseFrom))
-      }
-      if (lastPurchaseTo) {
-        params.append('last_purchase_to', formatDateForApi(lastPurchaseTo))
-      }
-
-      const response = await api.get(`/user-management/users?${params.toString()}`)
+      const response = await api.get(`/crm/customers?${params.toString()}`)
 
       if (response.data?.status) {
         const data: PaginatedResponse = response.data.data
@@ -455,26 +389,20 @@ export default function CustomersPage() {
     })
   }
 
-  // Get customer type from role
-  const getCustomerType = (customer: Customer) => {
-    if (customer.role?.slug === 'wholesale_customer') return 'wholesale'
-    if (customer.role?.slug === 'retail_customer') return 'retail'
-    return customer.customerProfile?.type || 'retail'
-  }
-
   // Desktop table rows
   const desktopRows = customers.map((customer) => {
-    const type = getCustomerType(customer)
-    const isActive = customer.isActive
+    const type = customer.customerProfile?.type || 'retail'
     const totalOrders = customer.customerProfile?.totalOrders || 0
-    const totalSpent = customer.customerProfile?.totalSpent || 0
+    const totalSpent = parseFloat(customer.customerProfile?.totalSpent || 0)
     const loyaltyPoints = customer.customerProfile?.loyaltyPoints || 0
 
     return (
       <Table.Tr key={customer.id}>
         <Table.Td>
           <Text fw={600} className="text-sm md:text-base">{customer.name}</Text>
-          <Text className="text-xs md:text-sm" c="dimmed">{customer.email || 'No email'}</Text>
+          {customer.email && (
+            <Text className="text-xs md:text-sm" c="dimmed">{customer.email}</Text>
+          )}
         </Table.Td>
         <Table.Td>
           <Text className="text-sm md:text-base">{customer.phone}</Text>
@@ -497,11 +425,6 @@ export default function CustomersPage() {
         </Table.Td>
         <Table.Td>
           <Text className="text-sm md:text-base">{loyaltyPoints} {t('crm.customers.points')}</Text>
-        </Table.Td>
-        <Table.Td>
-          <Badge color={isActive ? 'green' : 'gray'} variant="light">
-            {isActive ? t('crm.customers.status.active') : t('crm.customers.status.inactive')}
-          </Badge>
         </Table.Td>
         <Table.Td>
           <Text className="text-sm md:text-base">{formatDate(customer.createdAt)}</Text>
@@ -542,10 +465,9 @@ export default function CustomersPage() {
 
   // Mobile cards
   const mobileCards = customers.map((customer) => {
-    const type = getCustomerType(customer)
-    const isActive = customer.isActive
+    const type = customer.customerProfile?.type || 'retail'
     const totalOrders = customer.customerProfile?.totalOrders || 0
-    const totalSpent = customer.customerProfile?.totalSpent || 0
+    const totalSpent = parseFloat(customer.customerProfile?.totalSpent || 0)
     const loyaltyPoints = customer.customerProfile?.loyaltyPoints || 0
 
     return (
@@ -555,7 +477,9 @@ export default function CustomersPage() {
           <Group justify="space-between">
             <Box className="flex-1">
               <Text fw={700} className="text-lg md:text-xl lg:text-2xl">{customer.name}</Text>
-              <Text className="text-sm md:text-base" c="dimmed">{customer.email || 'No email'}</Text>
+              {customer.email && (
+                <Text className="text-sm md:text-base" c="dimmed">{customer.email}</Text>
+              )}
               <Text className="text-xs md:text-sm" c="dimmed" mt={2}>{customer.phone}</Text>
             </Box>
             <Group>
@@ -588,13 +512,10 @@ export default function CustomersPage() {
             </Group>
           </Group>
 
-          {/* Customer Type & Status */}
+          {/* Customer Type */}
           <Group>
             <Badge color={type === 'wholesale' ? 'blue' : 'gray'} variant="light">
               {t(`crm.customers.type.${type}`)}
-            </Badge>
-            <Badge color={isActive ? 'green' : 'gray'} variant="light">
-              {isActive ? t('crm.customers.status.active') : t('crm.customers.status.inactive')}
             </Badge>
           </Group>
 
@@ -643,7 +564,7 @@ export default function CustomersPage() {
       confirmProps: { color: 'red' },
       onConfirm: async () => {
         try {
-          const response = await api.delete(`/user-management/users/${id}`)
+          const response = await api.delete(`/crm/customers/${id}`)
 
           if (response.data?.status) {
             notifications.show({
@@ -973,7 +894,6 @@ export default function CustomersPage() {
                     <Table.Th>{t('crm.customers.table.totalSpent')}</Table.Th>
                     <Table.Th>{t('crm.customers.table.orders')}</Table.Th>
                     <Table.Th>{t('crm.customers.table.loyaltyPoints')}</Table.Th>
-                    <Table.Th>{t('crm.customers.table.status')}</Table.Th>
                     <Table.Th>{t('crm.customers.table.joined')}</Table.Th>
                     <Table.Th>{t('common.actions')}</Table.Th>
                   </Table.Tr>
@@ -981,7 +901,7 @@ export default function CustomersPage() {
                 <Table.Tbody>
                   {customers.length === 0 ? (
                     <Table.Tr>
-                      <Table.Td colSpan={9}>
+                      <Table.Td colSpan={8}>
                         <Box py="xl" ta="center">
                           <Text c="dimmed">{t('crm.customers.noCustomersFound')}</Text>
                         </Box>

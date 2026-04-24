@@ -43,6 +43,7 @@ class Product extends Model
         'includes_in_box',
         'includes_in_box_bn',
         'thank_you',
+        'sort_order',
     ];
 
     protected $casts = [
@@ -57,6 +58,18 @@ class Product extends Model
 
     // Automatically append gallery images URLs to JSON response
     protected $appends = ['gallery_images_urls', 'cross_sale_products', 'up_sale_products'];
+
+    /**
+     * Global scope to order products by sort_order by default
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::addGlobalScope('ordered', function ($query) {
+            $query->orderBy('sort_order')->orderBy('id');
+        });
+    }
 
     // 1. Relation with Category
     public function category()

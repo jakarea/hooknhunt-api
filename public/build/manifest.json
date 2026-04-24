@@ -1,6 +1,6 @@
 {
-  "_mantine-vendor-Bhu6VfNE.js": {
-    "file": "assets/mantine-vendor-Bhu6VfNE.js",
+  "_mantine-vendor-BZsz-VXw.js": {
+    "file": "assets/mantine-vendor-BZsz-VXw.js",
     "name": "mantine-vendor",
     "imports": [
       "_react-vendor-DCNV_QY_.js"
@@ -28,12 +28,12 @@
     "isDynamicEntry": true
   },
   "resources/js/main.tsx": {
-    "file": "assets/main-Dz3WeJ7S.js",
+    "file": "assets/main-Dzn14LET.js",
     "name": "main",
     "src": "resources/js/main.tsx",
     "isEntry": true,
     "imports": [
-      "_mantine-vendor-Bhu6VfNE.js",
+      "_mantine-vendor-BZsz-VXw.js",
       "_react-vendor-DCNV_QY_.js",
       "_other-vendor-C0Zqfgkc.js",
       "_zustand-vendor-Bb1ROlG7.js"

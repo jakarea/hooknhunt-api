@@ -49,7 +49,7 @@ class OrderController extends Controller
         }
 
         // Filters
-        if ($request->status) {
+        if ($request->status && $request->status !== 'all') {
             $query->where('status', $request->status);
         }
         if ($request->payment_status) {
@@ -381,7 +381,8 @@ class OrderController extends Controller
             'sku' => $variant->sku,
             'price' => (float) $variant->price,
             'weight' => (float) ($variant->weight ?? 0),
-            'thumbnail' => $variant->product?->thumbnail?->full_url,
+            // Variant thumbnail with fallback to product thumbnail
+            'thumbnail' => $variant->thumbnail ?? $variant->product?->thumbnail?->full_url,
             'stock' => (int) $variant->stock,
         ]);
 
@@ -407,7 +408,8 @@ class OrderController extends Controller
             'sku' => $variant->sku,
             'price' => (float) $variant->price,
             'weight' => (float) ($variant->weight ?? 0),
-            'thumbnail' => $variant->product?->thumbnail?->full_url,
+            // Variant thumbnail with fallback to product thumbnail
+            'thumbnail' => $variant->thumbnail ?? $variant->product?->thumbnail?->full_url,
             'stock' => (int) $variant->stock,
         ]);
 
@@ -681,15 +683,19 @@ class OrderController extends Controller
                 'wholesale_name' => $item->variant?->product?->wholesale_name ?? null,
                 'variant_name' => $item->variant?->variant_name ?? $item->variant?->sku ?? 'N/A',
                 'sku' => $item->variant?->sku,
-                'thumbnail' => $item->variant?->product?->thumbnail?->full_url ?? null,
+                // Variant thumbnail with fallback to product thumbnail
+                'thumbnail' => $item->variant?->thumbnail ?? $item->variant?->product?->thumbnail?->full_url,
                 'variant_weight' => (float) ($item->variant?->weight ?? 0),
                 'quantity' => $item->quantity,
                 'unit_price' => (float) $item->unit_price,
+                'original_price' => $item->original_price ? (float) $item->original_price : null,
+                'offer_price' => $item->variant && (float) $item->variant->offer_price > 0 ? (float) $item->variant->offer_price : null,
                 'total_price' => (float) $item->total_price,
                 'total_cost' => (float) $item->total_cost,
                 'profit' => $item->profit,
                 'weight' => (float) $item->weight,
                 'total_weight' => $item->total_weight,
+                'slug' => $item->variant?->product?->slug,
             ])->toArray(),
             'status_history' => $order->statusHistories->map(fn ($h) => [
                 'id' => $h->id,
