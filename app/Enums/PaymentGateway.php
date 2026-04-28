@@ -5,6 +5,7 @@ namespace App\Enums;
 enum PaymentGateway: string
 {
     case SSLCOMMERZ = 'sslcommerz';
+    case EPS = 'eps';
     case BKASH = 'bkash';
     case NAGAD = 'nagad';
     case ROCKET = 'rocket';
@@ -15,6 +16,7 @@ enum PaymentGateway: string
     {
         return match ($this) {
             self::SSLCOMMERZ => 'SSL Commerz',
+            self::EPS => 'EPS',
             self::BKASH => 'bKash',
             self::NAGAD => 'Nagad',
             self::ROCKET => 'Rocket',

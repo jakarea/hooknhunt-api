@@ -3014,6 +3014,7 @@
     "profile": "Profile",
     "workingHours": "Working Hours",
     "workingHoursTitle": "Working Hours Settings",
+    "paymentGateways": "Payment Gateways",
     "workingHoursConfig": {
       "title": "Working Hours",
       "subtitle": "Configure office working hours and attendance rules",

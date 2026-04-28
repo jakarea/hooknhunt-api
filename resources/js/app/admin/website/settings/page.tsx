@@ -147,21 +147,21 @@ export default function WebsiteSettingsPage() {
       const payload = {
         base_weight: deliverySettings.baseWeight,
         inside_dhaka: {
-          base_charge: deliverySettings.insideDhaka?.base_charge ?? 0,
-          per_kg_charge: deliverySettings.insideDhaka?.per_kg_charge ?? 0,
+          base_charge: deliverySettings.insideDhaka?.baseCharge ?? 60,
+          per_kg_charge: deliverySettings.insideDhaka?.perKgCharge ?? 15,
         },
         outside_dhaka: {
-          base_charge: deliverySettings.outsideDhaka?.base_charge ?? 0,
-          per_kg_charge: deliverySettings.outsideDhaka?.per_kg_charge ?? 0,
+          base_charge: deliverySettings.outsideDhaka?.baseCharge ?? 120,
+          per_kg_charge: deliverySettings.outsideDhaka?.perKgCharge ?? 20,
         },
         flat_rate: {
           enabled: deliverySettings.flatRate?.enabled ?? false,
-          base_charge: deliverySettings.flatRate?.base_charge ?? 0,
-          per_kg_charge: deliverySettings.flatRate?.per_kg_charge ?? 0,
+          base_charge: deliverySettings.flatRate?.baseCharge ?? 100,
+          per_kg_charge: deliverySettings.flatRate?.perKgCharge ?? 25,
         },
         free_delivery: {
           enabled: deliverySettings.freeDelivery?.enabled ?? false,
-          minAmount: deliverySettings.freeDelivery?.min_amount ?? 0,
+          minAmount: deliverySettings.freeDelivery?.minAmount ?? 0,
         },
       }
 
@@ -432,7 +432,7 @@ export default function WebsiteSettingsPage() {
                               description="Charge for packages within base weight"
                               prefix="৳"
                               min={0}
-                              value={deliverySettings.insideDhaka?.base_charge ?? 60}
+                              value={deliverySettings.insideDhaka?.baseCharge ?? 60}
                               onChange={(value) => updateDeliverySetting('insideDhaka.baseCharge', value ?? 60)}
                             />
                             <NumberInput
@@ -440,13 +440,13 @@ export default function WebsiteSettingsPage() {
                               description="Charge for each additional KG"
                               prefix="৳"
                               min={0}
-                              value={deliverySettings.insideDhaka?.per_kg_charge ?? 15}
+                              value={deliverySettings.insideDhaka?.perKgCharge ?? 15}
                               onChange={(value) => updateDeliverySetting('insideDhaka.perKgCharge', value ?? 15)}
                             />
                             <Divider />
                             <Text size="xs" c="dimmed">
-                              Example: {deliverySettings.baseWeight} KG = ৳{deliverySettings.insideDhaka?.base_charge ?? 60} |
-                              {deliverySettings.baseWeight + 1} KG = ৳{calculateCharge(deliverySettings.baseWeight + 1, deliverySettings.insideDhaka?.base_charge ?? 60, deliverySettings.insideDhaka?.per_kg_charge ?? 15)}
+                              Example: {deliverySettings.baseWeight} KG = ৳{deliverySettings.insideDhaka?.baseCharge ?? 60} |
+                              {deliverySettings.baseWeight + 1} KG = ৳{calculateCharge(deliverySettings.baseWeight + 1, deliverySettings.insideDhaka?.baseCharge ?? 60, deliverySettings.insideDhaka?.perKgCharge ?? 15)}
                             </Text>
                           </Stack>
                         </Card>
@@ -460,7 +460,7 @@ export default function WebsiteSettingsPage() {
                               description="Charge for packages within base weight"
                               prefix="৳"
                               min={0}
-                              value={deliverySettings.outsideDhaka?.base_charge ?? 120}
+                              value={deliverySettings.outsideDhaka?.baseCharge ?? 120}
                               onChange={(value) => updateDeliverySetting('outsideDhaka.baseCharge', value ?? 120)}
                             />
                             <NumberInput
@@ -468,13 +468,13 @@ export default function WebsiteSettingsPage() {
                               description="Charge for each additional KG"
                               prefix="৳"
                               min={0}
-                              value={deliverySettings.outsideDhaka?.per_kg_charge ?? 20}
+                              value={deliverySettings.outsideDhaka?.perKgCharge ?? 20}
                               onChange={(value) => updateDeliverySetting('outsideDhaka.perKgCharge', value ?? 20)}
                             />
                             <Divider />
                             <Text size="xs" c="dimmed">
-                              Example: {deliverySettings.baseWeight} KG = ৳{deliverySettings.outsideDhaka?.base_charge ?? 120} |
-                              {deliverySettings.baseWeight + 1} KG = ৳{calculateCharge(deliverySettings.baseWeight + 1, deliverySettings.outsideDhaka?.base_charge ?? 120, deliverySettings.outsideDhaka?.per_kg_charge ?? 20)}
+                              Example: {deliverySettings.baseWeight} KG = ৳{deliverySettings.outsideDhaka?.baseCharge ?? 120} |
+                              {deliverySettings.baseWeight + 1} KG = ৳{calculateCharge(deliverySettings.baseWeight + 1, deliverySettings.outsideDhaka?.baseCharge ?? 120, deliverySettings.outsideDhaka?.perKgCharge ?? 20)}
                             </Text>
                           </Stack>
                         </Card>
@@ -508,7 +508,7 @@ export default function WebsiteSettingsPage() {
                                 description="Charge for packages within base weight (applies everywhere)"
                                 prefix="৳"
                                 min={0}
-                                value={deliverySettings.flatRate?.base_charge ?? 100}
+                                value={deliverySettings.flatRate?.baseCharge ?? 100}
                                 onChange={(value) => updateDeliverySetting('flatRate.baseCharge', value ?? 100)}
                               />
                               <NumberInput
@@ -516,13 +516,13 @@ export default function WebsiteSettingsPage() {
                                 description="Charge for each additional KG"
                                 prefix="৳"
                                 min={0}
-                                value={deliverySettings.flatRate?.per_kg_charge ?? 25}
+                                value={deliverySettings.flatRate?.perKgCharge ?? 25}
                                 onChange={(value) => updateDeliverySetting('flatRate.perKgCharge', value ?? 25)}
                               />
                               <Divider />
                               <Text size="xs" c="dimmed">
-                                Example: {deliverySettings.baseWeight} KG = ৳{deliverySettings.flatRate?.base_charge ?? 100} |
-                                {deliverySettings.baseWeight + 1} KG = ৳{calculateCharge(deliverySettings.baseWeight + 1, deliverySettings.flatRate?.base_charge ?? 100, deliverySettings.flatRate?.per_kg_charge ?? 25)}
+                                Example: {deliverySettings.baseWeight} KG = ৳{deliverySettings.flatRate?.baseCharge ?? 100} |
+                                {deliverySettings.baseWeight + 1} KG = ৳{calculateCharge(deliverySettings.baseWeight + 1, deliverySettings.flatRate?.baseCharge ?? 100, deliverySettings.flatRate?.perKgCharge ?? 25)}
                               </Text>
                             </>
                           )}
@@ -558,11 +558,11 @@ export default function WebsiteSettingsPage() {
                                 prefix="৳"
                                 min={0}
                                 step={100}
-                                value={deliverySettings.freeDelivery?.min_amount ?? 0}
+                                value={deliverySettings.freeDelivery?.minAmount ?? 0}
                                 onChange={(value) => updateDeliverySetting('freeDelivery.minAmount', value ?? 0)}
                               />
                               <Text size="xs" c="dimmed">
-                                Orders of ৳{deliverySettings.freeDelivery?.min_amount ?? 0} or more will have free delivery.
+                                Orders of ৳{deliverySettings.freeDelivery?.minAmount ?? 0} or more will have free delivery.
                               </Text>
                             </>
                           )}

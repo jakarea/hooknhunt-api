@@ -2462,6 +2462,7 @@
     "profile": "প্রোফাইল",
     "workingHours": "কর্ম সময়",
     "workingHoursTitle": "কর্ম সময় সেটিংস",
+    "paymentGateways": "পেমেন্ট গেটওয়ে",
     "workingHoursConfig": {
       "title": "কর্ম সময়",
       "subtitle": "অফিসের কর্ম সময় এবং উপস্থিতি নিয়ম কনফিগার করুন",

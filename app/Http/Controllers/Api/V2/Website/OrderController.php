@@ -61,13 +61,13 @@ class OrderController extends Controller
                 'customer_id'     => $customer->id,
                 'channel'         => $channel,
                 'status'          => 'pending',
-                'payment_status'  => in_array($validated['payment_method'], ['cod', 'sslcommerz']) ? 'unpaid' : 'paid',
+                'payment_status'  => in_array($validated['payment_method'], ['cod', 'sslcommerz', 'eps']) ? 'unpaid' : 'paid',
                 'sub_total'       => $validated['subtotal'],
                 'discount_amount' => $validated['coupon_discount'] ?? 0,
                 'delivery_charge' => $validated['delivery_charge'] ?? 0,
                 'total_amount'    => $validated['payable_amount'],
-                'paid_amount'     => in_array($validated['payment_method'], ['cod', 'sslcommerz']) ? 0 : $validated['payable_amount'],
-                'due_amount'      => in_array($validated['payment_method'], ['cod', 'sslcommerz']) ? $validated['payable_amount'] : 0,
+                'paid_amount'     => in_array($validated['payment_method'], ['cod', 'sslcommerz', 'eps']) ? 0 : $validated['payable_amount'],
+                'due_amount'      => in_array($validated['payment_method'], ['cod', 'sslcommerz', 'eps']) ? $validated['payable_amount'] : 0,
                 'note'            => $validated['notes'] ?? null,
                 'external_data'   => $this->buildShippingData($validated),
             ]);
@@ -388,6 +388,27 @@ class OrderController extends Controller
                 'division' => $validated['division'] ?? null,
             ]);
             return $this->sendError('Failed to calculate delivery charge', $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Get delivery settings for storefront (public access).
+     * Returns rates and free delivery configuration.
+     * GET /api/v2/public/delivery-settings
+     */
+    public function getDeliverySettings(): JsonResponse
+    {
+        try {
+            $settings = \App\Services\Website\DeliveryChargeCalculator::getSettingsForAdmin();
+
+            return $this->sendSuccess($settings, 'Delivery settings retrieved successfully');
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to retrieve delivery settings', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->sendError('Failed to retrieve delivery settings', $e->getMessage(), 500);
         }
     }
 

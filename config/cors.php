@@ -19,9 +19,21 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => [
+        'https://www.hooknhunt.com',
+        'https://hooknhunt.com',
+        'https://www.probesh.hooknhunt.com',
+        'https://probesh.hooknhunt.com',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+    ],
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => [
+        '/^https?:\/\/([a-z0-9-]+\.)?hooknhunt\.com$/',
+        '/^https?:\/\/([a-z0-9-]+\.)?probesh\.hooknhunt\.com$/',
+    ],
 
     'allowed_headers' => ['*'],
 

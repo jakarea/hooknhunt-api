@@ -7,6 +7,9 @@ use App\Helpers\SlugHelper;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Traits\ApiResponse;
+use App\Events\Product\ProductCreated;
+use App\Events\Product\ProductUpdated;
+use App\Events\Product\ProductDeleted;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -303,6 +306,9 @@ class ProductController extends Controller
             }
 
             DB::commit();
+
+            // Dispatch ProductCreated event for Lazychat sync
+            event(new ProductCreated($product));
 
             return $this->sendSuccess([
                 'product' => $product,
@@ -701,6 +707,10 @@ class ProductController extends Controller
             }
 
             DB::commit();
+
+            // Dispatch ProductUpdated event for Lazychat sync
+            event(new ProductUpdated($product));
+
             return $this->sendSuccess($product->load(['category', 'brand', 'thumbnail', 'variants']), 'Product updated successfully');
 
         } catch (\Exception $e) {
@@ -721,6 +731,10 @@ class ProductController extends Controller
         try {
             $product->delete();
             DB::commit();
+
+            // Dispatch ProductDeleted event for Lazychat sync
+            event(new ProductDeleted($product));
+
             return $this->sendSuccess(null, 'Product deleted successfully');
 
         } catch (\Exception $e) {
@@ -776,6 +790,10 @@ class ProductController extends Controller
             }
 
             DB::commit();
+
+            // Dispatch ProductCreated event for Lazychat sync (duplicated product is new)
+            event(new ProductCreated($newProduct));
+
             return $this->sendSuccess($newProduct->load(['variants', 'category', 'brand', 'thumbnail']), 'Product duplicated successfully');
 
         } catch (\Exception $e) {

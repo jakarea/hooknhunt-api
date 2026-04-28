@@ -15,6 +15,12 @@ use App\Listeners\Supplier\LogSupplierUpdated;
 use App\Listeners\Supplier\LogSupplierDeleted;
 use App\Listeners\Supplier\SendSupplierCreatedNotification;
 
+// Lazychat Integration Events
+use App\Events\Product\ProductCreated;
+use App\Events\Product\ProductUpdated;
+use App\Events\Product\ProductDeleted;
+use App\Listeners\Product\SyncProductToLazychat;
+
 /**
  * Event Service Provider
  *
@@ -44,6 +50,19 @@ class EventServiceProvider extends ServiceProvider
 
         SupplierDeleted::class => [
             LogSupplierDeleted::class,
+        ],
+
+        // Lazychat Integration - Product Sync Events
+        ProductCreated::class => [
+            SyncProductToLazychat::class . '@handleProductCreated',
+        ],
+
+        ProductUpdated::class => [
+            SyncProductToLazychat::class . '@handleProductUpdated',
+        ],
+
+        ProductDeleted::class => [
+            SyncProductToLazychat::class . '@handleProductDeleted',
         ],
     ];
 

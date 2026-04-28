@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\Api\V2\Website\PaymentGatewayController;;
 /*
 |--------------------------------------------------------------------------
 | API Routes V2 (Enterprise Modular Architecture)
@@ -39,6 +39,42 @@ Route::group([
 });
 
 // ====================================================
+// EPS TEST ENDPOINTS (For Debugging - Remove in Production)
+// ====================================================
+Route::group([
+    'prefix' => 'v2/test/eps',
+    'namespace' => 'App\Http\Controllers\Api\V2'
+], function () {
+    Route::get('connectivity', 'EpsTestController@connectivity');
+    Route::get('config', 'EpsTestController@config');
+});
+
+// ====================================================
+// LAZYCHAT INTEGRATION (Public - External Webhooks)
+// ====================================================
+// Lazychat fetches product data from these endpoints
+// No authentication required - external service access
+Route::group([
+    'prefix' => 'v2/lazychat-retail',
+    'namespace' => 'App\Http\Controllers\Api\V2'
+], function () {
+    // Get all products in Lazychat format (for initial sync)
+    Route::get('products', 'LazychatRetailController@products');
+
+    // Get single product by ID
+    Route::get('products/{id}', 'LazychatRetailController@showProduct');
+
+    // Get webhook status for a product (admin monitoring)
+    Route::get('webhook-status/{productId}', 'LazychatRetailController@webhookStatus');
+
+    // Get failed webhooks (admin monitoring)
+    Route::get('failed-webhooks', 'LazychatRetailController@failedWebhooks');
+
+    // Receive order from Lazychat AI
+    Route::post('order/create', 'LazychatRetailController@receiveOrder');
+});
+
+// ====================================================
 // PROTECTED ROUTES (Middleware: Sanctum)
 // ====================================================
 Route::group([
@@ -61,7 +97,15 @@ Route::group([
     Route::post('notifications/read', 'NotificationController@markAsRead');
 
     // --- Module: SYSTEM & ACCESS CONTROL ---
-    Route::group(['prefix' => 'system', 'middleware' => 'permission:system.settings.index'], function () {
+    Route::group(['prefix' => 'system'], function () {
+        // Payment Gateway Settings (Admin) - MUST come before apiResource to avoid conflict
+        Route::group(['prefix' => 'settings/payment'], function () {
+            Route::get('/', [\App\Http\Controllers\Admin\PaymentSettingsController::class, 'index']);
+            Route::put('/gateway', [\App\Http\Controllers\Admin\PaymentSettingsController::class, 'updateGateway']);
+            Route::get('/eps/status', [\App\Http\Controllers\Admin\PaymentSettingsController::class, 'getEPSStatus']);
+            Route::post('/eps/test', [\App\Http\Controllers\Admin\PaymentSettingsController::class, 'testEPS']);
+        });
+
         Route::apiResource('units', 'UnitController')
             ->middleware([
                 'store' => 'permission:system.settings.create',
@@ -598,7 +642,7 @@ Route::group([
         Route::get('statistics', 'ProcurementController@statistics');
         Route::get('suppliers/{id}/products', 'ProcurementController@getBySupplier');
         Route::patch('products/{id}/status', 'ProcurementController@updateStatus')->middleware('permission:procurement.products.status');
-        Route::apiResource('products', 'ProcurementController')
+        Route::apiResource('products', 'ProcurementController', ['names' => 'procurement.products'])
             ->middleware([
                 'store' => 'permission:procurement.products.create',
                 'update' => 'permission:procurement.products.edit',
@@ -611,7 +655,7 @@ Route::group([
         Route::post('orders/{id}/approve-and-stock', 'PurchaseOrderController@approveAndStock')->middleware('permission:procurement.orders.approve');
         Route::patch('orders/{poId}/status-history/{historyId}/comments', 'PurchaseOrderController@updateStatusHistoryComments')->middleware('permission:procurement.orders.edit');
         Route::patch('orders/{poId}/status-history/{historyId}/timeline-data', 'PurchaseOrderController@updateStatusHistoryTimelineData')->middleware('permission:procurement.orders.edit');
-        Route::apiResource('orders', 'PurchaseOrderController')
+        Route::apiResource('orders', 'PurchaseOrderController', ['names' => 'procurement.orders'])
             ->middleware([
                 'store' => 'permission:procurement.orders.create',
                 'update' => 'permission:procurement.orders.edit',
@@ -663,6 +707,12 @@ Route::group([
 
     // Delivery charge calculation (public access for storefront)
     Route::post('calculate-delivery', 'Website\OrderController@calculateDelivery');
+
+    // Delivery settings (public - returns rates and free delivery config for storefront)
+    Route::get('delivery-settings', 'Website\OrderController@getDeliverySettings');
+
+    // Payment gateway configuration (public - returns only active gateway)
+    Route::get('payment/gateway', 'Website\PaymentGatewayController@getActiveGateway');
 });
 
 // ====================================================

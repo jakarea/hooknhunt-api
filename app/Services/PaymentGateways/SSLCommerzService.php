@@ -57,16 +57,26 @@ class SSLCommerzService
             'cus_name' => $data['customer_name'],
             'cus_email' => $data['customer_email'] ?? 'guest@example.com',
             'cus_phone' => $data['customer_phone'],
-            'cus_add1' => $data['customer_address']['address_line1'] ?? 'N/A',
-            'cus_add2' => $data['customer_address']['address_line2'] ?? '',
-            'cus_city' => $data['customer_address']['city'] ?? 'Dhaka',
+            'cus_add1' => $data['customer_address']['address']
+                ?? ($data['customer_address']['address_line1'] ?? 'N/A'),
+            'cus_add2' => $data['customer_address']['district']
+                ?? $data['customer_address']['address_line2']
+                ?? '',
+            'cus_city' => $data['customer_address']['thana']
+                ?? $data['customer_address']['city']
+                ?? $data['customer_address']['district']
+                ?? 'Dhaka',
             'cus_country' => $data['customer_address']['country'] ?? 'Bangladesh',
             'cus_postcode' => $data['customer_address']['postal_code'] ?? '1000',
 
             // Shipping information (same as billing for now)
             'ship_name' => $data['customer_name'],
-            'ship_add1' => $data['customer_address']['address_line1'] ?? 'N/A',
-            'ship_city' => $data['customer_address']['city'] ?? 'Dhaka',
+            'ship_add1' => $data['customer_address']['address']
+                ?? ($data['customer_address']['address_line1'] ?? 'N/A'),
+            'ship_city' => $data['customer_address']['thana']
+                ?? $data['customer_address']['city']
+                ?? $data['customer_address']['district']
+                ?? 'Dhaka',
             'ship_country' => $data['customer_address']['country'] ?? 'Bangladesh',
             'ship_postcode' => $data['customer_address']['postal_code'] ?? '1000',
 

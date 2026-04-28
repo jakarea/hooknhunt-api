@@ -6,7 +6,7 @@ use App\Http\Controllers\Api\V2\Website\ProductController;
 use App\Http\Controllers\Api\V2\Website\AccountController;
 use App\Http\Controllers\Api\V2\Website\OrderController;
 use App\Http\Controllers\Api\V2\Website\StorefrontSliderController;
-use App\Http\Controllers\Api\V2\PaymentGatewayController;
+use App\Http\Controllers\Api\V2\Website\PaymentGatewayController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -48,24 +48,33 @@ Route::prefix('api')->group(function () {
     Route::post('/orders/{invoice_no}/thank-you', [OrderController::class, 'addThankYouProduct']);
 
     // ===============================================
-    // PAYMENT GATEWAY ROUTES (SSL Commerz)
+    // PAYMENT GATEWAY ROUTES (SSL Commerz & EPS)
     // ===============================================
-    Route::prefix('payments')->group(function () {
-        // Initiate payment
-        Route::post('/initiate', [PaymentGatewayController::class, 'initiate']);
 
-        // EMI options
+
+// Route::post('/initializePayment', [App\Http\Controllers\EPSExampleController::class, 'initializePayment'])->name('initializePayment');
+// Route::get('/payment-success', [App\Http\Controllers\EPSExampleController::class, 'success'])->name('payment.success');
+// Route::get('/payment-fail', [App\Http\Controllers\EPSExampleController::class, 'fail'])->name('payment.fail');
+// Route::get('/payment-cancel', [App\Http\Controllers\EPSExampleController::class, 'cancel'])->name('payment.cancel');
+
+
+    Route::prefix('payments')->group(function () {
+        // Initiate payment (routes to SSLCommerz or EPS based on payment_method)
+        Route::post('/initiate', [PaymentGatewayController::class, 'initiateEPSPayment']);
+
+        // EMI options (SSLCommerz only)
         Route::post('/emi-options', [PaymentGatewayController::class, 'emiOptions']);
 
-        // SSL Commerz callbacks (webhooks)
-        Route::post('/success', [PaymentGatewayController::class, 'success']);
-        Route::post('/fail', [PaymentGatewayController::class, 'fail']);
-        Route::post('/cancel', [PaymentGatewayController::class, 'cancel']);
-        Route::post('/ipn', [PaymentGatewayController::class, 'ipn']);
+        // Payment Gateway callbacks (GET for browser redirects, POST for IPN webhook)
+        Route::get('/success', [PaymentGatewayController::class, 'success'])->name('payment.success');
+        Route::get('/fail', [PaymentGatewayController::class, 'fail'])->name('payment.fail');
+        Route::get('/cancel', [PaymentGatewayController::class, 'cancel'])->name('payment.cancel');
+        Route::post('/ipn', [PaymentGatewayController::class, 'epsIPN']);
 
         // Authenticated payment status check
         Route::middleware(['auth', \Illuminate\Routing\Middleware\SubstituteBindings::class])->group(function () {
             Route::get('/status/{tran_id}', [PaymentGatewayController::class, 'status']);
+            Route::get('/eps/status/{order_id}', [PaymentGatewayController::class, 'epsStatus']);
         });
     });
 

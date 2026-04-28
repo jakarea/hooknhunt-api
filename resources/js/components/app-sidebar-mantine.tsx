@@ -21,6 +21,7 @@ import {
   IconClock,
   IconDeviceDesktop,
   IconLayout,
+  IconCreditCard,
 } from "@tabler/icons-react"
 import {
   Box,
@@ -335,6 +336,11 @@ export function AppSidebarMantine({
             title: t("settings.workingHours"),
             url: "/settings/working-hours",
             icon: IconClock,
+          },
+          {
+            title: t("settings.paymentGateways"),
+            url: "/settings/payments",
+            icon: IconCreditCard,
           },
         ],
       },

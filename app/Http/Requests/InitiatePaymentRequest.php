@@ -13,20 +13,30 @@ class InitiatePaymentRequest extends FormRequest
 
     public function rules(): array
     {
-        return [
+        $rules = [
             'sales_order_id' => 'required|integer|exists:sales_orders,id',
             'customer_name' => 'required|string|max:255',
             'customer_email' => 'nullable|email|max:255',
             'customer_phone' => 'required|string|max:20',
             'customer_address' => 'required|array',
-            'customer_address.address_line1' => 'required|string|max:255',
-            'customer_address.address_line2' => 'nullable|string|max:255',
-            'customer_address.city' => 'required|string|max:100',
+            // Accept both old format (address_line1) and new format (address)
+            'customer_address.address' => 'required_without:customer_address.address_line1|string|max:500',
+            'customer_address.address_line1' => 'required_without:customer_address.address|string|max:255',
+            'customer_address.division' => 'nullable|string|max:100',
             'customer_address.district' => 'nullable|string|max:100',
-            'customer_address.country' => 'required|string|max:100',
+            'customer_address.thana' => 'nullable|string|max:100',
+            // Old format fields (optional for backward compatibility)
+            'customer_address.address_line2' => 'nullable|string|max:255',
+            'customer_address.city' => 'nullable|string|max:100',
+            'customer_address.state' => 'nullable|string|max:100',
+            'customer_address.country' => 'nullable|string|max:100',
             'customer_address.postal_code' => 'nullable|string|max:20',
             'emi_option' => 'nullable|integer|between:0,13',
         ];
+
+        \Log::info('InitiatePaymentRequest validation rules', ['rules' => $rules]);
+
+        return $rules;
     }
 
     public function messages(): array
@@ -43,6 +53,31 @@ class InitiatePaymentRequest extends FormRequest
 
     protected function prepareForValidation()
     {
+        // Normalize address format from old to new
+        if ($this->has('customer_address') && is_array($this->customer_address)) {
+            $address = $this->customer_address;
+
+            // If old format (address_line1) is used but new format (address) is not, convert it
+            if (isset($address['address_line1']) && !isset($address['address'])) {
+                $address['address'] = $address['address_line1'];
+                if (isset($address['address_line2'])) {
+                    $address['address'] .= ', ' . $address['address_line2'];
+                }
+            }
+
+            // Map city to thana if thana is not set
+            if (isset($address['city']) && !isset($address['thana'])) {
+                $address['thana'] = $address['city'];
+            }
+
+            // Map state to division if division is not set
+            if (isset($address['state']) && !isset($address['division'])) {
+                $address['division'] = $address['state'];
+            }
+
+            $this->merge(['customer_address' => $address]);
+        }
+
         // Get amount from sales_order if not provided
         if (!$this->has('amount') && $this->has('sales_order_id')) {
             $order = \App\Models\SalesOrder::find($this->sales_order_id);

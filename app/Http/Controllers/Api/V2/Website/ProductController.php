@@ -274,7 +274,7 @@ class ProductController extends Controller
             // Image fields - both string URL and object for compatibility
             'image'            => $thumbnailUrl,
             'featured_image'   => $thumbnailUrl,
-            'thumbnail'        => $thumbnailUrl,
+            'thumbnail'        => $this->transformMedia($product->thumbnail),
             'thumbnailObj'     => $this->transformMedia($product->thumbnail),
             // Price fields for ProductCard compatibility
             'price'            => $price,
@@ -347,7 +347,7 @@ class ProductController extends Controller
             // Image fields - both string URL and object for compatibility
             'image'            => $thumbnailUrl,
             'featured_image'   => $thumbnailUrl,
-            'thumbnail'        => $thumbnailUrl,
+            'thumbnail'        => $this->transformMedia($p->thumbnail),
             'thumbnailObj'     => $this->transformMedia($p->thumbnail),
             'retailPrice'      => $retailVariant ? (float) $retailVariant->price : 0,
             'retailOfferPrice' => $retailVariant ? (float) $retailVariant->offer_price : 0,
@@ -377,6 +377,7 @@ class ProductController extends Controller
             'size'          => $variant->size,
             'color'         => $variant->color,
             'isActive'      => (bool) $variant->is_active,
+            'thumbnail'     => $variant->thumbnail,
         ];
     }
 
@@ -497,11 +498,11 @@ class ProductController extends Controller
                 'id' => $product->id,
                 'name' => $product->name,
                 'slug' => $product->slug,
-                'thumbnail' => $thumbnailUrl,
+                'thumbnail' => $this->transformMedia($product->thumbnail),
                 'image' => $thumbnailUrl,
                 'featured_image' => $thumbnailUrl,
                 'category' => $product->category?->name,
-                'price' => $retailVariant?->offerPrice > 0 ? $retailVariant->offerPrice : $retailVariant?->price,
+                'price' => $retailVariant?->offerPrice > 0 ? $retailVariant?->offerPrice : $retailVariant?->price,
             ];
         });
 
