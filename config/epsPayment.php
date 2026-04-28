@@ -12,7 +12,7 @@ return [
     // Base URL for API calls - determined by EPS_MODE
     'EPSBaseURL' => $mode === 'sandbox'
         ? env('EPS_BASE_URL_SANDBOX', 'https://sandboxpgapi.eps.com.bd')
-        : env('EPS_BASE_URL_LIVE', 'https://pgapi.eps.com'),
+        : env('EPS_BASE_URL_LIVE', 'https://pgapi.eps.com.bd'),
 
     // API endpoints
     'apiUrl' => [
@@ -28,7 +28,8 @@ return [
         'store_password' => env("EPS_STORE_PASSWORD_SANDBOX"),
         'device_type_id' => env("EPS_STORE_DEVICE_TYPE_SANDBOX"),
         'hash_key' => env("EPS_HASH_KEY_SANDBOX"),
-        'store_id' => env("EPS_MERCHANT_ID_SANDBOX"),
+        'merchant_id' => env("EPS_MERCHANT_ID_SANDBOX"),
+        'store_id' => env("EPS_STORE_ID_SANDBOX"),
     ],
 
     // Live credentials (used when EPS_MODE=live)
@@ -37,7 +38,8 @@ return [
         'store_password' => env("EPS_STORE_PASSWORD_LIVE"),
         'device_type_id' => env("EPS_STORE_DEVICE_TYPE_LIVE"),
         'hash_key' => env("EPS_HASH_KEY_LIVE"),
-        'store_id' => env("EPS_MERCHANT_ID_LIVE"),
+        'merchant_id' => env("EPS_MERCHANT_ID_LIVE"),
+        'store_id' => env("EPS_STORE_ID_LIVE"),
     ],
 
     // Callback URLs (for reference, actual URLs set in routes)

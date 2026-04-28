@@ -47,7 +47,7 @@ class EPSPayment
         $this->password = $credentials['store_password'] ?? '';
         $this->deviceTypeId = $credentials['device_type_id'] ?? '';
         $this->hashkey = $credentials['hash_key'] ?? '';
-        $this->merchent_id = $credentials['store_id'] ?? '';
+        $this->merchent_id = $credentials['merchant_id'] ?? '';
         $this->store_id = $credentials['store_id'] ?? '';
 
         // Validate required credentials
@@ -67,6 +67,7 @@ class EPSPayment
 
     /**
      * Generate HMAC hash for API authentication
+     * Uses hash_hmac with proper binary output
      */
     protected function GenerateHash($payload, $hashkey = null)
     {
@@ -76,12 +77,11 @@ class EPSPayment
             throw new Exception('Hash key is not configured');
         }
 
-        $utf8_key = utf8_encode($hashkey);
-        $utf8_payload = utf8_encode($payload);
-        $data = hash_hmac('sha512', $utf8_payload, $utf8_key, true);
-        $hmac = base64_encode($data);
+        // Use hash_hmac with SHA-512
+        $hmac = hash_hmac('sha512', $payload, $hashkey, true);
+        $base64 = base64_encode($hmac);
 
-        return $hmac;
+        return $base64;
     }
 
     /**
