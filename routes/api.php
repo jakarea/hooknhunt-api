@@ -70,8 +70,11 @@ Route::group([
     // Get failed webhooks (admin monitoring)
     Route::get('failed-webhooks', 'LazychatRetailController@failedWebhooks');
 
-    // Receive order from Lazychat AI
-    Route::post('order/create', 'LazychatRetailController@receiveOrder');
+    // Receive order from Lazychat AI (Authenticated with Bearer token)
+    Route::post('order/create', [
+        'middleware' => 'lazychat.auth',
+        'uses' => 'LazychatRetailController@receiveOrder'
+    ]);
 });
 
 // ====================================================

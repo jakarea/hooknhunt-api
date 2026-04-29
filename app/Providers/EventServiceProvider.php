@@ -19,7 +19,18 @@ use App\Listeners\Supplier\SendSupplierCreatedNotification;
 use App\Events\Product\ProductCreated;
 use App\Events\Product\ProductUpdated;
 use App\Events\Product\ProductDeleted;
+use App\Events\Product\VariantStockChanged;
 use App\Listeners\Product\SyncProductToLazychat;
+use App\Listeners\Product\SyncVariantStockChangeToLazychat;
+
+// Lazychat Integration - Order Events
+use App\Events\Order\OrderCreated;
+use App\Events\Order\OrderPaid;
+use App\Events\Order\OrderFailed;
+use App\Events\Order\OrderCancelled;
+use App\Events\Order\OrderShipped;
+use App\Listeners\Order\SendOrderToLazychat;
+use App\Listeners\Order\SendOrderShippedToLazychat;
 
 /**
  * Event Service Provider
@@ -63,6 +74,32 @@ class EventServiceProvider extends ServiceProvider
 
         ProductDeleted::class => [
             SyncProductToLazychat::class . '@handleProductDeleted',
+        ],
+
+        // Lazychat Integration - Variant Stock Events
+        VariantStockChanged::class => [
+            SyncVariantStockChangeToLazychat::class,
+        ],
+
+        // Lazychat Integration - Order Events
+        OrderCreated::class => [
+            SendOrderToLazychat::class . '@handleOrderCreated',
+        ],
+
+        OrderPaid::class => [
+            SendOrderToLazychat::class . '@handleOrderPaid',
+        ],
+
+        OrderFailed::class => [
+            SendOrderToLazychat::class . '@handleOrderFailed',
+        ],
+
+        OrderCancelled::class => [
+            SendOrderToLazychat::class . '@handleOrderCancelled',
+        ],
+
+        OrderShipped::class => [
+            SendOrderShippedToLazychat::class,
         ],
     ];
 

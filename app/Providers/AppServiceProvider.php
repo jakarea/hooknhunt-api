@@ -19,6 +19,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Load EPS payment config manually if not already loaded
+        if (empty(config('eps'))) {
+            $epsConfig = require base_path('config/epsPayment.php');
+            config(['eps' => $epsConfig]);
+        }
     }
 }

@@ -11,6 +11,7 @@ use App\Models\SalesOrderItem;
 use App\Traits\ApiResponse;
 use App\Services\Website\DeliveryChargeCalculator;
 use App\Services\AlphaSmsService;
+use App\Events\Order\OrderCreated;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -93,6 +94,9 @@ class OrderController extends Controller
             }
 
             DB::commit();
+
+            // Dispatch order created event for Lazychat webhook
+            event(new OrderCreated($order));
 
             return $this->sendSuccess(
                 $this->transformOrder($order->load('items.variant.product.thumbnail')),

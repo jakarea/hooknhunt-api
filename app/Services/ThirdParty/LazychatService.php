@@ -4,6 +4,7 @@ namespace App\Services\ThirdParty;
 
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\SalesOrder;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Config;
@@ -408,5 +409,156 @@ class LazychatService
     public function isEnabled(): bool
     {
         return $this->enabled;
+    }
+
+    /**
+     * Transform a SalesOrder to Lazychat format.
+     *
+     * Sends order data including customer info, items, payment status.
+     * Does NOT include sensitive payment details.
+     *
+     * @param SalesOrder $order The order to transform
+     * @return array Formatted data for Lazychat
+     */
+    public function transformOrderForLazychat(SalesOrder $order): array
+    {
+        // Load necessary relations
+        $order->load(['items.variant.product.thumbnail', 'customer']);
+
+        // Extract shipping and customer data from external_data
+        $externalData = $order->external_data ?? [];
+        $shipping = $externalData['shipping'] ?? [];
+        $customer = $externalData['customer'] ?? [];
+        $payment = $externalData['payment'] ?? [];
+
+        // Build items array
+        $items = [];
+        foreach ($order->items as $item) {
+            $items[] = [
+                'id' => $item->id,
+                'product_id' => $item->variant?->product_id,
+                'variant_id' => $item->product_variant_id,
+                'product_name' => $item->variant?->product?->retail_name ?? $item->variant?->product?->name ?? 'Product',
+                'variant_name' => $item->variant?->variant_name,
+                'sku' => $item->variant?->sku,
+                'quantity' => $item->quantity,
+                'unit_price' => (float) $item->unit_price,
+                'total_price' => (float) $item->total_price,
+                'image' => $item->variant?->thumbnail ?? $item->variant?->product?->thumbnail?->full_url,
+            ];
+        }
+
+        return [
+            'order_id' => $order->id,
+            'invoice_no' => $order->invoice_no,
+            'status' => $order->status,
+            'payment_status' => $order->payment_status,
+            'channel' => $order->channel,
+            'sub_total' => (float) $order->sub_total,
+            'discount_amount' => (float) ($order->discount_amount ?? 0),
+            'delivery_charge' => (float) ($order->delivery_charge ?? 0),
+            'total_amount' => (float) $order->total_amount,
+            'paid_amount' => (float) $order->paid_amount,
+            'due_amount' => (float) $order->due_amount,
+            'note' => $order->note,
+            'created_at' => $order->created_at?->toIso8601String(),
+            'updated_at' => $order->updated_at?->toIso8601String(),
+
+            // Customer info
+            'customer' => [
+                'id' => $order->customer_id,
+                'name' => $customer['name'] ?? $order->customer?->name,
+                'phone' => $customer['phone'] ?? $order->customer?->phone,
+                'email' => $customer['email'] ?? $order->customer?->email,
+                'type' => $order->customer?->type ?? 'retail',
+            ],
+
+            // Shipping address
+            'shipping' => [
+                'address' => $shipping['address'] ?? null,
+                'district' => $shipping['district'] ?? null,
+                'division' => $shipping['division'] ?? null,
+                'thana' => $shipping['thana'] ?? null,
+            ],
+
+            // Payment info (no sensitive details)
+            'payment' => [
+                'method' => $payment['method'] ?? 'cod',
+            ],
+
+            // Order items
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * Send order webhook to Lazychat.
+     *
+     * @param string $topic Webhook topic (order/create, order/paid, etc.)
+     * @param array $data Order data
+     * @return array Result with success status and response
+     */
+    public function sendOrderWebhook(string $topic, array $data): array
+    {
+        // Skip if integration is disabled
+        if (!$this->enabled) {
+            return [
+                'success' => true,
+                'message' => 'Lazychat integration is disabled',
+                'skipped' => true,
+            ];
+        }
+
+        // Use the create/update webhook for orders (same endpoint)
+        $webhook = $this->getCreateUpdateWebhook();
+
+        try {
+            Log::info('Lazychat order webhook sending', [
+                'topic' => $topic,
+                'order_id' => $data['order_id'] ?? null,
+                'invoice_no' => $data['invoice_no'] ?? null,
+                'url' => $webhook['url'],
+            ]);
+
+            $response = Http::timeout($this->timeout)
+                ->withToken($webhook['token'])
+                ->withHeaders([
+                    'X-Webhook-Topic' => $topic,
+                    'Accept' => 'application/json',
+                ])
+                ->post($webhook['url'], $data);
+
+            $success = $response->successful();
+
+            Log::info('Lazychat order webhook response', [
+                'topic' => $topic,
+                'order_id' => $data['order_id'] ?? null,
+                'invoice_no' => $data['invoice_no'] ?? null,
+                'status' => $response->status(),
+                'success' => $success,
+                'body' => $response->body(),
+            ]);
+
+            return [
+                'success' => $success,
+                'status_code' => $response->status(),
+                'response_body' => $response->body(),
+                'message' => $success ? 'Order webhook sent successfully' : 'Order webhook failed',
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Lazychat order webhook error', [
+                'topic' => $topic,
+                'order_id' => $data['order_id'] ?? null,
+                'invoice_no' => $data['invoice_no'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+                'message' => 'Order webhook request failed: ' . $e->getMessage(),
+            ];
+        }
     }
 }

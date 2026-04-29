@@ -11,6 +11,7 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use App\Http\Middleware\XssSanitization;
 use App\Http\Middleware\CamelCaseResponse;
+use App\Http\Middleware\LazychatAuth;
 use Illuminate\Console\Scheduling\Schedule;
 
 
@@ -60,6 +61,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 // 'auth' => \App\Http\Middleware\Authenticate::class, // Use default Laravel auth
                 'permission' => \App\Http\Middleware\CheckPermission::class, // এটি যুক্ত করুন
                 'role' => \App\Http\Middleware\CheckRoleMiddleware::class,   // এটিও যুক্ত করে রাখা ভালো
+                'lazychat.auth' => \App\Http\Middleware\LazychatAuth::class, // Lazychat API authentication
             ]);
         })
         ->withExceptions(function (Exceptions $exceptions) {

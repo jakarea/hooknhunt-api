@@ -3,14 +3,21 @@
 namespace App\Http\Controllers\Api\V2;
 
 use App\Http\Controllers\Controller;
+use App\Models\Customer;
 use App\Models\Product;
+use App\Models\ProductVariant;
+use App\Models\SalesOrder;
+use App\Models\SalesOrderItem;
 use App\Services\ThirdParty\LazychatService;
+use App\Services\StockService;
 use App\Traits\ApiResponse;
+use App\Events\Order\OrderCreated;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 /**
  * Lazychat Retail Controller
@@ -220,122 +227,259 @@ class LazychatRetailController extends Controller
 
     /**
      * Receive order from Lazychat AI.
-     * Lazychat will POST orders to this endpoint.
+     * Lazychat will POST orders to this endpoint after AI conversation.
      *
      * POST /api/v2/lazychat-retail/order/create
+     * Authentication: Bearer {LAZYCHAT_API_TOKEN}
      *
      * @param Request $request
      * @return JsonResponse
      */
     public function receiveOrder(Request $request): JsonResponse
     {
-        // Validate request
+        // Validate request with comprehensive rules
         $validator = Validator::make($request->all(), [
             'id' => 'required|integer',
             'contact.name' => 'required|string|max:255',
-            'contact.phone' => 'required|string|max:20',
+            'contact.phone' => 'required|string|max:20|regex:/^[0-9+]{10,15}$/',
             'contact.address_1' => 'required|string|max:500',
+            'contact.email' => 'nullable|email|max:255',
             'total_price' => 'required|numeric|min:0',
             'deliveryCharge' => 'required|numeric|min:0',
-            'payment_method' => 'required|string|in:cash_on_delivery',
-            'payment_status' => 'required|string',
-            'line_items' => 'required|array|min:1',
-            'line_items.*.product_id' => 'required|string',
-            'line_items.*.name' => 'required|string',
+            'payment_method' => 'required|string|in:cash_on_delivery,cod',
+            'payment_status' => 'required|string|in:unpaid,paid',
+            'note' => 'nullable|string|max:1000',
+            'line_items' => 'required|array|min:1|max:50',
+            'line_items.*.product_id' => 'required|integer|exists:products,id',
+            'line_items.*.variation_id' => 'nullable|integer|exists:product_variants,id',
+            'line_items.*.sku' => 'required|string',
+            'line_items.*.name' => 'required|string|max:255',
             'line_items.*.price' => 'required|numeric|min:0',
-            'line_items.*.quantity' => 'required|integer|min:1',
+            'line_items.*.quantity' => 'required|integer|min:1|max:100',
+            'line_items.*.image' => 'nullable|url',
         ]);
 
         if ($validator->fails()) {
-            return $this->sendError('Validation failed', $validator->errors(), 422);
-        }
-
-        try {
-            DB::beginTransaction();
-
-            // Create or get customer
-            $customer = \App\Models\User::firstOrCreate(
-                [
-                    'phone' => $request->input('contact.phone'),
-                ],
-                [
-                    'name' => $request->input('contact.name'),
-                    'email' => 'lazychat_' . $request->input('id') . '@temp.hooknhunt.com',
-                    'password' => bcrypt(str()->random(16)),
-                    'user_type' => 'customer',
-                    'status' => 'active',
-                ]
-            );
-
-            // Create order
-            $order = \App\Models\SalesOrder::create([
-                'customer_id' => $customer->id,
-                'invoice_no' => 'LZ-' . $request->input('id') . '-' . time(),
-                'order_date' => now(),
-                'total_amount' => $request->input('total_price'),
-                'delivery_charge' => $request->input('deliveryCharge'),
-                'grand_total' => $request->input('total_price') + $request->input('deliveryCharge'),
-                'payment_method' => 'cash_on_delivery',
-                'payment_status' => 'unpaid',
-                'order_status' => 'pending',
-                'shipping_address' => $request->input('contact.address_1'),
-                'shipping_city' => 'Dhaka',
-                'shipping_phone' => $request->input('contact.phone'),
-                'note' => $request->input('note', 'Order from Lazychat AI'),
-                'source' => 'lazychat',
+            Log::warning('Lazychat order validation failed', [
                 'lazychat_order_id' => $request->input('id'),
+                'errors' => $validator->errors()->toArray(),
             ]);
 
-            // Add order items
+            return response()->json([
+                'success' => false,
+                'error' => 'Validation failed',
+                'message' => 'Order data is invalid',
+                'errors' => $validator->errors()->toArray(),
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Step 1: Resolve or create customer
+            $customer = $this->resolveLazychatCustomer($request);
+
+            // Step 2: Calculate order totals
+            $subtotal = (float) $request->input('total_price');
+            $deliveryCharge = (float) $request->input('deliveryCharge');
+            $totalAmount = $subtotal + $deliveryCharge;
+
+            // Step 3: Create SalesOrder
+            $order = SalesOrder::create([
+                'invoice_no' => 'LZ-' . $request->input('id') . '-' . strtoupper(Str::random(6)),
+                'customer_id' => $customer->id,
+                'channel' => 'retail_web', // Lazychat orders are always retail
+                'status' => 'pending',
+                'payment_status' => $request->input('payment_status', 'unpaid'),
+                'sub_total' => $subtotal,
+                'discount_amount' => 0,
+                'delivery_charge' => $deliveryCharge,
+                'total_amount' => $totalAmount,
+                'paid_amount' => 0,
+                'due_amount' => $totalAmount,
+                'note' => $request->input('note', 'Order placed via LazyChat AI. Please review before processing.'),
+                'external_data' => [
+                    'shipping' => [
+                        'address' => $request->input('contact.address_1'),
+                        'district' => $request->input('contact.district'),
+                        'division' => $request->input('contact.division'),
+                        'thana' => $request->input('contact.thana'),
+                    ],
+                    'customer' => [
+                        'name' => $request->input('contact.name'),
+                        'phone' => $request->input('contact.phone'),
+                        'email' => $request->input('contact.email'),
+                    ],
+                    'payment' => [
+                        'method' => $request->input('payment_method', 'cod'),
+                    ],
+                    'lazychat' => [
+                        'order_id' => $request->input('id'),
+                        'source' => 'lazychat_ai',
+                        'created_at' => now()->toIso8601String(),
+                    ],
+                ],
+            ]);
+
+            // Step 4: Process order items
             foreach ($request->input('line_items') as $item) {
-                // Find product by Lazychat product_id
-                $product = \App\Models\Product::find($item['product_id']);
-
-                if (!$product) {
-                    Log::warning('Lazychat order: Product not found', [
-                        'lazychat_product_id' => $item['product_id'],
-                        'lazychat_order_id' => $request->input('id'),
-                    ]);
-                    continue;
-                }
-
-                \App\Models\SalesOrderItem::create([
-                    'sales_order_id' => $order->id,
-                    'product_id' => $product->id,
-                    'product_name' => $item['name'],
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['price'],
-                    'total_price' => $item['price'] * $item['quantity'],
-                ]);
+                $this->processLazychatOrderItem($order, $item);
             }
+
+            // Step 5: Dispatch OrderCreated event (for stock sync & webhooks)
+            event(new OrderCreated($order));
 
             DB::commit();
 
-            Log::info('Lazychat order received', [
+            Log::info('Lazychat AI order created successfully', [
                 'lazychat_order_id' => $request->input('id'),
                 'our_order_id' => $order->id,
                 'invoice_no' => $order->invoice_no,
-                'total_amount' => $order->grand_total,
+                'total_amount' => $totalAmount,
+                'customer_phone' => $customer->phone,
             ]);
 
-            return $this->sendSuccess([
-                'order_id' => $order->id,
-                'invoice_no' => $order->invoice_no,
+            return response()->json([
+                'success' => true,
                 'message' => 'Order created successfully',
-            ], 'Order received from Lazychat', 201);
+                'data' => [
+                    'order_id' => $order->id,
+                    'invoice_no' => $order->invoice_no,
+                    'total_amount' => $totalAmount,
+                    'status' => 'pending',
+                    'payment_status' => $order->payment_status,
+                ],
+            ], 201);
 
         } catch (\Exception $e) {
             DB::rollBack();
 
-            Log::error('Lazychat order creation failed', [
+            Log::error('Lazychat AI order creation failed', [
                 'lazychat_order_id' => $request->input('id'),
                 'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return $this->sendError('Failed to create order', [
-                'error' => $e->getMessage(),
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to create order',
+                'message' => config('app.debug') ? $e->getMessage() : 'Order creation failed',
             ], 500);
         }
+    }
+
+    /**
+     * Resolve or create customer from Lazychat order data.
+     *
+     * @param Request $request
+     * @return Customer
+     */
+    private function resolveLazychatCustomer(Request $request): Customer
+    {
+        $phone = $request->input('contact.phone');
+        $name = $request->input('contact.name');
+        $email = $request->input('contact.email');
+
+        // Check if customer exists
+        $customer = Customer::where('phone', $phone)->first();
+
+        if (!$customer) {
+            // Create new customer
+            $customer = Customer::create([
+                'name' => $name,
+                'phone' => $phone,
+                'email' => $email,
+                'type' => 'retail',
+            ]);
+
+            Log::info('New customer created from Lazychat AI order', [
+                'customer_id' => $customer->id,
+                'phone' => $phone,
+            ]);
+        }
+
+        return $customer;
+    }
+
+    /**
+     * Process a single line item from Lazychat order.
+     * Handles variant lookup, stock decrement, and item creation.
+     *
+     * @param SalesOrder $order
+     * @param array $item
+     * @return void
+     * @throws \Exception
+     */
+    private function processLazychatOrderItem(SalesOrder $order, array $item): void
+    {
+        $productId = $item['product_id'];
+        $variantId = $item['variation_id'] ?? null;
+        $quantity = (int) $item['quantity'];
+        $price = (float) $item['price'];
+
+        // Find variant - first try by variation_id, then by product_id
+        $variant = null;
+
+        if ($variantId) {
+            $variant = ProductVariant::where('id', $variantId)
+                ->where('product_id', $productId)
+                ->where('channel', 'retail')
+                ->where('is_active', true)
+                ->first();
+        }
+
+        // If no variant_id or variant not found, find first active retail variant
+        if (!$variant) {
+            $variant = ProductVariant::where('product_id', $productId)
+                ->where('channel', 'retail')
+                ->where('is_active', true)
+                ->first();
+        }
+
+        if (!$variant) {
+            Log::error('Lazychat order: No active retail variant found', [
+                'lazychat_product_id' => $productId,
+                'lazychat_variation_id' => $variantId,
+                'sku' => $item['sku'] ?? null,
+            ]);
+            throw new \Exception("No active variant found for product ID: {$productId}");
+        }
+
+        // Check stock availability
+        if ($variant->stock < $quantity) {
+            Log::warning('Lazychat order: Insufficient stock', [
+                'variant_id' => $variant->id,
+                'sku' => $variant->sku,
+                'requested' => $quantity,
+                'available' => $variant->stock,
+            ]);
+            throw new \Exception("Insufficient stock for {$item['name']} (SKU: {$variant->sku}). Available: {$variant->stock}, Requested: {$quantity}");
+        }
+
+        // Get effective price (use Lazychat price if provided, otherwise use variant price)
+        $unitPrice = $price > 0 ? $price : (float) $variant->price;
+        $originalPrice = (float) $variant->price;
+
+        // Create order item
+        SalesOrderItem::create([
+            'sales_order_id' => $order->id,
+            'product_variant_id' => $variant->id,
+            'quantity' => $quantity,
+            'unit_price' => $unitPrice,
+            'original_price' => $originalPrice,
+            'total_price' => $unitPrice * $quantity,
+            'total_cost' => (float) $variant->purchase_cost * $quantity,
+        ]);
+
+        // Decrement stock
+        $variant->decrement('stock', $quantity);
+
+        Log::info('Lazychat order item processed', [
+            'variant_id' => $variant->id,
+            'sku' => $variant->sku,
+            'quantity' => $quantity,
+            'remaining_stock' => $variant->fresh()->stock,
+        ]);
     }
 }

@@ -32,11 +32,11 @@ class PaymentSettingsController extends Controller
             'eps' => [
                 'mode' => config('eps.mode', 'sandbox'),
                 'sandbox_configured' => !empty(config('eps.sandbox.store_id')) &&
-                                      !empty(config('eps.sandbox.username')) &&
-                                      !empty(config('eps.sandbox.password')),
+                                      !empty(config('eps.sandbox.store_username')) &&
+                                      !empty(config('eps.sandbox.store_password')),
                 'live_configured' => !empty(config('eps.live.store_id')) &&
-                                   !empty(config('eps.live.username')) &&
-                                   !empty(config('eps.live.password')),
+                                   !empty(config('eps.live.store_username')) &&
+                                   !empty(config('eps.live.store_password')),
                 'sandbox_store_id' => config('eps.sandbox.store_id') ? '***' . substr(config('eps.sandbox.store_id'), -4) : null,
                 'live_store_id' => config('eps.live.store_id') ? '***' . substr(config('eps.live.store_id'), -4) : null,
                 'callbacks_configured' => [
@@ -111,17 +111,17 @@ class PaymentSettingsController extends Controller
                 'mode' => $epsConfig['mode'] ?? 'sandbox',
                 'sandbox' => [
                     'configured' => !empty($epsConfig['sandbox']['store_id']) &&
-                                   !empty($epsConfig['sandbox']['username']) &&
-                                   !empty($epsConfig['sandbox']['password']),
+                                   !empty($epsConfig['sandbox']['store_username']) &&
+                                   !empty($epsConfig['sandbox']['store_password']),
                     'store_id_preview' => $epsConfig['sandbox']['store_id'] ? '***' . substr($epsConfig['sandbox']['store_id'], -4) : null,
-                    'username_preview' => $epsConfig['sandbox']['username'] ? substr($epsConfig['sandbox']['username'], 0, 3) . '***' : null,
+                    'username_preview' => $epsConfig['sandbox']['store_username'] ? substr($epsConfig['sandbox']['store_username'], 0, 3) . '***' : null,
                 ],
                 'live' => [
                     'configured' => !empty($epsConfig['live']['store_id']) &&
-                                   !empty($epsConfig['live']['username']) &&
-                                   !empty($epsConfig['live']['password']),
+                                   !empty($epsConfig['live']['store_username']) &&
+                                   !empty($epsConfig['live']['store_password']),
                     'store_id_preview' => $epsConfig['live']['store_id'] ? '***' . substr($epsConfig['live']['store_id'], -4) : null,
-                    'username_preview' => $epsConfig['live']['username'] ? substr($epsConfig['live']['username'], 0, 3) . '***' : null,
+                    'username_preview' => $epsConfig['live']['store_username'] ? substr($epsConfig['live']['store_username'], 0, 3) . '***' : null,
                 ],
                 'callbacks' => [
                     'success' => $epsConfig['callbacks']['success'] ?? null,
@@ -148,7 +148,7 @@ class PaymentSettingsController extends Controller
         $mode = $request->mode;
         $config = config("eps.{$mode}");
 
-        if (empty($config['store_id']) || empty($config['username']) || empty($config['password'])) {
+        if (empty($config['store_id']) || empty($config['store_username']) || empty($config['store_password'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'EPS credentials not configured for ' . $mode . ' mode',
@@ -164,7 +164,7 @@ class PaymentSettingsController extends Controller
             'data' => [
                 'mode' => $mode,
                 'store_id_preview' => '***' . substr($config['store_id'], -4),
-                'username_preview' => substr($config['username'], 0, 3) . '***',
+                'username_preview' => substr($config['store_username'], 0, 3) . '***',
                 'base_url' => $config['base_url'],
             ],
         ]);

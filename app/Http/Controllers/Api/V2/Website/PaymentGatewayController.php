@@ -5,9 +5,13 @@ namespace App\Http\Controllers\Api\V2\Website;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use App\Services\PaymentGateways\EPSPayment;
+use App\Services\StockService;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use App\Events\Order\OrderPaid;
+use App\Events\Order\OrderFailed;
+use App\Events\Order\OrderCancelled;
 
 class PaymentGatewayController extends Controller
 {
@@ -190,10 +194,24 @@ class PaymentGatewayController extends Controller
             'status' => $status
         ]);
 
-        // TODO: Update order status in database based on EPS response
-        // TODO: Verify payment with EPS API using CheckPaymentStatus()
+        // Find and update order
+        $order = \App\Models\SalesOrder::where('invoice_no', $merchantTransactionId)->first();
 
-        // For now, redirect to frontend with payment details
+        if ($order && $order->payment_status !== 'paid') {
+            DB::transaction(function () use ($order, $epsTransactionId) {
+                $order->update([
+                    'payment_status' => 'paid',
+                    'paid_amount' => $order->total_amount,
+                    'due_amount' => 0,
+                    'status' => 'processing',
+                ]);
+
+                // Dispatch order paid event
+                event(new OrderPaid($order, $epsTransactionId, 'eps'));
+            });
+        }
+
+        // Redirect to frontend with payment details
         $frontendUrl = config('app.frontend_url') ?? env('FRONTEND_URL', 'http://localhost:3000');
 
         return redirect()->away($frontendUrl . '/order-success?' . http_build_query([
@@ -226,18 +244,34 @@ class PaymentGatewayController extends Controller
             'error_message' => $errorMessage
         ]);
 
-        // Load order to get details for the failure page
+        // Load order to get details and update status
         $orderTotal = 0;
         $customerName = '';
+        $order = null;
         if ($merchantTransactionId) {
             $order = \App\Models\SalesOrder::where('invoice_no', $merchantTransactionId)->first();
             if ($order) {
                 $orderTotal = $order->total_amount ?? 0;
-                $customerName = $order->customer_name ?? '';
+                $customerName = $order->customer?->name ?? '';
+
+                // Update order status as failed
+                if ($order->status !== 'failed') {
+                    DB::transaction(function () use ($order, $errorMessage, $errorCode) {
+                        $order->update([
+                            'status' => 'failed',
+                            'payment_status' => 'failed',
+                        ]);
+
+                        // Restore stock (order items are returned to inventory)
+                        $stockService = new StockService();
+                        $stockService->restoreOrderStock($order);
+
+                        // Dispatch order failed event (for LazyChat webhook)
+                        event(new OrderFailed($order, $errorMessage, $errorCode));
+                    });
+                }
             }
         }
-
-        // TODO: Update order status as failed in database
 
         $frontendUrl = config('app.frontend_url') ?? env('FRONTEND_URL', 'http://localhost:3000');
 
@@ -271,18 +305,34 @@ class PaymentGatewayController extends Controller
             'status' => $status
         ]);
 
-        // Load order to get details for the cancel page
+        // Load order to get details and update status
         $orderTotal = 0;
         $customerName = '';
+        $order = null;
         if ($merchantTransactionId) {
             $order = \App\Models\SalesOrder::where('invoice_no', $merchantTransactionId)->first();
             if ($order) {
                 $orderTotal = $order->total_amount ?? 0;
-                $customerName = $order->customer_name ?? '';
+                $customerName = $order->customer?->name ?? '';
+
+                // Update order status as cancelled
+                if ($order->status !== 'cancelled') {
+                    DB::transaction(function () use ($order, $errorMessage) {
+                        $order->update([
+                            'status' => 'cancelled',
+                            'payment_status' => 'cancelled',
+                        ]);
+
+                        // Restore stock (order items are returned to inventory)
+                        $stockService = new StockService();
+                        $stockService->restoreOrderStock($order);
+
+                        // Dispatch order cancelled event (for LazyChat webhook)
+                        event(new OrderCancelled($order, $errorMessage ?: 'Payment cancelled by customer', 'customer'));
+                    });
+                }
             }
         }
-
-        // TODO: Update order status as cancelled in database
 
         $frontendUrl = config('app.frontend_url') ?? env('FRONTEND_URL', 'http://localhost:3000');
 
@@ -311,9 +361,58 @@ class PaymentGatewayController extends Controller
         $status = $request->input('Status');
         $amount = $request->input('Amount');
 
-        // TODO: Verify payment with EPS API using CheckPaymentStatus()
-        // TODO: Update order payment status in database
-        // TODO: Create payment transaction record
+        // Find order
+        $order = \App\Models\SalesOrder::where('invoice_no', $merchantTransactionId)->first();
+
+        if (!$order) {
+            Log::warning('EPS IPN: Order not found', ['invoice_no' => $merchantTransactionId]);
+            return response()->json(['status' => false, 'message' => 'Order not found'], 404);
+        }
+
+        // Process based on status
+        DB::transaction(function () use ($order, $epsTransactionId, $status, $amount) {
+            if ($status === 'success' || $status === 'completed') {
+                // Payment successful
+                if ($order->payment_status !== 'paid') {
+                    $order->update([
+                        'payment_status' => 'paid',
+                        'paid_amount' => $order->total_amount,
+                        'due_amount' => 0,
+                        'status' => 'processing',
+                    ]);
+
+                    event(new OrderPaid($order, $epsTransactionId, 'eps'));
+                }
+            } elseif ($status === 'failed' || $status === 'error') {
+                // Payment failed - restore stock
+                if ($order->status !== 'failed') {
+                    $order->update([
+                        'status' => 'failed',
+                        'payment_status' => 'failed',
+                    ]);
+
+                    // Restore stock
+                    $stockService = new StockService();
+                    $stockService->restoreOrderStock($order);
+
+                    event(new OrderFailed($order, 'Payment failed via IPN', $status));
+                }
+            } elseif ($status === 'cancelled') {
+                // Payment cancelled - restore stock
+                if ($order->status !== 'cancelled') {
+                    $order->update([
+                        'status' => 'cancelled',
+                        'payment_status' => 'cancelled',
+                    ]);
+
+                    // Restore stock
+                    $stockService = new StockService();
+                    $stockService->restoreOrderStock($order);
+
+                    event(new OrderCancelled($order, 'Payment cancelled via IPN', 'customer'));
+                }
+            }
+        });
 
         Log::info('EPS IPN Processed', [
             'merchant_transaction_id' => $merchantTransactionId,

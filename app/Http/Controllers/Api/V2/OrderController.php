@@ -7,8 +7,11 @@ use App\Models\SalesOrder;
 use App\Models\InventoryBatch;
 use App\Models\StockLedger;
 use App\Traits\ApiResponse;
+use App\Events\Order\OrderCancelled;
+use App\Events\Order\OrderShipped;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
 {
@@ -68,7 +71,7 @@ class OrderController extends Controller
         ]);
 
         $order = SalesOrder::with('items')->findOrFail($id);
-        
+
         // Prevent changing status of already cancelled/returned orders safely
         if (in_array($order->status, ['cancelled', 'returned'])) {
             return $this->sendError('Cannot update status of a cancelled or returned order.');
@@ -87,6 +90,36 @@ class OrderController extends Controller
                 // If delivered, maybe update payment status?
                 'payment_status' => ($request->status === 'delivered') ? 'paid' : $order->payment_status
             ]);
+
+            // C. Dispatch events for cancellation/return (for LazyChat webhook)
+            if ($request->status === 'cancelled') {
+                event(new OrderCancelled($order, 'Order cancelled by admin', 'admin'));
+                Log::info('Order cancelled by admin - OrderCancelled event dispatched', [
+                    'order_id' => $order->id,
+                    'invoice_no' => $order->invoice_no,
+                ]);
+            } elseif ($request->status === 'returned') {
+                event(new OrderCancelled($order, 'Order returned', 'admin'));
+                Log::info('Order returned - OrderCancelled event dispatched', [
+                    'order_id' => $order->id,
+                    'invoice_no' => $order->invoice_no,
+                ]);
+            } elseif ($request->status === 'shipped') {
+                // Get tracking details from request
+                $trackingNumber = $request->input('tracking_number');
+                $courierName = $request->input('courier_name', 'Steadfast');
+                $courierPartner = $request->input('courier_partner', 'Packzy');
+                $trackingUrl = $request->input('tracking_url');
+
+                // Dispatch OrderShipped event
+                event(new OrderShipped($order, $trackingNumber, $courierName, $courierPartner, $trackingUrl));
+                Log::info('Order shipped - OrderShipped event dispatched', [
+                    'order_id' => $order->id,
+                    'invoice_no' => $order->invoice_no,
+                    'tracking_number' => $trackingNumber,
+                    'courier' => $courierName,
+                ]);
+            }
 
             if ($request->status === 'delivered') {
             // A. Trigger Loyalty Points
