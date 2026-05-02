@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import {
   Box, Stack, Group, Title, Text, Card, TextInput, Textarea,
   Button, Alert, Tabs, Badge, CopyButton, ActionIcon, Tooltip,
-  NumberInput, Switch, Divider, SimpleGrid, Code,
+  NumberInput, Switch, Divider, SimpleGrid, Code, Radio,
 } from '@mantine/core'
 import {
   IconBrandFacebook,
@@ -14,6 +14,7 @@ import {
   IconInfoCircle,
   IconTruckDelivery,
   IconCalculator,
+  IconReceipt,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { getWebsiteSettings, updateWebsiteSettings, type WebsiteSettings } from '@/utils/websiteApi'
@@ -36,8 +37,13 @@ interface DeliverySettings {
   }
   freeDelivery: {
     enabled: boolean
-    minAmount: number
   }
+  progressiveDelivery: {
+    enabled: boolean
+    minAmount: number
+    mode?: 'linear' | 'tiered'
+  }
+  deliveryMode: 'standard' | 'flat_rate' | 'free_delivery' | 'progressive_delivery'
 }
 
 export default function WebsiteSettingsPage() {
@@ -50,6 +56,8 @@ export default function WebsiteSettingsPage() {
     google_analytics_code: null,
     google_tag_manager_id: null,
     google_tag_manager_code: null,
+    serviceChargeEnabled: undefined,
+    serviceChargeAmount: undefined,
   })
   const [hasChanges, setHasChanges] = useState(false)
   const [originalSettings, setOriginalSettings] = useState<WebsiteSettings>({
@@ -59,6 +67,8 @@ export default function WebsiteSettingsPage() {
     google_analytics_code: null,
     google_tag_manager_id: null,
     google_tag_manager_code: null,
+    serviceChargeEnabled: undefined,
+    serviceChargeAmount: undefined,
   })
 
   // Delivery Settings
@@ -67,20 +77,25 @@ export default function WebsiteSettingsPage() {
     insideDhaka: { baseCharge: 60, perKgCharge: 15 },
     outsideDhaka: { baseCharge: 120, perKgCharge: 20 },
     flatRate: { enabled: false, baseCharge: 100, perKgCharge: 25 },
-    freeDelivery: { enabled: false, minAmount: 0 },
+    freeDelivery: { enabled: false },
+    progressiveDelivery: { enabled: false, minAmount: 3000, mode: 'linear' },
+    deliveryMode: 'standard',
   })
   const [originalDeliverySettings, setOriginalDeliverySettings] = useState<DeliverySettings>({
     baseWeight: 2,
     insideDhaka: { baseCharge: 60, perKgCharge: 15 },
     outsideDhaka: { baseCharge: 120, perKgCharge: 20 },
     flatRate: { enabled: false, baseCharge: 100, perKgCharge: 25 },
-    freeDelivery: { enabled: false, minAmount: 0 },
+    freeDelivery: { enabled: false },
+    progressiveDelivery: { enabled: false, minAmount: 3000, mode: 'linear' },
+    deliveryMode: 'standard',
   })
   const [deliveryHasChanges, setDeliveryHasChanges] = useState(false)
 
   // Test calculator state
   const [testWeight, setTestWeight] = useState(2)
   const [testDivision, setTestDivision] = useState('dhaka')
+  const [testOrderAmount, setTestOrderAmount] = useState<number | undefined>(undefined)
   const [testResult, setTestResult] = useState<{ charge: number; breakdown: any } | null>(null)
   const [calculating, setCalculating] = useState(false)
 
@@ -91,13 +106,15 @@ export default function WebsiteSettingsPage() {
   const fetchSettings = async () => {
     try {
       setLoading(true)
-      const res = await getWebsiteSettings()
-      const data = res.data || {}
+      const response = await api.get('website-admin/settings')
+      // response.data is the Laravel response: { success: true, data: {...} }
+      const data = response.data.data || {}
       setSettings(data)
       setOriginalSettings(data)
       // Also fetch delivery settings
       await fetchDeliverySettings()
-    } catch {
+    } catch (error) {
+      console.error('Error fetching settings:', error)
       notifications.show({ title: 'Error', message: 'Failed to load settings', color: 'red' })
     } finally {
       setLoading(false)
@@ -127,11 +144,13 @@ export default function WebsiteSettingsPage() {
   const handleSave = async () => {
     try {
       setSaving(true)
+      console.log('Saving website settings:', settings)
       await updateWebsiteSettings(settings)
       setOriginalSettings(settings)
       setHasChanges(false)
       notifications.show({ title: 'Success', message: 'Settings saved successfully', color: 'green' })
-    } catch {
+    } catch (error) {
+      console.error('Error saving settings:', error)
       notifications.show({ title: 'Error', message: 'Failed to save settings', color: 'red' })
     } finally {
       setSaving(false)
@@ -146,6 +165,7 @@ export default function WebsiteSettingsPage() {
       // Transform to snake_case for backend
       const payload = {
         base_weight: deliverySettings.baseWeight,
+        delivery_mode: deliverySettings.deliveryMode,
         inside_dhaka: {
           base_charge: deliverySettings.insideDhaka?.baseCharge ?? 60,
           per_kg_charge: deliverySettings.insideDhaka?.perKgCharge ?? 15,
@@ -161,7 +181,11 @@ export default function WebsiteSettingsPage() {
         },
         free_delivery: {
           enabled: deliverySettings.freeDelivery?.enabled ?? false,
-          minAmount: deliverySettings.freeDelivery?.minAmount ?? 0,
+        },
+        progressive_delivery: {
+          enabled: deliverySettings.progressiveDelivery?.enabled ?? false,
+          min_amount: deliverySettings.progressiveDelivery?.minAmount ?? 3000,
+          mode: deliverySettings.progressiveDelivery?.mode ?? 'linear',
         },
       }
 
@@ -206,12 +230,37 @@ export default function WebsiteSettingsPage() {
     setDeliveryHasChanges(true)
   }
 
+  // Handle delivery mode change (mutually exclusive)
+  const handleDeliveryModeChange = (mode: 'standard' | 'flat_rate' | 'free_delivery' | 'progressive_delivery') => {
+    setDeliverySettings((prev) => {
+      const newData = { ...prev, deliveryMode: mode }
+
+      // Disable all modes first
+      newData.flatRate = { ...prev.flatRate, enabled: false }
+      newData.freeDelivery = { ...prev.freeDelivery, enabled: false }
+      newData.progressiveDelivery = { ...prev.progressiveDelivery, enabled: false }
+
+      // Enable only the selected mode
+      if (mode === 'flat_rate') {
+        newData.flatRate = { ...prev.flatRate, enabled: true }
+      } else if (mode === 'free_delivery') {
+        newData.freeDelivery = { ...prev.freeDelivery, enabled: true }
+      } else if (mode === 'progressive_delivery') {
+        newData.progressiveDelivery = { ...prev.progressiveDelivery, enabled: true }
+      }
+
+      return newData
+    })
+    setDeliveryHasChanges(true)
+  }
+
   const handleCalculate = async () => {
     try {
       setCalculating(true)
       const response = await api.post('website-admin/delivery-settings/calculate', {
         weight: testWeight,
         division: testDivision,
+        order_amount: testOrderAmount,
       })
       if (response.data.success) {
         setTestResult(response.data.data)
@@ -285,6 +334,10 @@ export default function WebsiteSettingsPage() {
               <Tabs.Tab value="delivery" leftSection={<IconTruckDelivery size={16} />}>
                 Delivery Charges
                 {deliveryHasChanges && <Badge size="xs" color="orange" ml="xs">Modified</Badge>}
+              </Tabs.Tab>
+              <Tabs.Tab value="service-charge" leftSection={<IconReceipt size={16} />}>
+                Service Charge
+                {hasChanges && <Badge size="xs" color="orange" ml="xs">Modified</Badge>}
               </Tabs.Tab>
             </Tabs.List>
 
@@ -401,8 +454,7 @@ export default function WebsiteSettingsPage() {
                 <Tabs defaultValue="zones">
                   <Tabs.List>
                     <Tabs.Tab value="zones">Zone Rates</Tabs.Tab>
-                    <Tabs.Tab value="flat">Flat Rate</Tabs.Tab>
-                    <Tabs.Tab value="free">Free Delivery</Tabs.Tab>
+                    <Tabs.Tab value="delivery-mode">Delivery Mode</Tabs.Tab>
                     <Tabs.Tab value="calculator">Test Calculator</Tabs.Tab>
                   </Tabs.List>
 
@@ -482,88 +534,133 @@ export default function WebsiteSettingsPage() {
                     </Stack>
                   </Tabs.Panel>
 
-                  {/* Flat Rate */}
-                  <Tabs.Panel value="flat" pt="md">
+                  {/* Delivery Mode - Single Tab with Radio Buttons */}
+                  <Tabs.Panel value="delivery-mode" pt="md">
                     <Stack gap="md">
-                      <Alert icon={<IconInfoCircle size={16} />} color="yellow" variant="light">
+                      <Alert icon={<IconInfoCircle size={16} />} color="blue" variant="light">
                         <Text size="sm">
-                          When flat rate is enabled, it overrides Inside/Outside Dhaka rates and applies the same charge everywhere.
+                          Choose ONE delivery mode. Only one mode can be active at a time. Standard mode uses Inside/Outside Dhaka rates.
                         </Text>
                       </Alert>
 
                       <Card withBorder p="md">
-                        <Stack gap="md">
-                          <Switch
-                            label="Enable Flat Rate"
-                            description="Apply same delivery charge for all locations"
-                            checked={deliverySettings.flatRate?.enabled ?? false}
-                            onChange={(e) => updateDeliverySetting('flatRate.enabled', e.currentTarget.checked)}
-                          />
+                        <Stack gap="lg">
+                          <Title order={4} mb="sm">Select Delivery Mode</Title>
 
-                          {deliverySettings.flatRate?.enabled && (
+                          {/* Radio Buttons for Delivery Mode */}
+                          <Stack gap="md">
+                            {/* Standard Mode */}
+                            <Radio
+                              label="Standard Delivery (Inside/Outside Dhaka)"
+                              description="Uses zone-based rates from the Zone Rates tab"
+                              checked={deliverySettings.deliveryMode === 'standard'}
+                              onChange={() => handleDeliveryModeChange('standard')}
+                            />
+
+                            {/* Flat Rate Mode */}
+                            <Stack gap="sm" pl="xl">
+                              <Radio
+                                label="Flat Rate (Same charge everywhere)"
+                                description="Applies same delivery charge for all locations"
+                                checked={deliverySettings.deliveryMode === 'flat_rate'}
+                                onChange={() => handleDeliveryModeChange('flat_rate')}
+                              />
+
+                              {deliverySettings.deliveryMode === 'flat_rate' && (
+                                <Card withBorder p="md" bg="gray.0">
+                                  <Stack gap="sm">
+                                    <NumberInput
+                                      label={`Base Charge (first ${deliverySettings.baseWeight} KG)`}
+                                      description="Charge for packages within base weight (applies everywhere)"
+                                      prefix="৳"
+                                      min={0}
+                                      value={deliverySettings.flatRate?.baseCharge ?? 100}
+                                      onChange={(value) => updateDeliverySetting('flatRate.baseCharge', value ?? 100)}
+                                    />
+                                    <NumberInput
+                                      label="Per KG Charge (after base weight)"
+                                      description="Charge for each additional KG"
+                                      prefix="৳"
+                                      min={0}
+                                      value={deliverySettings.flatRate?.perKgCharge ?? 25}
+                                      onChange={(value) => updateDeliverySetting('flatRate.perKgCharge', value ?? 25)}
+                                    />
+                                    <Text size="xs" c="dimmed">
+                                      Example: {deliverySettings.baseWeight} KG = ৳{deliverySettings.flatRate?.baseCharge ?? 100} |
+                                      {deliverySettings.baseWeight + 1} KG = ৳{calculateCharge(deliverySettings.baseWeight + 1, deliverySettings.flatRate?.baseCharge ?? 100, deliverySettings.flatRate?.perKgCharge ?? 25)}
+                                    </Text>
+                                  </Stack>
+                                </Card>
+                              )}
+                            </Stack>
+
+                            {/* Free Delivery Mode */}
+                            <Stack gap="sm" pl="xl">
+                              <Radio
+                                label="Free Delivery (All orders)"
+                                description="Make delivery FREE for all orders regardless of amount"
+                                checked={deliverySettings.deliveryMode === 'free_delivery'}
+                                onChange={() => handleDeliveryModeChange('free_delivery')}
+                              />
+
+                              {deliverySettings.deliveryMode === 'free_delivery' && (
+                                <Alert icon={<IconCheck size={16} />} color="green" variant="light" mt="md">
+                                  <Text size="sm">
+                                    All deliveries will be FREE. No minimum order amount required.
+                                  </Text>
+                                </Alert>
+                              )}
+                            </Stack>
+
+                            {/* Progressive Delivery Mode */}
+                            <Stack gap="sm" pl="xl">
+                              <Radio
+                                label="Progressive Delivery (Tier-based discounts)"
+                                description="Gradual discounts based on order amount - closer to threshold = higher discount"
+                                checked={deliverySettings.deliveryMode === 'progressive_delivery'}
+                                onChange={() => handleDeliveryModeChange('progressive_delivery')}
+                              />
+
+                              {deliverySettings.deliveryMode === 'progressive_delivery' && (
+                                <Card withBorder p="md" bg="gray.0">
+                                  <Stack gap="sm">
+                                    <NumberInput
+                                      label="Minimum Order Amount for Free Delivery"
+                                      description="Orders reaching this amount get 100% free delivery"
+                                      prefix="৳"
+                                      min={0}
+                                      step={100}
+                                      value={deliverySettings.progressiveDelivery?.minAmount ?? 3000}
+                                      onChange={(value) => updateDeliverySetting('progressiveDelivery.minAmount', value ?? 3000)}
+                                    />
+
+                                    <Stack gap="xs" mt="md">
+                                      <Text size="sm" fw={500}>How it works:</Text>
+                                      <Text size="xs" c="dimmed">
+                                        • Order amount = {Math.round((deliverySettings.progressiveDelivery?.minAmount ?? 3000) * 0.5)} (50%) → 50% discount on delivery
+                                      </Text>
+                                      <Text size="xs" c="dimmed">
+                                        • Order amount = {Math.round((deliverySettings.progressiveDelivery?.minAmount ?? 3000) * 0.8)} (80%) → 80% discount on delivery
+                                      </Text>
+                                      <Text size="xs" c="dimmed">
+                                        • Order amount = {deliverySettings.progressiveDelivery?.minAmount ?? 3000} (100%) → Free delivery
+                                      </Text>
+                                    </Stack>
+                                  </Stack>
+                                </Card>
+                              )}
+                            </Stack>
+                          </Stack>
+
+                          {/* Active Mode Indicator */}
+                          {deliverySettings.deliveryMode !== 'standard' && (
                             <>
                               <Divider />
-                              <NumberInput
-                                label={`Base Charge (first ${deliverySettings.baseWeight} KG)`}
-                                description="Charge for packages within base weight (applies everywhere)"
-                                prefix="৳"
-                                min={0}
-                                value={deliverySettings.flatRate?.baseCharge ?? 100}
-                                onChange={(value) => updateDeliverySetting('flatRate.baseCharge', value ?? 100)}
-                              />
-                              <NumberInput
-                                label="Per KG Charge (after base weight)"
-                                description="Charge for each additional KG"
-                                prefix="৳"
-                                min={0}
-                                value={deliverySettings.flatRate?.perKgCharge ?? 25}
-                                onChange={(value) => updateDeliverySetting('flatRate.perKgCharge', value ?? 25)}
-                              />
-                              <Divider />
-                              <Text size="xs" c="dimmed">
-                                Example: {deliverySettings.baseWeight} KG = ৳{deliverySettings.flatRate?.baseCharge ?? 100} |
-                                {deliverySettings.baseWeight + 1} KG = ৳{calculateCharge(deliverySettings.baseWeight + 1, deliverySettings.flatRate?.baseCharge ?? 100, deliverySettings.flatRate?.perKgCharge ?? 25)}
-                              </Text>
-                            </>
-                          )}
-                        </Stack>
-                      </Card>
-                    </Stack>
-                  </Tabs.Panel>
-
-                  {/* Free Delivery */}
-                  <Tabs.Panel value="free" pt="md">
-                    <Stack gap="md">
-                      <Alert icon={<IconInfoCircle size={16} />} color="green" variant="light">
-                        <Text size="sm">
-                          Offer free delivery when order amount reaches minimum threshold. This applies to all zones.
-                        </Text>
-                      </Alert>
-
-                      <Card withBorder p="md">
-                        <Stack gap="md">
-                          <Switch
-                            label="Enable Free Delivery"
-                            description="Offer free delivery based on order amount"
-                            checked={deliverySettings.freeDelivery?.enabled ?? false}
-                            onChange={(e) => updateDeliverySetting('freeDelivery.enabled', e.currentTarget.checked)}
-                          />
-
-                          {deliverySettings.freeDelivery?.enabled && (
-                            <>
-                              <Divider />
-                              <NumberInput
-                                label="Minimum Order Amount"
-                                description="Orders with this amount or higher get free delivery"
-                                prefix="৳"
-                                min={0}
-                                step={100}
-                                value={deliverySettings.freeDelivery?.minAmount ?? 0}
-                                onChange={(value) => updateDeliverySetting('freeDelivery.minAmount', value ?? 0)}
-                              />
-                              <Text size="xs" c="dimmed">
-                                Orders of ৳{deliverySettings.freeDelivery?.minAmount ?? 0} or more will have free delivery.
-                              </Text>
+                              <Alert icon={<IconCheck size={16} />} color="green" variant="light">
+                                <Text size="sm">
+                                  <Text span fw={500}>Active Mode:</Text> {deliverySettings.deliveryMode === 'flat_rate' ? 'Flat Rate' : deliverySettings.deliveryMode === 'free_delivery' ? 'Free Delivery' : 'Progressive Delivery'}
+                                </Text>
+                              </Alert>
                             </>
                           )}
                         </Stack>
@@ -582,7 +679,7 @@ export default function WebsiteSettingsPage() {
 
                       <Card withBorder p="md">
                         <Stack gap="md">
-                          <Group grow>
+                          <SimpleGrid cols={{ base: 1, md: 3 }}>
                             <NumberInput
                               label="Weight (KG)"
                               min={0.1}
@@ -596,7 +693,16 @@ export default function WebsiteSettingsPage() {
                               value={testDivision}
                               onChange={(e) => setTestDivision(e.currentTarget.value)}
                             />
-                          </Group>
+                            <NumberInput
+                              label="Order Amount (optional)"
+                              description="Test progressive delivery"
+                              prefix="৳"
+                              min={0}
+                              step={100}
+                              value={testOrderAmount}
+                              onChange={(value) => setTestOrderAmount(value ?? undefined)}
+                            />
+                          </SimpleGrid>
 
                           <Button onClick={handleCalculate} loading={calculating} leftSection={<IconCalculator size={16} />}>
                             Calculate Charge
@@ -612,7 +718,43 @@ export default function WebsiteSettingsPage() {
                                     ৳{testResult.charge}
                                   </Text>
                                 </Group>
-                                <Code block>{JSON.stringify(testResult.breakdown, null, 2)}</Code>
+
+                                {testResult.breakdown.progressive_delivery?.enabled && testOrderAmount && (
+                                  <>
+                                    <Divider label="Progressive Delivery" labelPosition="left" />
+                                    <Stack gap="xs">
+                                      <Group justify="space-between">
+                                        <Text size="sm">Order Amount:</Text>
+                                        <Text size="sm" fw={500}>৳{testOrderAmount}</Text>
+                                      </Group>
+                                      <Group justify="space-between">
+                                        <Text size="sm">Threshold:</Text>
+                                        <Text size="sm" fw={500}>৳{testResult.breakdown.progressive_delivery.min_amount}</Text>
+                                      </Group>
+                                      <Group justify="space-between">
+                                        <Text size="sm">Discount:</Text>
+                                        <Text size="sm" fw={500} c="violet">
+                                          {testResult.breakdown.progressive_delivery.discount_percentage?.toFixed(1)}%
+                                        </Text>
+                                      </Group>
+                                      {testResult.breakdown.progressive_delivery.amount_needed_for_free > 0 && (
+                                        <Text size="xs" c="orange">
+                                          Add ৳{testResult.breakdown.progressive_delivery.amount_needed_for_free} more for free delivery
+                                        </Text>
+                                      )}
+                                      {testResult.breakdown.progressive_delivery.is_free && (
+                                        <Text size="sm" fw={500} c="green">
+                                          🎉 Free Delivery Applied!
+                                        </Text>
+                                      )}
+                                    </Stack>
+                                  </>
+                                )}
+
+                                <Divider label="Full Breakdown" labelPosition="left" />
+                                <Code block style={{ maxHeight: 200, overflow: 'auto' }}>
+                                  {JSON.stringify(testResult.breakdown, null, 2)}
+                                </Code>
                               </Stack>
                             </>
                           )}
@@ -632,6 +774,69 @@ export default function WebsiteSettingsPage() {
                       leftSection={<IconCheck size={16} />}
                     >
                       Save Delivery Settings
+                    </Button>
+                  </Group>
+                )}
+              </Stack>
+            </Tabs.Panel>
+
+            {/* Service Charge */}
+            <Tabs.Panel value="service-charge" pt="md">
+              <Stack gap="md">
+                <Alert icon={<IconInfoCircle size={16} />} color="blue" variant="light">
+                  <Text size="sm">
+                    Configure service charge that will be added to all orders. Service charge is applied regardless of order amount or delivery location.
+                  </Text>
+                </Alert>
+
+                <Card withBorder p="md">
+                  <Stack gap="lg">
+                    <Title order={4} mb="sm">Service Charge Configuration</Title>
+
+                    <Stack gap="md">
+                      <Switch
+                        label="Enable Service Charge"
+                        description="Add service charge to all orders at checkout"
+                        checked={settings.serviceChargeEnabled ?? false}
+                        onChange={(e) => updateSetting('serviceChargeEnabled', e.currentTarget.checked)}
+                        color="green"
+                        size="lg"
+                      />
+
+                      {settings.serviceChargeEnabled && (
+                        <NumberInput
+                          label="Service Charge Amount"
+                          description="Fixed amount to charge as service fee"
+                          prefix="৳"
+                          min={0}
+                          step={1}
+                          decimalScale={2}
+                          value={settings.serviceChargeAmount ?? 0}
+                          onChange={(value) => updateSetting('serviceChargeAmount', value ?? 0)}
+                        />
+                      )}
+                    </Stack>
+
+                    {settings.serviceChargeEnabled && (
+                      <Alert icon={<IconReceipt size={16} />} color="violet" variant="light">
+                        <Text size="sm">
+                          Service charge of <Text span fw={700}>৳{(settings.serviceChargeAmount ?? 0).toLocaleString()}</Text> will be added to all orders.
+                        </Text>
+                      </Alert>
+                    )}
+                  </Stack>
+                </Card>
+
+                {/* Service Charge Save Button */}
+                {hasChanges && (
+                  <Group justify="flex-end">
+                    <Button
+                      size="md"
+                      onClick={handleSave}
+                      loading={saving}
+                      leftSection={<IconCheck size={16} />}
+                    >
+                      Save Service Charge Settings
                     </Button>
                   </Group>
                 )}

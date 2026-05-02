@@ -20,6 +20,7 @@ interface FormData {
   is_active: boolean
   image_id: number | null
   imageUrl: string | null
+  category_code: number | null
 }
 
 const createInitialFormData = (): FormData => ({
@@ -28,11 +29,21 @@ const createInitialFormData = (): FormData => ({
   is_active: true,
   image_id: null,
   imageUrl: null,
+  category_code: null,
 })
 
-const validateForm = (name: string, t: (key: string) => string): Record<string, string> => {
+const validateForm = (name: string, categoryCode: number | null, t: (key: string) => string): Record<string, string> => {
   const errors: Record<string, string> = {}
   if (!name.trim()) errors.name = t('catalog.categoriesPage.form.validation.nameRequired')
+  // Validate category code: 3-digit ending with 00 OR 4-digit ending with 000
+  if (categoryCode !== null) {
+    const codeStr = String(categoryCode)
+    const isValid3Digit = codeStr.length === 3 && /^[1-9]00$/.test(codeStr)
+    const isValid4Digit = codeStr.length === 4 && /^[1-9]000$/.test(codeStr)
+    if ((codeStr.length === 3 || codeStr.length === 4) && !isValid3Digit && !isValid4Digit) {
+      errors.category_code = 'Category code must be 3-digit ending with 00 (e.g., 100, 200, 300) or 4-digit ending with 000 (e.g., 1000, 2000, 3000)'
+    }
+  }
   return errors
 }
 
@@ -72,6 +83,7 @@ export default function EditCategoryPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [pageLoading, setPageLoading] = useState(true)
+  const [originalCategoryCode, setOriginalCategoryCode] = useState<number | null>(null)
 
   const handleSelectImage = () => {
     openSingleSelect((mediaFile: { id: number; url: string }) => {
@@ -98,12 +110,15 @@ export default function EditCategoryPage() {
         // Try store first (avoid extra API call)
         const existing = getCategoryById(Number(id))
         if (existing) {
+          const code = existing.categoryCode ?? null
+          setOriginalCategoryCode(code)
           setFormData({
             name: existing.name || '',
-            parent_id: existing.parent_id ?? null,
-            is_active: existing.is_active ?? true,
-            image_id: existing.image_id ?? null,
+            parent_id: existing.parentId ?? null,
+            is_active: existing.isActive ?? true,
+            image_id: existing.imageId ?? null,
             imageUrl: existing.image?.url ?? null,
+            category_code: code,
           })
           return
         }
@@ -113,12 +128,15 @@ export default function EditCategoryPage() {
         const categoryData = response?.data ?? response
 
         if (categoryData) {
+          const code = categoryData.categoryCode ?? categoryData.category_code ?? null
+          setOriginalCategoryCode(code)
           setFormData({
             name: categoryData.name || '',
-            parent_id: categoryData.parent_id ?? null,
-            is_active: categoryData.is_active ?? true,
-            image_id: categoryData.image_id ?? null,
+            parent_id: categoryData.parentId ?? categoryData.parent_id ?? null,
+            is_active: categoryData.isActive ?? categoryData.is_active ?? true,
+            image_id: categoryData.imageId ?? categoryData.image_id ?? null,
             imageUrl: categoryData.image?.url ?? null,
+            category_code: code,
           })
         }
       } catch {
@@ -141,7 +159,7 @@ export default function EditCategoryPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    const validationErrors = validateForm(formData.name, t)
+    const validationErrors = validateForm(formData.name, formData.category_code, t)
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors)
       return
@@ -154,6 +172,7 @@ export default function EditCategoryPage() {
         parent_id: formData.parent_id || undefined,
         is_active: formData.is_active,
         image_id: formData.image_id || undefined,
+        category_code: formData.category_code || undefined,
       })
 
       notifications.show({
@@ -242,6 +261,34 @@ export default function EditCategoryPage() {
                 clearable
                 searchable
                 size="md"
+              />
+
+              <TextInput
+                label="Category Code"
+                placeholder="e.g., 100, 200, 300, 1000, 2000, 3000"
+                description={
+                  originalCategoryCode !== null
+                    ? 'Category code is already set and cannot be changed.'
+                    : '3-digit code ending with 00 (e.g., 100, 200, 300) or 4-digit code ending with 000 (e.g., 1000, 2000, 3000).'
+                }
+                value={formData.category_code !== null && formData.category_code !== undefined ? String(formData.category_code) : ''}
+                onChange={(e) => {
+                  if (originalCategoryCode !== null) return // Disabled if originally set from database
+                  const value = e.target.value
+                  if (value === '') {
+                    setFormData({ ...formData, category_code: null })
+                  } else if (/^\d{0,4}$/.test(value)) {
+                    setFormData({ ...formData, category_code: value === '' ? null : Number(value) })
+                  }
+                  // Clear error when user continues typing after reaching 4 digits
+                  if (errors.category_code) {
+                    setErrors((prev) => ({ ...prev, category_code: '' }))
+                  }
+                }}
+                maxLength={4}
+                disabled={originalCategoryCode !== null}
+                size="md"
+                error={errors.category_code}
               />
 
               <Switch

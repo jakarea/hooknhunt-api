@@ -30,7 +30,7 @@ class Product extends Model
         'up_sale',
         'description',
         'description_bn',
-        'short_description',
+        'product_code',
         'video_url',
         'seo_title',
         'seo_description',
@@ -40,6 +40,8 @@ class Product extends Model
         'warranty_details',
         'highlights',
         'highlights_bn',
+        'attributes',
+        'attributes_bn',
         'includes_in_box',
         'includes_in_box_bn',
         'thank_you',
@@ -51,6 +53,8 @@ class Product extends Model
         'seo_tags' => 'array',
         'highlights' => 'array',
         'highlights_bn' => 'array',
+        'attributes' => 'array',
+        'attributes_bn' => 'array',
         'includes_in_box' => 'array',
         'warranty_enabled' => 'boolean',
         'thank_you' => 'boolean',
@@ -87,6 +91,14 @@ class Product extends Model
     public function variants()
     {
         return $this->hasMany(ProductVariant::class);
+    }
+
+    // 3.5. Relation with Reviews
+    public function reviews()
+    {
+        return $this->belongsToMany(Review::class, 'review_product')
+            ->withTimestamps()
+            ->orderBy('created_at', 'desc');
     }
 
     // 4. Relation with Thumbnail (This was missing)

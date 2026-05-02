@@ -7,6 +7,8 @@ use App\Http\Controllers\Api\V2\Website\AccountController;
 use App\Http\Controllers\Api\V2\Website\OrderController;
 use App\Http\Controllers\Api\V2\Website\StorefrontSliderController;
 use App\Http\Controllers\Api\V2\Website\PaymentGatewayController;
+use App\Http\Controllers\Api\V2\Website\ReviewController;
+use App\Http\Controllers\Api\V2\Website\SteadfastWebhookController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -89,6 +91,14 @@ Route::prefix('api')->group(function () {
 
     // Cross Sale Products for Cart (public)
     Route::get('/cross-sale-products', [ProductController::class, 'crossSaleForCart']);
+
+    // Public Reviews Routes
+    Route::get('/reviews', [ReviewController::class, 'index']);
+    Route::get('/reviews/featured', [ReviewController::class, 'featured']);
+    Route::get('/reviews/product/{productSlug}', [ReviewController::class, 'getByProductSlug']);
+
+    // SteadFast Webhook (public endpoint for courier notifications)
+    Route::post('/webhook/steadfast', [SteadfastWebhookController::class, 'handle']);
 
     // We will add public '/brands' routes here in a future step
     // We will add public '/pages' routes here in a future step (About, Contact, etc.)

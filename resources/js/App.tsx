@@ -136,19 +136,24 @@ import Permissions from "@/app/admin/permissions/page"
 import AuditLogs from "@/app/admin/audit-logs/page"
 import GeneralSettings from "@/app/admin/settings/general/page"
 import PaymentSettings from "@/app/admin/settings/payments/page"
-import SettingsRoles from "@/app/admin/hrm/roles/page"
-import SettingsUsers from "@/app/admin/settings/users/page"
-import SettingsPermissions from "@/app/admin/settings/permissions/page"
-import APISettings from "@/app/admin/settings/api/page"
-import Backup from "@/app/admin/settings/backup/page"
-import TaxSettings from "@/app/admin/settings/taxes/page"
+	import PricingSettings from "@/app/admin/settings/price/page"
+	import SettingsRoles from "@/app/admin/hrm/roles/page"
+	import SettingsUsers from "@/app/admin/settings/users/page"
+	import SettingsPermissions from "@/app/admin/settings/permissions/page"
+	import APISettings from "@/app/admin/settings/api/page"
+	import Backup from "@/app/admin/settings/backup/page"
+	import TaxSettings from "@/app/admin/settings/taxes/page"
 import WorkingHoursSettings from "@/app/admin/settings/working-hours/page"
 import WebsiteOrders from "@/app/admin/website/orders/page"
 import WebsiteOrderDetail from "@/app/admin/website/orders/[id]/page"
+import BulkPrintPage from "@/app/admin/website/orders/print/page"
 import Sliders from "@/app/admin/website/sliders/page"
 import CreateSlider from "@/app/admin/website/sliders/create/page"
 import EditSlider from "@/app/admin/website/sliders/[id]/edit/page"
 import WebsiteSettings from "@/app/admin/website/settings/page"
+import Reviews from "@/app/admin/website/reviews/page"
+	import CreateReview from "@/app/admin/website/reviews/create/page"
+	import EditReview from "@/app/admin/website/reviews/edit/[id]/page"
 
 import Login from "@/app/login/page"
 import ForgotPassword from "@/app/forgot-password/page"
@@ -312,6 +317,7 @@ function App() {
               <Route path="audit-logs" element={<AuditLogs />} />
               <Route path="settings/general" element={<GeneralSettings />} />
               <Route path="settings/payments" element={<PaymentSettings />} />
+              <Route path="settings/price" element={<PricingSettings />} />
               <Route path="settings/users" element={<SettingsUsers />} />
               <Route path="settings/permissions" element={<SettingsPermissions />} />
               <Route path="settings/api" element={<APISettings />} />
@@ -320,11 +326,15 @@ function App() {
               <Route path="settings/working-hours" element={<WorkingHoursSettings />} />
               {/* Website Admin */}
               <Route path="website/orders" element={<WebsiteOrders />} />
+              <Route path="website/orders/print" element={<BulkPrintPage />} />
               <Route path="website/orders/:id" element={<WebsiteOrderDetail />} />
               <Route path="website/sliders" element={<Sliders />} />
               <Route path="website/sliders/create" element={<CreateSlider />} />
               <Route path="website/sliders/:id/edit" element={<EditSlider />} />
               <Route path="website/settings" element={<WebsiteSettings />} />
+              <Route path="website/reviews" element={<Reviews />} />
+              <Route path="website/reviews/create" element={<CreateReview />} />
+              <Route path="website/reviews/edit/:id" element={<EditReview />} />
             </Route>
           </Route>
 

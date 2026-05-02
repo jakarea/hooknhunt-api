@@ -32,11 +32,14 @@ class DeliverySettingController extends Controller
     public function update(Request $request): JsonResponse
     {
         $data = $request->all();
-        $flatEnabled = ($data['flat_rate']['enabled'] ?? false) == true;
-        $freeEnabled = ($data['free_delivery']['enabled'] ?? false) == true;
+        $deliveryMode = $data['delivery_mode'] ?? 'standard';
+        $flatEnabled = $deliveryMode === 'flat_rate';
+        $freeEnabled = $deliveryMode === 'free_delivery';
+        $progressiveEnabled = $deliveryMode === 'progressive_delivery';
 
         $validator = Validator::make($request->all(), [
             'base_weight' => 'required|numeric|min:0.5|max:50',
+            'delivery_mode' => 'required|in:standard,flat_rate,free_delivery,progressive_delivery',
 
             'inside_dhaka.base_charge' => 'required|numeric|min:0',
             'inside_dhaka.per_kg_charge' => 'required|numeric|min:0',
@@ -49,7 +52,10 @@ class DeliverySettingController extends Controller
             'flat_rate.per_kg_charge' => $flatEnabled ? 'required|numeric|min:0' : 'nullable|numeric|min:0',
 
             'free_delivery.enabled' => 'boolean',
-            'free_delivery.min_amount' => $freeEnabled ? 'required|numeric|min:0' : 'nullable|numeric|min:0',
+
+            'progressive_delivery.enabled' => 'boolean',
+            'progressive_delivery.min_amount' => $progressiveEnabled ? 'required|numeric|min:0' : 'nullable|numeric|min:0',
+            'progressive_delivery.mode' => 'nullable|string|in:linear,tiered',
         ]);
 
         if ($validator->fails()) {
@@ -63,9 +69,16 @@ class DeliverySettingController extends Controller
         $data = $request->all();
 
         // Update settings
+        // Update settings
         Setting::updateOrCreate(
             ['group' => 'delivery', 'key' => 'delivery_base_weight'],
             ['value' => $data['base_weight']]
+        );
+
+        // Save delivery mode (ensures only one is active)
+        Setting::updateOrCreate(
+            ['group' => 'delivery', 'key' => 'delivery_mode'],
+            ['value' => $data['delivery_mode']]
         );
 
         Setting::updateOrCreate(
@@ -88,7 +101,7 @@ class DeliverySettingController extends Controller
 
         Setting::updateOrCreate(
             ['group' => 'delivery', 'key' => 'delivery_flat_enabled'],
-            ['value' => $data['flat_rate']['enabled'] ?? false]
+            ['value' => $flatEnabled]
         );
 
         // Only save flat_rate charges if enabled
@@ -103,16 +116,36 @@ class DeliverySettingController extends Controller
             );
         }
 
+        // Free Delivery settings - only enable if this mode is selected
         Setting::updateOrCreate(
             ['group' => 'delivery', 'key' => 'delivery_free_enabled'],
-            ['value' => $data['free_delivery']['enabled'] ?? false]
+            ['value' => $freeEnabled]
         );
 
-        // Only save free_delivery min_amount if enabled
+        // Free Delivery mode doesn't need min_amount (all orders are free)
+        // Clear any existing min_amount setting
         if ($freeEnabled) {
             Setting::updateOrCreate(
                 ['group' => 'delivery', 'key' => 'delivery_free_min_amount'],
-                ['value' => $data['free_delivery']['min_amount']]
+                ['value' => 0]
+            );
+        }
+
+        // Progressive Delivery settings - only enable if this mode is selected
+        Setting::updateOrCreate(
+            ['group' => 'delivery', 'key' => 'delivery_progressive_enabled'],
+            ['value' => $progressiveEnabled]
+        );
+
+        // Only save progressive_delivery settings if enabled
+        if ($progressiveEnabled) {
+            Setting::updateOrCreate(
+                ['group' => 'delivery', 'key' => 'delivery_progressive_min_amount'],
+                ['value' => $data['progressive_delivery']['min_amount'] ?? 3000]
+            );
+            Setting::updateOrCreate(
+                ['group' => 'delivery', 'key' => 'delivery_progressive_mode'],
+                ['value' => $data['progressive_delivery']['mode'] ?? 'linear']
             );
         }
 
@@ -132,6 +165,7 @@ class DeliverySettingController extends Controller
         $validator = Validator::make($request->all(), [
             'weight' => 'required|numeric|min:0.1',
             'division' => 'required|string',
+            'order_amount' => 'nullable|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -144,12 +178,14 @@ class DeliverySettingController extends Controller
 
         $charge = DeliveryChargeCalculator::calculate(
             $request->weight,
-            $request->division
+            $request->division,
+            $request->order_amount
         );
 
         $breakdown = DeliveryChargeCalculator::breakdown(
             $request->weight,
-            $request->division
+            $request->division,
+            $request->order_amount
         );
 
         return response()->json([

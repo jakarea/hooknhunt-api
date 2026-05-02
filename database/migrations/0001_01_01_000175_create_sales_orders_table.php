@@ -14,7 +14,9 @@ return new class extends Migration
             $table->foreignId('customer_id')->constrained('customers');
             $table->foreignId('sold_by')->nullable()->constrained('users');
             $table->enum('channel', ['pos', 'retail_web', 'wholesale_web', 'daraz', 'app']);
-            $table->enum('status', ['pending', 'draft', 'processing', 'on_hold', 'approved', 'on_shipping', 'shipped', 'delivered', 'completed', 'cancelled', 'returned', 'refunded'])->default('pending');
+            $table->enum('status', ['pending', 'draft', 'processing', 'on_hold', 'approved', 'on_shipping', 'shipped', 'delivered', 'completed', 'cancelled', 'returned', 'refunded', 'sent_to_steadfast', 'in_review', 'in_transit', 'delivered_payment_review', 'partial_delivered', 'delivery_failed_return', 'return_received', 'refunded_completed'])->default('pending');
+            $table->enum('cancellation_reason', ['customer', 'admin', 'courier', 'system'])->nullable();
+            $table->text('cancellation_detail')->nullable();
             $table->enum('payment_status', ['unpaid', 'paid', 'partial'])->default('unpaid');
             $table->decimal('sub_total', 12, 2);
             $table->decimal('discount_amount', 10, 2)->default(0);
@@ -35,11 +37,14 @@ return new class extends Migration
             $table->json('external_data')->nullable();
             $table->timestamp('confirmed_at')->nullable();
             $table->timestamp('shipped_at')->nullable();
+            $table->timestamp('delivered_at')->nullable();
             $table->timestamp('cancelled_at')->nullable();
             $table->boolean('editing_locked')->default(false);
             $table->decimal('due_amount', 10, 2)->default(0);
             $table->text('note')->nullable();
             $table->timestamps();
+            $table->timestamp('webhook_received_at')->nullable();
+            $table->json('courier_webhook_data')->nullable();
             $table->softDeletes();
         });
     }

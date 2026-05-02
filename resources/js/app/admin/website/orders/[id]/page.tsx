@@ -23,7 +23,7 @@ import {
   searchProducts, getTopSellingProducts,
   sendOrderSms,
   formatCurrency, statusColors, statusLabels, paymentStatusColors, decodeHtmlEntities,
-  type WebsiteOrderDetail, type WebsiteOrderStatus, type PaymentStatus,
+  type WebsiteOrderDetail, type WebsiteOrderStatus, type PaymentStatus, type CancellationReason,
   type ProductVariantSearchResult,
   type ProductSearchResult,
 } from '@/utils/websiteApi'
@@ -55,6 +55,7 @@ export default function WebsiteOrderDetailPage() {
   const [order, setOrder] = useState<OrderData | null>(null)
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null)
   const [changeNote, setChangeNote] = useState('')
+  const [cancellationReason, setCancellationReason] = useState<CancellationReason | null>(null)
   const [savingNote, setSavingNote] = useState(false)
   const [editingDiscount, setEditingDiscount] = useState(false)
   const [discountValue, setDiscountValue] = useState(0)
@@ -128,36 +129,164 @@ export default function WebsiteOrderDetailPage() {
   const handleStatusUpdate = () => {
     if (!selectedStatus || !order) return
 
-    modals.openConfirmModal({
-      title: `Change status to ${statusLabels[selectedStatus as WebsiteOrderStatus] || selectedStatus}?`,
-      children: (
-        <Text size="sm">
-          Order #{order.invoiceNo} status will be changed from{' '}
-          <b>{statusLabels[order.status] || order.status}</b> to{' '}
-          <b>{statusLabels[selectedStatus as WebsiteOrderStatus] || selectedStatus}</b>.
-        </Text>
-      ),
-      labels: { confirm: 'Confirm', cancel: 'Cancel' },
-      confirmProps: { color: selectedStatus === 'cancelled' ? 'red' : 'blue' },
-      onConfirm: async () => {
-        try {
-          const res = await updateWebsiteOrderStatus(Number(id), {
-            status: selectedStatus as WebsiteOrderStatus,
-            comment: changeNote || undefined,
-          })
-          setOrder(res.data)
-          setSelectedStatus(null)
-          await appendChangeNote()
-          notifications.show({ title: 'Success', message: `Status updated to ${statusLabels[selectedStatus as WebsiteOrderStatus] || selectedStatus}`, color: 'green' })
-        } catch (err: any) {
-          notifications.show({
-            title: 'Error',
-            message: err?.response?.data?.message || 'Failed to update status',
-            color: 'red',
-          })
-        }
-      },
-    })
+    // Check if transition requires mandatory note
+    const requiresNote = selectedStatus === 'on_hold' || selectedStatus === 'cancelled'
+    const isCancelled = selectedStatus === 'cancelled'
+
+    if (isCancelled) {
+      // Show detailed cancellation modal
+      let tempCancellationReason: CancellationReason | null = null
+      let tempNote = changeNote
+
+      modals.open({
+        title: `Cancel Order #${order.invoiceNo}`,
+        children: (
+          <Stack gap="md">
+            <Text size="sm">
+              Order #{order.invoiceNo} status will be changed from{' '}
+              <b>{statusLabels[order.status] || order.status}</b> to{' '}
+              <b>Cancelled</b>.
+            </Text>
+            <Select
+              label="Cancellation Reason *"
+              placeholder="Select reason"
+              data={[
+                { value: 'customer', label: 'Cancelled by Customer' },
+                { value: 'admin', label: 'Cancelled by Admin' },
+                { value: 'courier', label: 'Cancelled by Courier' },
+                { value: 'system', label: 'System Cancelled' },
+              ]}
+              onChange={(v) => { tempCancellationReason = v as CancellationReason }}
+              required
+            />
+            <Textarea
+              label="Cancellation Details *"
+              placeholder="Provide details about why this order was cancelled..."
+              defaultValue={changeNote}
+              onChange={(e) => { tempNote = e.currentTarget.value }}
+              minRows={3}
+              maxRows={5}
+              required
+            />
+            <Text size="xs" c="red">* Note and reason are required for cancellation</Text>
+          </Stack>
+        ),
+        labels: { confirm: 'Cancel Order', cancel: 'Close' },
+        confirmProps: { color: 'red' },
+        onConfirm: async () => {
+          if (!tempCancellationReason) {
+            notifications.show({ title: 'Error', message: 'Cancellation reason is required', color: 'red' })
+            return false
+          }
+          if (!tempNote?.trim()) {
+            notifications.show({ title: 'Error', message: 'Cancellation details are required', color: 'red' })
+            return false
+          }
+          try {
+            const res = await updateWebsiteOrderStatus(Number(id), {
+              status: selectedStatus as WebsiteOrderStatus,
+              note: tempNote.trim(),
+              cancellation_reason: tempCancellationReason,
+            })
+            setOrder(res.data)
+            setSelectedStatus(null)
+            setCancellationReason(null)
+            setChangeNote('')
+            await appendChangeNote()
+            notifications.show({ title: 'Success', message: `Status updated to Cancelled`, color: 'green' })
+          } catch (err: any) {
+            notifications.show({
+              title: 'Error',
+              message: err?.response?.data?.message || 'Failed to update status',
+              color: 'red',
+            })
+          }
+        },
+      })
+    } else if (requiresNote && !changeNote.trim()) {
+      // Show modal with mandatory note for on_hold
+      let tempNote = changeNote
+
+      modals.open({
+        title: `Change status to ${statusLabels[selectedStatus as WebsiteOrderStatus] || selectedStatus}?`,
+        children: (
+          <Stack gap="md">
+            <Text size="sm">
+              Order #{order.invoiceNo} status will be changed from{' '}
+              <b>{statusLabels[order.status] || order.status}</b> to{' '}
+              <b>{statusLabels[selectedStatus as WebsiteOrderStatus] || selectedStatus}</b>.
+            </Text>
+            <Textarea
+              label="Note *"
+              placeholder="Provide a reason for this status change..."
+              value={changeNote}
+              onChange={(e) => { tempNote = e.currentTarget.value }}
+              minRows={3}
+              maxRows={5}
+              required
+              autoFocus
+            />
+            <Text size="xs" c="red">* Note is required for this status change</Text>
+          </Stack>
+        ),
+        labels: { confirm: 'Update Status', cancel: 'Cancel' },
+        confirmProps: { color: 'blue' },
+        onConfirm: async () => {
+          if (!tempNote?.trim()) {
+            notifications.show({ title: 'Error', message: 'Note is required for this status change', color: 'red' })
+            return false
+          }
+          try {
+            const res = await updateWebsiteOrderStatus(Number(id), {
+              status: selectedStatus as WebsiteOrderStatus,
+              note: tempNote.trim(),
+            })
+            setOrder(res.data)
+            setSelectedStatus(null)
+            await appendChangeNote()
+            notifications.show({ title: 'Success', message: `Status updated to ${statusLabels[selectedStatus as WebsiteOrderStatus] || selectedStatus}`, color: 'green' })
+          } catch (err: any) {
+            notifications.show({
+              title: 'Error',
+              message: err?.response?.data?.message || 'Failed to update status',
+              color: 'red',
+            })
+          }
+        },
+      })
+    } else {
+      // Standard confirmation modal
+      modals.openConfirmModal({
+        title: `Change status to ${statusLabels[selectedStatus as WebsiteOrderStatus] || selectedStatus}?`,
+        children: (
+          <Text size="sm">
+            Order #{order.invoiceNo} status will be changed from{' '}
+            <b>{statusLabels[order.status] || order.status}</b> to{' '}
+            <b>{statusLabels[selectedStatus as WebsiteOrderStatus] || selectedStatus}</b>.
+          </Text>
+        ),
+        labels: { confirm: 'Confirm', cancel: 'Cancel' },
+        confirmProps: { color: 'blue' },
+        onConfirm: async () => {
+          try {
+            const res = await updateWebsiteOrderStatus(Number(id), {
+              status: selectedStatus as WebsiteOrderStatus,
+              note: changeNote || undefined,
+            })
+            setOrder(res.data)
+            setSelectedStatus(null)
+            await appendChangeNote()
+            notifications.show({ title: 'Success', message: `Status updated to ${statusLabels[selectedStatus as WebsiteOrderStatus] || selectedStatus}`, color: 'green' })
+          } catch (err: any) {
+            notifications.show({
+              title: 'Error',
+              message: err?.response?.data?.message || 'Failed to update status',
+              color: 'red',
+            })
+          }
+        },
+      })
+    }
   }
 
   const handlePaymentUpdate = () => {
@@ -486,10 +615,41 @@ export default function WebsiteOrderDetailPage() {
     )
   }
 
-  const allStatusOptions = Object.entries(statusLabels).map(([value, label]) => ({
-    value,
-    label,
-  }))
+  // Build status options based on current order status
+  const getStatusOptions = () => {
+    if (!order) return []
+
+    const options = []
+
+    // Always include current status first (disabled)
+    options.push({
+      value: order.status,
+      label: `${statusLabels[order.status] || order.status} (Current)`,
+      disabled: true,
+    })
+
+    // For cancelled orders, include revival options
+    if (order.status === 'cancelled') {
+      options.push(
+        { value: 'pending', label: 'Pending (Revive Order)' },
+        { value: 'processing', label: 'Processing (Revive Order)' }
+      )
+    } else if (order.status !== 'completed') {
+      // Get all valid next statuses from the allowedNextStatuses array
+      const validStatuses = order.allowedNextStatuses || []
+
+      validStatuses.forEach((status) => {
+        options.push({
+          value: status,
+          label: statusLabels[status] || status,
+        })
+      })
+    }
+
+    return options
+  }
+
+  const statusOptions = getStatusOptions()
 
   const orderDate = new Date(order.timestamps?.createdAt || (order as any).createdAt)
   const customerSummary = (order.customerInfo as any)?.summary
@@ -539,7 +699,7 @@ export default function WebsiteOrderDetailPage() {
               <Group gap="xs">
                 <IconClock size={14} color="gray" />
                 <Text size="xs" c="dimmed">
-                  Placed: {orderDate.toLocaleDateString()} •
+                  Placed: {orderDate.toLocaleString('en-BD', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })} •
                   Processing: <Text span fw={600} c={order.status === 'completed' || order.status === 'cancelled' ? 'dimmed' : 'orange'}>
                     {getProcessingTime(orderDate.toISOString(), order.status)}
                   </Text>
@@ -551,7 +711,7 @@ export default function WebsiteOrderDetailPage() {
           <Group align="flex-end" gap="sm" wrap="wrap" mt="sm">
             <Select
               label="Status"
-              data={allStatusOptions}
+              data={statusOptions}
               value={selectedStatus || order.status}
               onChange={setSelectedStatus}
               searchable={false}
@@ -593,8 +753,8 @@ export default function WebsiteOrderDetailPage() {
 
         {/* Timeline & Notes + SMS */}
         <Grid gutter="md" columns={10}>
-          {/* Timeline & Notes — 80% */}
-          <Grid.Col span={{ base: 10, md: 8 }}>
+          {/* Timeline & Notes — 70% */}
+          <Grid.Col span={{ base: 10, md: 7 }}>
             <Card withBorder p="md" h="100%">
               <Title order={4} size="sm" mb="sm">Timeline &amp; Notes</Title>
               <Stack gap="xs">
@@ -633,8 +793,8 @@ export default function WebsiteOrderDetailPage() {
             </Card>
           </Grid.Col>
 
-          {/* Send SMS — 20% */}
-          <Grid.Col span={{ base: 10, md: 2 }}>
+          {/* Send SMS — 30% */}
+          <Grid.Col span={{ base: 10, md: 3 }}>
             <Card withBorder p="md" h="100%">
               <Group gap="xs" mb="sm">
                 <IconMessage size={16} />
@@ -896,7 +1056,7 @@ export default function WebsiteOrderDetailPage() {
                     </Button>
                   </Group>
                 </>
-              ) : (
+              ) : (order.status === 'processing' || order.status === 'approved') ? (
                 <>
                   <Divider my={4} />
                   <Button
@@ -910,7 +1070,7 @@ export default function WebsiteOrderDetailPage() {
                     Send to Steadfast
                   </Button>
                 </>
-              )}
+              ) : null}
             </Stack>
           </Card>
         </SimpleGrid>

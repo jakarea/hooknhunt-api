@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('image_id')->nullable()->constrained('media_files')->onDelete('set null');
             $table->boolean('is_active')->default(true);
             $table->integer('sort_order')->default(0);
+            $table->integer('category_code')->nullable()->unique()->default(null)->comment('Unique category code for identification');
             $table->timestamps();
         });
     }

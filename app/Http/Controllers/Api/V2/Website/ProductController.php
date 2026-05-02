@@ -242,7 +242,7 @@ class ProductController extends Controller
             );
         }
 
-        $thumbnailUrl = $product->thumbnail?->full_url;
+        $thumbnailUrl = $product->thumbnail?->full_url ?? null;
 
         // Get first variant for price calculation
         $firstVariant = $product->variants->first();
@@ -250,6 +250,17 @@ class ProductController extends Controller
         $originalPrice = $firstVariant ? (float) $firstVariant['price'] : 0;
         $variantCount = $product->variants->count();
         $stock = $variantCount > 0 ? (int) $product->variants->sum('stock') : 0;
+
+        // Use variant image if no thumbnail
+        $imageUrl = $thumbnailUrl;
+        if (!$imageUrl && $firstVariant) {
+            $variantThumbnail = $firstVariant['thumbnail'] ?? null;
+            if ($variantThumbnail) {
+                $imageUrl = is_string($variantThumbnail) && !str_starts_with($variantThumbnail, 'http')
+                    ? url($variantThumbnail)
+                    : $variantThumbnail;
+            }
+        }
 
         return [
             'id'               => $product->id,
@@ -272,8 +283,8 @@ class ProductController extends Controller
             'seoDescription'   => $product->seo_description,
             'seoTags'          => $product->seo_tags,
             // Image fields - both string URL and object for compatibility
-            'image'            => $thumbnailUrl,
-            'featured_image'   => $thumbnailUrl,
+            'image'            => $imageUrl,
+            'featured_image'   => $imageUrl,
             'thumbnail'        => $this->transformMedia($product->thumbnail),
             'thumbnailObj'     => $this->transformMedia($product->thumbnail),
             // Price fields for ProductCard compatibility
@@ -330,6 +341,17 @@ class ProductController extends Controller
 
         $thumbnailUrl = $p->thumbnail?->full_url;
 
+        // Use variant image if no thumbnail
+        $imageUrl = $thumbnailUrl;
+        if (!$imageUrl && $retailVariant) {
+            $variantThumbnail = $retailVariant->thumbnail;
+            if ($variantThumbnail) {
+                $imageUrl = is_string($variantThumbnail) && !str_starts_with($variantThumbnail, 'http')
+                    ? url($variantThumbnail)
+                    : $variantThumbnail;
+            }
+        }
+
         // Calculate price: use offer_price if available and greater than 0, otherwise use price
         $displayPrice = 0;
         if ($retailVariant) {
@@ -345,8 +367,8 @@ class ProductController extends Controller
             'slug'             => $p->slug,
             'name'             => $p->retail_name ?? $p->name,
             // Image fields - both string URL and object for compatibility
-            'image'            => $thumbnailUrl,
-            'featured_image'   => $thumbnailUrl,
+            'image'            => $imageUrl,
+            'featured_image'   => $imageUrl,
             'thumbnail'        => $this->transformMedia($p->thumbnail),
             'thumbnailObj'     => $this->transformMedia($p->thumbnail),
             'retailPrice'      => $retailVariant ? (float) $retailVariant->price : 0,
@@ -363,6 +385,12 @@ class ProductController extends Controller
      */
     private function transformVariant($variant): array
     {
+        // Convert variant thumbnail to full URL
+        $variantThumbnail = $variant->thumbnail;
+        if ($variantThumbnail && !str_starts_with($variantThumbnail, 'http')) {
+            $variantThumbnail = url($variantThumbnail);
+        }
+
         return [
             'id'            => $variant->id,
             'variantName'   => $variant->variant_name,
@@ -377,7 +405,7 @@ class ProductController extends Controller
             'size'          => $variant->size,
             'color'         => $variant->color,
             'isActive'      => (bool) $variant->is_active,
-            'thumbnail'     => $variant->thumbnail,
+            'thumbnail'     => $variantThumbnail,
         ];
     }
 
@@ -478,7 +506,7 @@ class ProductController extends Controller
 
         $query = $request->input('q');
 
-        $products = Product::with(['category', 'thumbnail'])
+        $products = Product::with(['category', 'thumbnail', 'variants'])
             ->where('status', 'published')
             ->whereHas('variants', fn($q) => $q->where('channel', 'retail')->where('is_active', true))
             ->where(function ($q) use ($query) {
@@ -494,15 +522,26 @@ class ProductController extends Controller
             $thumbnailUrl = $product->thumbnail?->full_url;
             $retailVariant = $product->variants->where('channel', 'retail')->where('is_active', true)->first();
 
+            // Use variant image if no thumbnail
+            $imageUrl = $thumbnailUrl;
+            if (!$imageUrl && $retailVariant) {
+                $variantThumbnail = $retailVariant->thumbnail;
+                if ($variantThumbnail) {
+                    $imageUrl = is_string($variantThumbnail) && !str_starts_with($variantThumbnail, 'http')
+                        ? url($variantThumbnail)
+                        : $variantThumbnail;
+                }
+            }
+
             return [
                 'id' => $product->id,
                 'name' => $product->name,
                 'slug' => $product->slug,
                 'thumbnail' => $this->transformMedia($product->thumbnail),
-                'image' => $thumbnailUrl,
-                'featured_image' => $thumbnailUrl,
+                'image' => $imageUrl,
+                'featured_image' => $imageUrl,
                 'category' => $product->category?->name,
-                'price' => $retailVariant?->offerPrice > 0 ? $retailVariant?->offerPrice : $retailVariant?->price,
+                'price' => $retailVariant?->offer_price > 0 ? $retailVariant?->offer_price : $retailVariant?->price,
             ];
         });
 

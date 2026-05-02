@@ -22,6 +22,7 @@ import {
   IconDeviceDesktop,
   IconLayout,
   IconCreditCard,
+  IconStar,
 } from "@tabler/icons-react"
 import {
   Box,
@@ -316,6 +317,11 @@ export function AppSidebarMantine({
             title: t("nav.Sliders"),
             icon: IconLayout,
             url: "/website/sliders",
+          },
+          {
+            title: t("nav.reviews"),
+            icon: IconStar,
+            url: "/website/reviews",
           },
           {
             title: t("nav.settings"),

@@ -69,7 +69,7 @@ class MediaController extends Controller
     }
 
     /**
-     * 2.1 Update/Rename Folder
+     * 2.1 Update/Rename/Move Folder
      */
     public function updateFolder(Request $request, $id)
     {
@@ -79,7 +79,8 @@ class MediaController extends Controller
         }
 
         $request->validate([
-            'name' => 'required|string|max:50',
+            'name' => 'nullable|string|max:50',
+            'parent_id' => 'nullable|integer|exists:media_folders,id',
             'view_roles' => 'nullable|array',
             'view_roles.*' => 'string',
             'edit_roles' => 'nullable|array',
@@ -93,14 +94,62 @@ class MediaController extends Controller
             return $this->sendError('Unauthorized', ['message' => 'You do not have permission to edit this folder'], 403);
         }
 
+        // Handle parent_id change (moving folder)
+        if ($request->has('parent_id')) {
+            $newParentId = $request->parent_id;
+
+            // Prevent folder from being its own parent
+            if ($newParentId == $id) {
+                return $this->sendError('Cannot move folder into itself.');
+            }
+
+            // Prevent circular reference (moving folder into its own descendant)
+            if ($newParentId) {
+                $targetFolder = MediaFolder::find($newParentId);
+                if (!$targetFolder) {
+                    return $this->sendError('Target folder not found.', null, 404);
+                }
+
+                // Check if target is a descendant of source folder
+                $descendantIds = $this->getDescendantIds($folder);
+                if (in_array($newParentId, $descendantIds)) {
+                    return $this->sendError('Cannot move folder into its own sub-folder.');
+                }
+
+                // Check permission on target folder
+                if (!$targetFolder->canBeEditedBy(auth()->user())) {
+                    return $this->sendError('You do not have permission to move folders into the target location.', null, 403);
+                }
+            }
+
+            $folder->parent_id = $newParentId;
+        }
+
         $folder->update([
-            'name' => $request->name,
-            'slug' => Str::slug($request->name) . '-' . time(),
+            'name' => $request->name ?? $folder->name,
+            'slug' => $request->name ? Str::slug($request->name) . '-' . time() : $folder->slug,
+            'parent_id' => $folder->parent_id,
             'view_roles' => $request->view_roles ?? $folder->view_roles,
             'edit_roles' => $request->edit_roles ?? $folder->edit_roles,
         ]);
 
         return $this->sendSuccess($folder, 'Folder updated successfully');
+    }
+
+    /**
+     * Get all descendant IDs of a folder (recursive)
+     */
+    private function getDescendantIds(MediaFolder $folder): array
+    {
+        $ids = [];
+        $children = $folder->children;
+
+        foreach ($children as $child) {
+            $ids[] = $child->id;
+            $ids = array_merge($ids, $this->getDescendantIds($child));
+        }
+
+        return $ids;
     }
 
     /**

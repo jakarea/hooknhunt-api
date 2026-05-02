@@ -120,6 +120,10 @@
       "deleteConfirmMessage": "আপনি কি নিশ্চিত যে {{name}} মুছে ফেলতে চান? এটি ফিরিয়ে আনা যাবে না।",
       "hasProductsError": "পণ্য সম্বলিত ক্যাটাগরি মুছে ফেলা যাবে না।"
     },
+    "rootCategories": "ক্যাটাগরি",
+    "subcategories": "সাব-ক্যাটাগরি",
+    "selectCategory": "ক্যাটাগরি নির্বাচন করুন",
+    "selectCategoryHint": "সাব-ক্যাটাগরি দেখতে বাম দিকে একটি ক্যাটাগরি ক্লিক করুন",
     "childrenCategories": "সাব-ক্যাটাগরি"
   },
   "unitsPage": {
@@ -243,6 +247,96 @@
       "statusError": "পণ্যের স্ট্যাটাস আপডেট করতে ব্যর্থ হয়েছে"
     }
   },
+  "productsDetail": {
+    "status": {
+      "draft": "খসড়া",
+      "published": "প্রকাশিত",
+      "archived": "আর্কাইভ করা"
+    },
+    "variants": {
+      "title": "পণ্য ভেরিয়েন্ট",
+      "image": "ছবি",
+      "variant": "ভেরিয়েন্ট",
+      "sku": "এসকেইউ",
+      "attributes": "বৈশিষ্ট্য",
+      "cost": "খরচ",
+      "profit": "লাভ",
+      "stock": "স্টক",
+      "inactive": "নিষ্ক্রিয়",
+      "active": "সক্রিয়",
+      "preorder": "প্রি-অর্ডার",
+      "outOfStock": "স্টক আউট",
+      "lowStock": "{{count}} বাকি আছে",
+      "inStock": "{{count}} স্টকে আছে",
+      "color": "রঙ",
+      "size": "আকার",
+      "material": "মেটেরিয়াল",
+      "pattern": "প্যাটার্ন"
+    },
+    "retailNameEnglish": "খুচরা নাম (ইংরেজি)",
+    "retailNameBangla": "খুচরা নাম (বাংলা)",
+    "wholesaleNameEnglish": "পাইকারি নাম (ইংরেজি)",
+    "wholesaleNameBangla": "পাইকারি নাম (বাংলা)",
+    "breadcrumbs": {
+      "dashboard": "ড্যাশবোর্ড",
+      "catalog": "ক্যাটালগ",
+      "products": "পণ্যসমূহ"
+    },
+    "header": {
+      "productId": "পণ্য আইডি",
+      "productCode": "পণ্য কোড",
+      "created": "তৈরি হয়েছে",
+      "back": "ফিরে যান",
+      "editProduct": "পণ্য সম্পাদনা করুন"
+    },
+    "warranty": {
+      "label": "ওয়ারেন্টি"
+    },
+    "package": {
+      "label": "বাক্সে কী আছে"
+    },
+    "productInformation": {
+      "title": "পণ্যের তথ্য",
+      "thumbnail": "থাম্বনেইল ছবি",
+      "category": "ক্যাটাগরি",
+      "brand": "ব্র্যান্ড",
+      "urlSlug": "ইউআরএল স্লাগ",
+      "videoUrl": "ভিডিও ইউআরএল",
+      "description": "বর্ণনা"
+    },
+    "seo": {
+      "title": "এসইও তথ্য",
+      "seoTitle": "এসইও শিরোনাম",
+      "description": "এসইও বর্ণনা",
+      "tags": "এসইও ট্যাগ"
+    },
+    "gallery": {
+      "title": "গ্যালারি ছবি"
+    },
+    "highlights": {
+      "title": "পণ্যের হাইলাইটস",
+      "highlightsEnglish": "হাইলাইটস (ইংরেজি)",
+      "highlightsBangla": "হাইলাইটস (বাংলা)"
+    },
+    "descriptionEnglish": "বিবরণ (ইংরেজি)",
+    "descriptionBangla": "বিবরণ (বাংলা)",
+    "crossSale": {
+      "title": "ক্রস-সেল পণ্য",
+      "description": "ক্রেতার যখন এই পণ্যটি দেখলে ক্রস-সেল হিসাবে সুপারিশ করা পণ্য।",
+      "maxProducts": "সর্বোচ্চ {{count}}টি পণ্য।",
+      "addProduct": "পণ্য যোগ করুন"
+    },
+    "upSale": {
+      "title": "আপ-সেল পণ্য",
+      "description": "আপগ্রেড বা প্রিমিয়াম বিকল্প হিসাবে সুপারিশ করা পণ্য।",
+      "maxProducts": "সর্বোচ্চ {{count}}টি পণ্য।",
+      "addProduct": "পণ্য যোগ করুন"
+    },
+    "thankYou": {
+      "title": "ধন্যবাদ পণ্য",
+      "description": "অর্ডার নিশ্চিতকরণ পৃষ্ঠায় এই পণ্যটি দেখানো হবে চিহ্নিত করুন"
+    }
+  },
   "productsCreate": {
     "title": "নতুন পণ্য যোগ করুন",
     "subtitle": "ভেরিয়েন্ট সহ একটি নতুন পণ্য তৈরি করুন",
@@ -259,6 +353,9 @@
     "selectCategory": "ক্যাটাগরি নির্বাচন করুন",
     "brand": "ব্র্যান্ড",
     "selectBrand": "ব্র্যান্ড নির্বাচন করুন",
+    "productCode": "পণ্য কোড",
+    "productCodePlaceholder": "খালি থাকলে স্বয়ংক্রিয় জেনারেট হবে",
+    "productCodeDescription": "ক্যাটাগরি থেকে স্বয়ংক্রিয় জেনারেট করতে খালি রাখুন",
     "enablePreorder": "প্রি-অর্ডার সক্রিয় করুন",
     "enablePreorderDescription": "স্টকে না থাকা অবস্থায় এই পণ্য অর্ডার করতে গ্রাহকদের অনুমতি দিন",
     "expectedDeliveryDate": "প্রত্যাশিত ডেলিভারি তারিখ",
@@ -331,6 +428,11 @@
     "productHighlightsPlaceholder": "মূল পণ্যের বৈশিষ্ট্য, সুবিধা, সুবিধাগুলি লিখুন...",
     "highlightPlaceholder": "একটি হাইলাইট লিখুন (যেমন: \"প্রিমিয়াম মানের উপাদান\")",
     "highlightsTip": "মূল পণ্যের বৈশিষ্ট্য, সুবিধা বা সুবিধাগুলি যোগ করুন। আরও আইটেম তৈরি করতে যোগ করুন ক্লিক করুন।",
+    "productAttributes": "পণ্যের বৈশিষ্ট্য",
+    "attributesPlaceholder": "মূল পণ্যের বৈশিষ্ট্য, স্পেসিফিকেশন, টেকনিক্যাল বিবরণ লিখুন...",
+    "attributesTip": "মূল পণ্যের বৈশিষ্ট্য, স্পেসিফিকেশন বা টেকনিক্যাল বিবরণ বুলেট পয়েন্ট হিসেবে যোগ করুন। সর্বোচ্চ ২০টি আইটেম।",
+    "maxAttributesReached": "সর্বোচ্চ সীমা অতিক্রান্ত",
+    "maxAttributesMessage": "আপনি সর্বোচ্চ ২০টি বৈশিষ্ট্য যোগ করতে পারবেন। অতিরিক্ত আইটেম সরানো হয়েছে।",
     "richTextTip": "টিপ: বোল্ড, ইটালিক, আন্ডারলাইন, তালিকা এবং লিঙ্ক যোগ করতে ফরম্যাটিং টুলবার ব্যবহার করুন। রিচ টেক্সট এডিটিং সম্পূর্ণরূপে সমর্থিত।",
     "seoSection": "এসইও (সার্চ ইঞ্জিন অপ্টিমাইজেশন)",
     "seoTitle": "এসইও শিরোনাম",

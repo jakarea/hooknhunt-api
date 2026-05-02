@@ -46,6 +46,7 @@ interface MediaSelectorModalProps {
   onSelectMultiple?: (mediaFiles: MediaFile[]) => void
   multiple?: boolean
   currentSelection?: number[]
+  initialFolderId?: number | null
 }
 
 // ─── Main Component ──────────────────────────────
@@ -56,6 +57,7 @@ export function MediaSelectorModal({
   onSelectMultiple,
   multiple = false,
   currentSelection = [],
+  initialFolderId = null,
 }: MediaSelectorModalProps) {
   const { t } = useTranslation()
   const store = useMediaStore()
@@ -68,13 +70,16 @@ export function MediaSelectorModal({
   useEffect(() => {
     if (opened) {
       store.loadFolders()
+      if (initialFolderId !== null && initialFolderId !== undefined) {
+        store.setCurrentFolder(initialFolderId)
+      }
       store.loadFiles()
       if (currentSelection.length > 0) {
         store.clearSelection()
         currentSelection.forEach((id) => store.toggleFileSelection(id, true))
       }
     }
-  }, [opened, store.currentFolder])
+  }, [opened, store.currentFolder, initialFolderId])
 
   // Reset on close
   const handleClose = useCallback(() => {
@@ -157,10 +162,16 @@ export function MediaSelectorModal({
   }, [store.newFolderName, store.currentFolder])
 
   const handleBulkMove = useCallback(async () => {
+    // Check if moving a folder
+    if (store.movingFolderId !== null) {
+      await store.moveFolder(store.movingFolderId, store.targetFolderId)
+      return
+    }
+    // Otherwise moving files
     const ids = store.singleActionFileIds.length > 0 ? store.singleActionFileIds : store.selectedFileIds
     if (ids.length === 0) return
     await store.moveFiles(ids, store.targetFolderId)
-  }, [store.singleActionFileIds, store.selectedFileIds, store.targetFolderId])
+  }, [store.singleActionFileIds, store.selectedFileIds, store.targetFolderId, store.movingFolderId])
 
   const handleRefresh = useCallback(() => {
     store.loadFolders()
@@ -234,6 +245,11 @@ export function MediaSelectorModal({
       },
     })
   }, [t, store])
+
+  // Folder move handler
+  const handleMoveFolder = useCallback((folderId: number) => {
+    store.openMoveFolderModal(folderId)
+  }, [store])
 
   // ─── File action handlers (for MediaFileCard) ─
   const fileActions = useMemo(
@@ -363,6 +379,7 @@ export function MediaSelectorModal({
                     onClick={() => store.setCurrentFolder(folder.id)}
                     onRename={handleRenameFolder}
                     onDelete={handleDeleteFolder}
+                    onMove={handleMoveFolder}
                   />
                 ))}
               </SimpleGrid>
@@ -451,11 +468,12 @@ function EmptyState({ searchQuery }: { searchQuery: string }) {
   )
 }
 
-function FolderCard({ folder, onClick, onRename, onDelete }: {
+function FolderCard({ folder, onClick, onRename, onDelete, onMove }: {
   folder: { id: number; name: string; mediaFilesCount?: number }
   onClick: () => void
   onRename: (folder: { id: number; name: string }) => void
   onDelete: (folder: { id: number; name: string }) => void
+  onMove: (folderId: number) => void
 }) {
   const { t } = useTranslation()
 
@@ -477,6 +495,15 @@ function FolderCard({ folder, onClick, onRename, onDelete }: {
             }}
           >
             {t('cms.mediaPage.rename')}
+          </Menu.Item>
+          <Menu.Item
+            leftSection={<IconArrowMoveRight size={14} />}
+            onClick={(e) => {
+              e.stopPropagation()
+              onMove(folder.id)
+            }}
+          >
+            {t('cms.mediaPage.moveToFolder')}
           </Menu.Item>
           <Menu.Item
             leftSection={<IconTrash size={14} />}
@@ -609,18 +636,60 @@ function MoveFilesSubModal({ fileCount, onConfirm }: { fileCount: number; onConf
   const store = useMediaStore()
   const { t } = useTranslation()
 
+  // Determine if moving a folder or files
+  const isMovingFolder = store.movingFolderId !== null
+  const movingFolder = isMovingFolder ? store.folders.find(f => f.id === store.movingFolderId) : null
+
+  // Helper function to get descendant IDs of a folder (prevent circular reference)
+  const getDescendantIds = useCallback((folderId: number): number[] => {
+    const descendants: number[] = []
+    const children = store.folders.filter(f => f.parentId === folderId)
+
+    for (const child of children) {
+      descendants.push(child.id)
+      descendants.push(...getDescendantIds(child.id))
+    }
+
+    return descendants
+  }, [store.folders])
+
+  // Get folders that cannot be selected as destination
+  const forbiddenFolderIds = useMemo(() => {
+    if (!isMovingFolder) return []
+    const ids = [store.movingFolderId!] // Can't move into itself
+    ids.push(...getDescendantIds(store.movingFolderId!)) // Can't move into descendants
+    return ids
+  }, [isMovingFolder, store.movingFolderId, getDescendantIds])
+
   // Use 'root' as a special value for root folder (null)
   const selectValue = store.targetFolderId === null ? 'root' : store.targetFolderId?.toString() ?? ''
 
+  // Filter folder options
+  const folderOptions = useMemo(() => {
+    return store.folders
+      .filter(f => !forbiddenFolderIds.includes(f.id))
+      .map((f) => ({ value: f.id.toString(), label: f.name }))
+  }, [store.folders, forbiddenFolderIds])
+
   return (
-    <Modal opened={store.moveModalOpened} onClose={store.closeMoveModal} title={t('cms.mediaPage.moveFiles', { count: fileCount })} size="sm" centered>
+    <Modal
+      opened={store.moveModalOpened}
+      onClose={store.closeMoveModal}
+      title={isMovingFolder ? t('cms.mediaPage.moveFolderTitle', { name: movingFolder?.name }) : t('cms.mediaPage.moveFiles', { count: fileCount })}
+      size="sm"
+      centered
+    >
       <Stack gap="md">
-        <Text size="sm">{t('cms.mediaPage.selectDestination')}</Text>
+        <Text size="sm">
+          {isMovingFolder
+            ? t('cms.mediaPage.moveFolderDescription')
+            : t('cms.mediaPage.selectDestination')}
+        </Text>
         <Select
           placeholder={t('cms.mediaSelector.selectFolder')}
           data={[
             { value: 'root', label: t('cms.mediaPage.allFiles') },
-            ...store.folders.map((f) => ({ value: f.id.toString(), label: f.name })),
+            ...folderOptions,
           ]}
           value={selectValue}
           onChange={(v) => store.setTargetFolderId(v === 'root' ? null : (v ? Number(v) : null))}
@@ -628,7 +697,9 @@ function MoveFilesSubModal({ fileCount, onConfirm }: { fileCount: number; onConf
         />
         <Group justify="flex-end" gap="sm">
           <Button variant="default" onClick={store.closeMoveModal}>{t('common.cancel')}</Button>
-          <Button onClick={onConfirm}>{t('cms.mediaPage.moveFiles')}</Button>
+          <Button onClick={onConfirm}>
+            {isMovingFolder ? t('cms.mediaPage.moveFolder') : t('cms.mediaPage.moveFiles')}
+          </Button>
         </Group>
       </Stack>
     </Modal>

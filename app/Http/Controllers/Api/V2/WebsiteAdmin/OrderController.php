@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\AlphaSmsService;
 use App\Services\Website\DeliveryChargeCalculator;
 use App\Services\Website\OrderManagementService;
+use App\Services\Website\OrderStatusTransitionService;
 use App\Models\Website\WebsiteOrder;
 use App\Models\Website\WebsiteOrderItem;
 use App\Models\Website\WebsiteOrderStatusHistory;
@@ -18,10 +19,12 @@ use Illuminate\Http\Request;
 class OrderController extends Controller
 {
     private OrderManagementService $orderService;
+    private OrderStatusTransitionService $transitionService;
 
-    public function __construct(OrderManagementService $orderService)
+    public function __construct(OrderManagementService $orderService, OrderStatusTransitionService $transitionService)
     {
         $this->orderService = $orderService;
+        $this->transitionService = $transitionService;
     }
 
     // -------------------------------------------------------
@@ -97,10 +100,19 @@ class OrderController extends Controller
             return response()->json(['success' => false, 'message' => 'Order not found'], 404);
         }
 
+        // Get allowed next statuses using the transition service
+        $validTransitions = $this->transitionService->getValidTransitions($order->status);
+        $allowedNextStatuses = array_keys($validTransitions);
+
+        // Special handling for cancelled orders (revival)
+        if ($order->status === 'cancelled') {
+            $allowedNextStatuses = ['pending', 'processing'];
+        }
+
         return response()->json([
             'success' => true,
             'data' => array_merge($this->transformOrderDetail($order), [
-                'allowed_next_statuses' => WebsiteOrder::allowedStatusTransitions($order->status),
+                'allowedNextStatuses' => $allowedNextStatuses,
                 'is_editable' => $order->isEditable(),
                 'can_send_to_courier' => $order->canSendToCourier(),
             ]),
@@ -119,10 +131,20 @@ class OrderController extends Controller
     {
         $validated = $request->validate([
             'status' => 'required|string|in:' . implode(',', WebsiteOrder::STATUSES),
-            'comment' => 'nullable|string|max:500',
+            'note' => 'nullable|string|max:1000',
+            'cancellation_reason' => 'nullable|in:customer,admin,courier,system',
         ]);
 
-        $result = $this->orderService->updateStatus($id, $validated['status'], $validated['comment'] ?? null);
+        $result = $this->orderService->updateStatus(
+            $id,
+            $validated['status'],
+            $validated['note'] ?? null,
+            $validated['cancellation_reason'] ?? null
+        );
+
+        if ($result['success']) {
+            $result['data'] = $this->buildFullOrderResponse($id);
+        }
 
         return response()->json($result, $result['code'] ?? 200);
     }
@@ -143,6 +165,10 @@ class OrderController extends Controller
         ]);
 
         $result = $this->orderService->updatePayment($id, $validated['payment_status'], $validated['paid_amount']);
+
+        if ($result['success']) {
+            $result['data'] = $this->buildFullOrderResponse($id);
+        }
 
         return response()->json($result, $result['code'] ?? 200);
     }
@@ -223,15 +249,7 @@ class OrderController extends Controller
         $result = $this->orderService->sendToCourier($id);
 
         if ($result['success']) {
-            $freshOrder = WebsiteOrder::with([
-                'customer', 'items.variant.product.thumbnail', 'soldByUser',
-                'statusHistories.changedByUser', 'activityLogs.performedByUser',
-            ])->find($id);
-            $result['data'] = array_merge($this->transformOrderDetail($freshOrder), [
-                'allowed_next_statuses' => WebsiteOrder::allowedStatusTransitions($freshOrder->status),
-                'is_editable' => $freshOrder->isEditable(),
-                'can_send_to_courier' => $freshOrder->canSendToCourier(),
-            ]);
+            $result['data'] = $this->buildFullOrderResponse($id);
         }
 
         return response()->json($result, $result['code'] ?? 200);
@@ -246,15 +264,7 @@ class OrderController extends Controller
         $result = $this->orderService->syncCourierStatus($id);
 
         if ($result['success']) {
-            $freshOrder = WebsiteOrder::with([
-                'customer', 'items.variant.product.thumbnail', 'soldByUser',
-                'statusHistories.changedByUser', 'activityLogs.performedByUser',
-            ])->find($id);
-            $result['data'] = array_merge($this->transformOrderDetail($freshOrder), [
-                'allowed_next_statuses' => WebsiteOrder::allowedStatusTransitions($freshOrder->status),
-                'is_editable' => $freshOrder->isEditable(),
-                'can_send_to_courier' => $freshOrder->canSendToCourier(),
-            ]);
+            $result['data'] = $this->buildFullOrderResponse($id);
         }
 
         return response()->json($result, $result['code'] ?? 200);
@@ -580,6 +590,56 @@ class OrderController extends Controller
     }
 
     // -------------------------------------------------------
+    // BULK OPERATIONS
+    // -------------------------------------------------------
+
+    /**
+     * Bulk update order status.
+     * POST /api/v2/website-admin/orders/bulk-update-status
+     */
+    public function bulkUpdateStatus(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids' => 'required|array|min:1',
+            'order_ids.*' => 'integer|exists:sales_orders,id',
+            'status' => 'required|string|in:' . implode(',', WebsiteOrder::STATUSES),
+            'note' => 'nullable|string|max:1000',
+            'cancellation_reason' => 'nullable|in:customer,admin,courier,system',
+        ]);
+
+        $result = $this->orderService->bulkUpdateStatus(
+            $validated['order_ids'],
+            $validated['status'],
+            $validated['note'] ?? null,
+            $validated['cancellation_reason'] ?? null
+        );
+
+        return response()->json($result, $result['code'] ?? 200);
+    }
+
+    /**
+     * Bulk send orders to Steadfast courier.
+     * POST /api/v2/website-admin/orders/bulk-send-to-courier
+     */
+    public function bulkSendToCourier(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids' => 'required|array|min:1',
+            'order_ids.*' => 'integer|exists:sales_orders,id',
+            'delay_seconds' => 'nullable|numeric|min:0.1|max:5',
+        ]);
+
+        $delay = (float) ($validated['delay_seconds'] ?? 0.5);
+
+        $result = $this->orderService->bulkSendToCourier(
+            $validated['order_ids'],
+            $delay
+        );
+
+        return response()->json($result, $result['code'] ?? 200);
+    }
+
+    // -------------------------------------------------------
     // TRANSFORMERS
     // -------------------------------------------------------
 
@@ -590,8 +650,17 @@ class OrderController extends Controller
             'statusHistories.changedByUser', 'activityLogs.performedByUser',
         ])->find($orderId);
 
+        // Get allowed next statuses using the transition service
+        $validTransitions = $this->transitionService->getValidTransitions($order->status);
+        $allowedNextStatuses = array_keys($validTransitions);
+
+        // Special handling for cancelled orders (revival)
+        if ($order->status === 'cancelled') {
+            $allowedNextStatuses = ['pending', 'processing'];
+        }
+
         return array_merge($this->transformOrderDetail($order), [
-            'allowed_next_statuses' => WebsiteOrder::allowedStatusTransitions($order->status),
+            'allowedNextStatuses' => $allowedNextStatuses,
             'is_editable' => $order->isEditable(),
             'can_send_to_courier' => $order->canSendToCourier(),
         ]);

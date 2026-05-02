@@ -25,6 +25,7 @@ import {
   ScrollArea,
   Switch,
   Divider,
+  Grid,
 } from '@mantine/core'
 import {
   IconChevronRight,
@@ -120,6 +121,7 @@ interface ProductVariant {
   channel: 'retail' | 'wholesale' | 'daraz' | 'pos'
   sku: string
   customSku?: string | null
+  thumbnail?: string | null
   color?: string | null
   size?: string | null
   material?: string | null
@@ -161,7 +163,7 @@ interface ProductDetail {
   wholesaleNameBn?: string | null
   description?: string | null
   descriptionBn?: string | null
-  shortDescription?: string | null
+  productCode?: number | null
   warrantyEnabled?: boolean | null
   warrantyDetails?: string | null
   highlights?: string[] | null
@@ -251,9 +253,6 @@ export default function ProductDetailPage() {
 
   // Description language toggle
   const [descLang, setDescLang] = useState<'en' | 'bn'>('en')
-
-  // Translation namespace prefix
-  const ns = 'products'
 
   // ============================================================================
   // ALL HOOKS MUST BE CALLED AT THE TOP (Rules of Hooks)
@@ -372,10 +371,10 @@ export default function ProductDetailPage() {
 
   // PERFORMANCE: Memoized status configuration
   const statusConfig = useMemo<Record<string, { color: string; label: string }>>(() => ({
-    draft: { color: 'gray', label: t(`${ns}.detail.status.draft`) },
-    published: { color: 'green', label: t(`${ns}.detail.status.published`) },
-    archived: { color: 'red', label: t(`${ns}.detail.status.archived`) },
-  }), [t, ns])
+    draft: { color: 'gray', label: t('catalog.productsDetail.status.draft') || 'Draft' },
+    published: { color: 'green', label: t('catalog.productsDetail.status.published') || 'Published' },
+    archived: { color: 'red', label: t('catalog.productsDetail.status.archived') || 'Archived' },
+  }), [t])
 
   // PERFORMANCE: Memoized badge callbacks
   const getStatusBadge = useCallback((status: string) => {
@@ -396,23 +395,23 @@ export default function ProductDetailPage() {
     if (stock === 0) {
       return (
         <Badge color="red" leftSection={<IconX size={12} />}>
-          {t(`${ns}.detail.variants.outOfStock`)}
+          {t('catalog.productsDetail.variants.outOfStock')}
         </Badge>
       )
     }
     if (stock <= alertLevel) {
       return (
         <Badge color="orange" leftSection={<IconCube size={12} />}>
-          {stock} {t(`${ns}.detail.variants.lowStock`)}
+          {t('catalog.productsDetail.variants.lowStock', { count: stock })}
         </Badge>
       )
     }
     return (
       <Badge color="teal" leftSection={<IconCube size={12} />}>
-        {stock} {t(`${ns}.detail.variants.inStock`)}
+        {t('catalog.productsDetail.variants.inStock', { count: stock })}
       </Badge>
     )
-  }, [t, ns])
+  }, [t])
 
   const getChannelBadge = useCallback((channel: string, isActive: boolean) => {
     const channelColors: Record<string, string> = {
@@ -430,30 +429,30 @@ export default function ProductDetailPage() {
         {channel.toUpperCase()}
       </Badge>
     )
-  }, [t, ns])
+  }, [t])
 
   const getActiveStatusBadge = useCallback((isActive: boolean) => {
     return (
       <Badge color={isActive ? 'teal' : 'red'} variant="light" size="sm" leftSection={isActive ? <IconCheck size={10} /> : <IconX size={10} />}>
-        {isActive ? t(`${ns}.detail.variants.active`) || 'Active' : t(`${ns}.detail.variants.inactive`) || 'Inactive'}
+        {isActive ? t('catalog.productsDetail.variants.active') || 'Active' : t('catalog.productsDetail.variants.inactive') || 'Inactive'}
       </Badge>
     )
-  }, [t, ns])
+  }, [t])
 
   // PERFORMANCE: Memoized breadcrumb items
   const breadcrumbItems = useMemo(() => {
     if (!product) return []
     return [
-      { title: t(`${ns}.detail.breadcrumbs.dashboard`), href: '/dashboard' },
-      { title: t(`${ns}.detail.breadcrumbs.catalog`), href: '/catalog' },
-      { title: t(`${ns}.detail.breadcrumbs.products`), href: '/catalog/products' },
+      { title: t('catalog.productsDetail.breadcrumbs.dashboard'), href: '/dashboard' },
+      { title: t('catalog.productsDetail.breadcrumbs.catalog'), href: '/catalog' },
+      { title: t('catalog.productsDetail.breadcrumbs.products'), href: '/catalog/products' },
       { title: decodeHTMLEntities(product.name), href: `/catalog/products/${product.id}` },
     ].map((item, index) => (
       <Anchor href={item.href} key={index} className="text-sm md:text-base">
         {item.title}
       </Anchor>
     ))
-  }, [t, ns, product])
+  }, [t, product])
 
   // PERFORMANCE: Memoized variant table rows (desktop)
   const variantTableRows = useMemo(() => {
@@ -462,19 +461,28 @@ export default function ProductDetailPage() {
     return product.variants.map((variant) => (
       <Table.Tr key={variant.id}>
         <Table.Td>
+          {variant.thumbnail ? (
+            <Image src={variant.thumbnail} width={30} height={30} fit="cover" radius="md" style={{ width: 30, height: 30, minWidth: 30, minHeight: 30 }} />
+          ) : (
+            <Box w={30} h={30} display="flex" alignItems="center" justifyContent="center" bg="gray.0" style={{ border: '1px dashed #ced4da', borderRadius: '6px', minWidth: 30, minHeight: 30 }}>
+              <IconPhoto size={14} c="gray.4" />
+            </Box>
+          )}
+        </Table.Td>
+        <Table.Td>
           <Stack gap="xs">
             <Text className="text-sm md:text-base" fw={500}>
               {variant.variantName}
             </Text>
             {!variant.isActive && (
               <Badge color="red" size="xs">
-                {t(`${ns}.detail.variants.inactive`) || 'Inactive'}
+                {t('catalog.productsDetail.variants.inactive') || 'Inactive'}
               </Badge>
             )}
             {variant.allowPreorder && (
               <Group gap="xs" align="center">
                 <Badge color="blue" size="xs" leftSection={<IconClock size={10} />}>
-                  {t(`${ns}.detail.variants.preorder`) || 'Preorder'}
+                  {t('catalog.productsDetail.variants.preorder') || 'Preorder'}
                 </Badge>
                 {variant.expectedDelivery && (
                   <Text className="text-xs" c="dimmed">
@@ -505,7 +513,7 @@ export default function ProductDetailPage() {
             {variant.color && (
               <Text className="text-xs md:text-sm">
                 <Text span c="dimmed">
-                  {t(`${ns}.detail.variants.color`)}:
+                  {t('catalog.productsDetail.variants.color')}:
                 </Text>{' '}
                 {variant.color}
               </Text>
@@ -513,7 +521,7 @@ export default function ProductDetailPage() {
             {variant.size && (
               <Text className="text-xs md:text-sm">
                 <Text span c="dimmed">
-                  {t(`${ns}.detail.variants.size`)}:
+                  {t('catalog.productsDetail.variants.size')}:
                 </Text>{' '}
                 {variant.size}
               </Text>
@@ -521,7 +529,7 @@ export default function ProductDetailPage() {
             {variant.material && (
               <Text className="text-xs md:text-sm">
                 <Text span c="dimmed">
-                  {t(`${ns}.detail.variants.material`)}:
+                  {t('catalog.productsDetail.variants.material')}:
                 </Text>{' '}
                 {variant.material}
               </Text>
@@ -529,7 +537,7 @@ export default function ProductDetailPage() {
             {variant.pattern && (
               <Text className="text-xs md:text-sm">
                 <Text span c="dimmed">
-                  {t(`${ns}.detail.variants.pattern`) || 'Pattern'}:
+                  {t('catalog.productsDetail.variants.pattern') || 'Pattern'}:
                 </Text>{' '}
                 {variant.pattern}
               </Text>
@@ -625,7 +633,7 @@ export default function ProductDetailPage() {
         </Table.Td>
       </Table.Tr>
     ))
-  }, [product?.variants, t, ns, getStockBadge, getChannelBadge])
+  }, [product?.variants, t, getStockBadge, getChannelBadge])
 
   // PERFORMANCE: Memoized variant cards (mobile)
   const variantCards = useMemo(() => {
@@ -635,24 +643,32 @@ export default function ProductDetailPage() {
       <Paper withBorder p="sm" radius="sm" key={variant.id}>
         <Stack gap="sm">
           <Group justify="space-between" align="flex-start">
-            <Stack gap={0} className="flex-1">
-              <Group gap="xs" align="center" wrap="nowrap">
-                <Text className="text-sm md:text-base" fw={500}>
-                  {variant.variantName}
-                </Text>
-                {!variant.isActive && (
-                  <Badge color="red" size="xs">
-                    {t(`${ns}.detail.variants.inactive`) || 'Inactive'}
-                  </Badge>
-                )}
-              </Group>
+            <Group gap="sm" align="flex-start" className="flex-1">
+              {variant.thumbnail ? (
+                <Image src={variant.thumbnail} width={30} height={30} fit="cover" radius="md" style={{ width: 30, height: 30, minWidth: 30, minHeight: 30 }} />
+              ) : (
+                <Box w={30} h={30} display="flex" alignItems="center" justifyContent="center" bg="gray.0" style={{ border: '1px dashed #ced4da', borderRadius: '6px', flexShrink: 0, minWidth: 30, minHeight: 30 }}>
+                  <IconPhoto size={14} c="gray.4" />
+                </Box>
+              )}
+              <Stack gap={0} className="flex-1">
+                <Group gap="xs" align="center" wrap="nowrap">
+                  <Text className="text-sm md:text-base" fw={500}>
+                    {variant.variantName}
+                  </Text>
+                  {!variant.isActive && (
+                    <Badge color="red" size="xs">
+                      {t('catalog.productsDetail.variants.inactive') || 'Inactive'}
+                    </Badge>
+                  )}
+                </Group>
               <Text className="text-xs" c="dimmed">
                 {variant.sku}
               </Text>
               {variant.allowPreorder && (
                 <Group gap="xs" align="center">
                   <Badge color="blue" size="xs" leftSection={<IconClock size={8} />}>
-                    {t(`${ns}.detail.variants.preorder`) || 'Preorder'}
+                    {t('catalog.productsDetail.variants.preorder') || 'Preorder'}
                   </Badge>
                   {variant.expectedDelivery && (
                     <Text className="text-xs" c="dimmed">
@@ -662,8 +678,9 @@ export default function ProductDetailPage() {
                 </Group>
               )}
             </Stack>
-            {getStockBadge(variant.currentStock || 0, variant.stockAlertLevel || 5)}
           </Group>
+          {getStockBadge(variant.currentStock || 0, variant.stockAlertLevel || 5)}
+        </Group>
 
           <SimpleGrid cols={2}>
             {/* Retail Price */}
@@ -712,7 +729,7 @@ export default function ProductDetailPage() {
             </Box>
             <Box>
               <Text className="text-xs" c="dimmed">
-                {t(`${ns}.detail.variants.cost`) || 'Cost'}
+                {t('catalog.productsDetail.variants.cost') || 'Cost'}
               </Text>
               <Text className="text-sm" fw={500}>
                 ৳{Number(variant.purchaseCost)?.toFixed(2) || '0.00'}
@@ -729,7 +746,7 @@ export default function ProductDetailPage() {
             {variant.material && (
               <Box>
                 <Text className="text-xs" c="dimmed">
-                  {t(`${ns}.detail.variants.material`) || 'Material'}
+                  {t('catalog.productsDetail.variants.material') || 'Material'}
                 </Text>
                 <Text className="text-sm">{variant.material}</Text>
               </Box>
@@ -737,7 +754,7 @@ export default function ProductDetailPage() {
             {variant.color && (
               <Box>
                 <Text className="text-xs" c="dimmed">
-                  {t(`${ns}.detail.variants.color`) || 'Color'}
+                  {t('catalog.productsDetail.variants.color') || 'Color'}
                 </Text>
                 <Text className="text-sm">{variant.color}</Text>
               </Box>
@@ -745,7 +762,7 @@ export default function ProductDetailPage() {
             {variant.pattern && (
               <Box>
                 <Text className="text-xs" c="dimmed">
-                  {t(`${ns}.detail.variants.pattern`) || 'Pattern'}
+                  {t('catalog.productsDetail.variants.pattern') || 'Pattern'}
                 </Text>
                 <Text className="text-sm">{variant.pattern}</Text>
               </Box>
@@ -764,7 +781,7 @@ export default function ProductDetailPage() {
         </Stack>
       </Paper>
     ))
-  }, [product?.variants, t, ns, getStockBadge, getChannelBadge])
+  }, [product?.variants, t, getStockBadge, getChannelBadge])
 
   // PERFORMANCE: Memoized gallery images
   const galleryImages = useMemo(() => {
@@ -856,20 +873,26 @@ export default function ProductDetailPage() {
             {/* Channel Names */}
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
               <Stack gap={4}>
-                <Text size="xs" fw={500} c="dimmed">Retail Name</Text>
+                <Text size="xs" fw={500} c="dimmed">{t('catalog.productsDetail.retailNameEnglish') || 'Retail Name (English)'}</Text>
                 <Text className="text-sm md:text-base" fw={500}>{decodeHTMLEntities(product.retailName || product.name)}</Text>
                 {product.retailNameBn && (
-                  <Text className="text-sm" c="dimmed">{product.retailNameBn}</Text>
+                  <>
+                    <Text size="xs" fw={500} c="dimmed" mt="xs">{t('catalog.productsDetail.retailNameBangla') || 'Retail Name (Bangla)'}</Text>
+                    <Text className="text-sm md:text-base">{product.retailNameBn}</Text>
+                  </>
                 )}
               </Stack>
               {(product.wholesaleName || product.wholesaleNameBn) && (
                 <Stack gap={4}>
-                  <Text size="xs" fw={500} c="dimmed">Wholesale Name</Text>
+                  <Text size="xs" fw={500} c="dimmed">{t('catalog.productsDetail.wholesaleNameEnglish') || 'Wholesale Name (English)'}</Text>
                   {product.wholesaleName && (
                     <Text className="text-sm md:text-base" fw={500}>{decodeHTMLEntities(product.wholesaleName)}</Text>
                   )}
                   {product.wholesaleNameBn && (
-                    <Text className="text-sm" c="dimmed">{product.wholesaleNameBn}</Text>
+                    <>
+                      <Text size="xs" fw={500} c="dimmed" mt="xs">{t('catalog.productsDetail.wholesaleNameBangla') || 'Wholesale Name (Bangla)'}</Text>
+                      <Text className="text-sm md:text-base">{product.wholesaleNameBn}</Text>
+                    </>
                   )}
                 </Stack>
               )}
@@ -878,24 +901,25 @@ export default function ProductDetailPage() {
             {/* Metadata row */}
             <Group gap="sm" align="center">
               <Text className="text-sm md:text-base" c="dimmed">
-                {t(`${ns}.detail.header.productId`)}: {product.id}
+                {t('catalog.productsDetail.header.productId')}: {product.id}
               </Text>
-              <Text size="xs" c="gray.4">
-                •
-              </Text>
+              {product.productCode && (
+                <>
+                  <Text size="xs" c="gray.4">
+                    •
+                  </Text>
+                  <Text className="text-sm md:text-base" c="dimmed">
+                    {t('catalog.productsDetail.header.productCode') || 'Product Code'}: {product.productCode}
+                  </Text>
+                  <Text size="xs" c="gray.4">
+                    •
+                  </Text>
+                </>
+              )}
               <Text className="text-sm md:text-base" c="dimmed">
-                {t(`${ns}.detail.header.created`)} {new Date(product.createdAt).toLocaleDateString()}
+                {t('catalog.productsDetail.header.created')}: {new Date(product.createdAt).toLocaleDateString()}
               </Text>
             </Group>
-
-            {/* Short Description */}
-            {product.shortDescription && (
-              <Box
-                className="text-sm md:text-base html-content"
-                dangerouslySetInnerHTML={{ __html: decodeHTMLEntities(product.shortDescription) }}
-              />
-            )}
-
             {/* Status badge and actions row */}
             <Group justify="space-between" align="center" wrap={{ base: 'wrap', sm: 'nowrap' }}>
               {getStatusBadge(product.status)}
@@ -906,14 +930,14 @@ export default function ProductDetailPage() {
                   leftSection={<IconArrowLeft size={16} />}
                   onClick={() => window.history.back()}
                 >
-                  {t(`${ns}.detail.header.back`)}
+                  {t('catalog.productsDetail.header.back') || 'Back'}
                 </Button>
                 <Button
                   size="sm"
                   leftSection={<IconEdit size={16} />}
                   onClick={() => navigate(`/catalog/products/${product.id}/edit`)}
                 >
-                  {t(`${ns}.detail.header.editProduct`)}
+                  {t('catalog.productsDetail.header.editProduct') || 'Edit Product'}
                 </Button>
               </Group>
             </Group>
@@ -932,7 +956,7 @@ export default function ProductDetailPage() {
                   </Box>
                   <Stack gap={0} className="flex-1">
                     <Text className="text-sm md:text-base" fw={500} c="dimmed">
-                      {t(`${ns}.detail.warranty.label`) || 'Warranty'}
+                      {t('catalog.productsDetail.warranty.label') || 'Warranty'}
                     </Text>
                     <div
                       className="text-base md:text-lg html-content"
@@ -952,7 +976,7 @@ export default function ProductDetailPage() {
                   </Box>
                   <Stack gap="xs" className="flex-1">
                     <Text className="text-sm md:text-base" fw={500} c="dimmed">
-                      {t(`${ns}.detail.package.label`) || "What's in the Box"}
+                      {t('catalog.productsDetail.package.label') || "What's in the Box"}
                     </Text>
                     <Stack gap="xs">
                       {Array.isArray(product.includesInTheBox)
@@ -988,7 +1012,7 @@ export default function ProductDetailPage() {
         {/* Product Information Card */}
         <Paper withBorder p="md" radius="md">
           <Text fw={600} className="text-base md:text-lg mb-4">
-            {t(`${ns}.detail.productInformation.title`)}
+            {t('catalog.productsDetail.productInformation.title')}
           </Text>
 
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
@@ -997,7 +1021,7 @@ export default function ProductDetailPage() {
               <IconPhoto size={24} className="text-gray-500 mt-1" />
               <Stack gap="xs" className="flex-1">
                 <Text className="text-sm md:text-base" fw={500} c="dimmed">
-                  {t(`${ns}.detail.productInformation.thumbnail`)}
+                  {t('catalog.productsDetail.productInformation.thumbnail')}
                 </Text>
                 {product.thumbnail && (
                   <Box
@@ -1024,7 +1048,7 @@ export default function ProductDetailPage() {
                 <IconTag size={24} className="text-gray-500 mt-1" />
                 <Stack gap={0} className="flex-1">
                   <Text className="text-sm md:text-base" c="dimmed">
-                    {t(`${ns}.detail.productInformation.category`)}
+                    {t('catalog.productsDetail.productInformation.category')}
                   </Text>
                   <Anchor
                     href={`/catalog/categories/${product.category.id}`}
@@ -1042,7 +1066,7 @@ export default function ProductDetailPage() {
                 <IconBuilding size={24} className="text-gray-500 mt-1" />
                 <Stack gap={0} className="flex-1">
                   <Text className="text-sm md:text-base" c="dimmed">
-                    {t(`${ns}.detail.productInformation.brand`)}
+                    {t('catalog.productsDetail.productInformation.brand')}
                   </Text>
                   <Anchor
                     href={`/catalog/brands/${product.brand.id}`}
@@ -1060,7 +1084,7 @@ export default function ProductDetailPage() {
                 <IconWorld size={24} className="text-gray-500 mt-1" />
                 <Stack gap={0} className="flex-1">
                   <Text className="text-sm md:text-base" c="dimmed">
-                    {t(`${ns}.detail.productInformation.urlSlug`)}
+                    {t('catalog.productsDetail.productInformation.urlSlug')}
                   </Text>
                   <Text className="text-sm md:text-base break-all" fw={500}>
                     {product.slug}
@@ -1076,7 +1100,7 @@ export default function ProductDetailPage() {
               <IconWorld size={24} className="text-gray-500 mt-1" />
               <Stack gap={0} className="flex-1">
                 <Text className="text-sm md:text-base" fw={500} c="dimmed">
-                  {t(`${ns}.detail.productInformation.videoUrl`)}
+                  {t('catalog.productsDetail.productInformation.videoUrl')}
                 </Text>
                 <Anchor
                   href={product.videoUrl}
@@ -1097,14 +1121,14 @@ export default function ProductDetailPage() {
             <Group gap="md" align="center" mb="md">
               <IconSearch size={24} className="text-gray-500" />
               <Text fw={600} className="text-base md:text-lg">
-                {t(`${ns}.detail.seo.title`) || 'SEO Information'}
+                {t('catalog.productsDetail.seo.title') || 'SEO Information'}
               </Text>
             </Group>
             <Stack gap="md" ml={46}>
               {product.seoTitle && (
                 <Stack gap="xs">
                   <Text className="text-sm" fw={500} c="dimmed">
-                    {t(`${ns}.detail.seo.title`) || 'SEO Title'}
+                    {t('catalog.productsDetail.seo.title') || 'SEO Title'}
                   </Text>
                   <Text className="text-sm md:text-base">{product.seoTitle}</Text>
                 </Stack>
@@ -1112,7 +1136,7 @@ export default function ProductDetailPage() {
               {product.seoDescription && (
                 <Stack gap="xs">
                   <Text className="text-sm" fw={500} c="dimmed">
-                    {t(`${ns}.detail.seo.description`) || 'SEO Description'}
+                    {t('catalog.productsDetail.seo.description') || 'SEO Description'}
                   </Text>
                   <Text className="text-sm md:text-base">{product.seoDescription}</Text>
                 </Stack>
@@ -1120,7 +1144,7 @@ export default function ProductDetailPage() {
               {product.seoTags && product.seoTags.length > 0 && (
                 <Stack gap="xs">
                   <Text className="text-sm" fw={500} c="dimmed">
-                    {t(`${ns}.detail.seo.tags`) || 'SEO Tags'}
+                    {t('catalog.productsDetail.seo.tags') || 'SEO Tags'}
                   </Text>
                   <Group gap="xs" wrap="wrap">
                     {product.seoTags.map((tag, index) => (
@@ -1140,7 +1164,7 @@ export default function ProductDetailPage() {
           <Paper withBorder p="md" radius="md">
             <Group justify="space-between" align="center" mb="md">
               <Text fw={600} className="text-base md:text-lg">
-                {t(`${ns}.detail.variants.title`)} ({product.variants.length})
+                {t('catalog.productsDetail.variants.title') || 'Product Variants'} ({product.variants.length})
               </Text>
             </Group>
 
@@ -1149,13 +1173,14 @@ export default function ProductDetailPage() {
               <Table striped highlightOnHover>
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th>{t(`${ns}.detail.variants.variant`) || 'Variant'}</Table.Th>
-                    <Table.Th>{t(`${ns}.detail.variants.sku`) || 'SKU'}</Table.Th>
-                    <Table.Th>{t(`${ns}.detail.variants.attributes`) || 'Attributes'}</Table.Th>
+                    <Table.Th>{t('catalog.productsDetail.variants.image') || 'Image'}</Table.Th>
+                    <Table.Th>{t('catalog.productsDetail.variants.variant') || 'Variant'}</Table.Th>
+                    <Table.Th>{t('catalog.productsDetail.variants.sku') || 'SKU'}</Table.Th>
+                    <Table.Th>{t('catalog.productsDetail.variants.attributes') || 'Attributes'}</Table.Th>
                     <Table.Th ta="right">Retail / Wholesale Price</Table.Th>
-                    <Table.Th ta="right">{t(`${ns}.detail.variants.cost`) || 'Cost'}</Table.Th>
-                    <Table.Th ta="right">{t(`${ns}.detail.variants.profit`) || 'Profit'}</Table.Th>
-                    <Table.Th>{t(`${ns}.detail.variants.stock`) || 'Stock'}</Table.Th>
+                    <Table.Th ta="right">{t('catalog.productsDetail.variants.cost') || 'Cost'}</Table.Th>
+                    <Table.Th ta="right">{t('catalog.productsDetail.variants.profit') || 'Profit'}</Table.Th>
+                    <Table.Th>{t('catalog.productsDetail.variants.stock') || 'Stock'}</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -1178,7 +1203,7 @@ export default function ProductDetailPage() {
           <Paper withBorder p="md" radius="md">
             <Group justify="space-between" align="center" mb="md">
               <Text fw={600} className="text-base md:text-lg">
-                {t(`${ns}.detail.gallery.title`)} ({product.galleryImagesUrls.length})
+                {t('catalog.productsDetail.gallery.title')} ({product.galleryImagesUrls.length})
               </Text>
             </Group>
 
@@ -1191,57 +1216,79 @@ export default function ProductDetailPage() {
         {/* Product Highlights */}
         {((product.highlights && product.highlights.length > 0) || (product.highlightsBn && product.highlightsBn.length > 0)) && (
           <Paper withBorder p="md" radius="md">
-            <Group justify="space-between" align="center" mb="sm">
-              <Group gap="md" align="center">
-                <Box className="bg-yellow-50 p-2 rounded-md">
-                  <IconBulb size={24} className="text-yellow-600" />
-                </Box>
-                <Text fw={600} className="text-base md:text-lg">
-                  {t(`${ns}.detail.highlights.title`) || 'Product Highlights'}
-                </Text>
-              </Group>
-              {product.highlightsBn && product.highlightsBn.length > 0 && (
-                <Button
-                  size="xs"
-                  variant="light"
-                  onClick={() => setDescLang(prev => prev === 'en' ? 'bn' : 'en')}
-                >
-                  {descLang === 'en' ? 'বাংলা' : 'English'}
-                </Button>
-              )}
+            <Group gap="md" align="center" mb="md">
+              <Box className="bg-yellow-50 p-2 rounded-md">
+                <IconBulb size={24} className="text-yellow-600" />
+              </Box>
+              <Text fw={600} className="text-base md:text-lg">
+                {t('catalog.productsDetail.highlights.title') || 'Product Highlights'}
+              </Text>
             </Group>
-            <Stack gap="xs" ml={46}>
-              {(descLang === 'en' ? product.highlights : product.highlightsBn)?.map((highlight, index) => (
-                <Group key={index} gap="xs" align="flex-start">
-                  <IconCheck size={16} className="text-green-600 mt-1" />
-                  <Text className="text-sm md:text-base">{highlight}</Text>
-                </Group>
-              ))}
-            </Stack>
+            <Grid>
+              {/* English Highlights */}
+              {product.highlights && product.highlights.length > 0 && (
+                <Grid.Col span={{ base: 12, md: 6 }}>
+                  <Stack gap="xs">
+                    <Text size="sm" fw={500} c="dimmed">{t('catalog.productsDetail.highlightsEnglish') || 'Highlights (English)'}</Text>
+                    {product.highlights.map((highlight, index) => (
+                      <Group key={`en-${index}`} gap="xs" align="flex-start">
+                        <IconCheck size={14} className="text-green-600 mt-1" />
+                        <Text className="text-sm md:text-base">{highlight}</Text>
+                      </Group>
+                    ))}
+                  </Stack>
+                </Grid.Col>
+              )}
+              {/* Bangla Highlights */}
+              {product.highlightsBn && product.highlightsBn.length > 0 && (
+                <Grid.Col span={{ base: 12, md: 6 }}>
+                  <Stack gap="xs">
+                    <Text size="sm" fw={500} c="dimmed">{t('catalog.productsDetail.highlightsBangla') || 'Highlights (বাংলা)'}</Text>
+                    {product.highlightsBn.map((highlight, index) => (
+                      <Group key={`bn-${index}`} gap="xs" align="flex-start">
+                        <IconCheck size={14} className="text-green-600 mt-1" />
+                        <Text className="text-sm md:text-base">{highlight}</Text>
+                      </Group>
+                    ))}
+                  </Stack>
+                </Grid.Col>
+              )}
+            </Grid>
           </Paper>
         )}
 
         {/* Description */}
         {(product.description || product.descriptionBn) && (
           <Paper withBorder p="md" radius="md">
-            <Group justify="space-between" align="center" mb="md">
-              <Text fw={600} className="text-base md:text-lg">
-                {t(`${ns}.detail.productInformation.description`)}
-              </Text>
-              {product.descriptionBn && (
-                <Button
-                  size="xs"
-                  variant="light"
-                  onClick={() => setDescLang(prev => prev === 'en' ? 'bn' : 'en')}
-                >
-                  {descLang === 'en' ? 'বাংলা' : 'English'}
-                </Button>
+            <Text fw={600} className="text-base md:text-lg mb-md">
+              {t('catalog.productsDetail.productInformation.description')}
+            </Text>
+            <Grid>
+              {/* English Description */}
+              {product.description && (
+                <Grid.Col span={{ base: 12, md: 6 }}>
+                  <Stack gap="xs">
+                    <Text size="sm" fw={500} c="dimmed">{t('catalog.productsDetail.descriptionEnglish') || 'Description (English)'}</Text>
+                    <Box
+                      className="text-sm md:text-base html-content wrap-break-word overflow-hidden product-description"
+                      dangerouslySetInnerHTML={{ __html: decodeHTMLEntities(product.description) }}
+                    />
+                  </Stack>
+                </Grid.Col>
               )}
-            </Group>
-            <Box
-              className="text-sm md:text-base html-content wrap-break-word overflow-hidden product-description"
-              dangerouslySetInnerHTML={{ __html: decodeHTMLEntities(descLang === 'en' ? (product.description || '') : (product.descriptionBn || '')) }}
-            />
+              {/* Bangla Description */}
+              {product.descriptionBn && (
+                <Grid.Col span={{ base: 12, md: 6 }}>
+                  <Stack gap="xs">
+                    <Text size="sm" fw={500} c="dimmed">{t('catalog.productsDetail.descriptionBangla') || 'Description (বাংলা)'}</Text>
+                    <Box
+                      className="text-sm md:text-base html-content wrap-break-word overflow-hidden product-description"
+                      dangerouslySetInnerHTML={{ __html: decodeHTMLEntities(product.descriptionBn) }}
+                    />
+                  </Stack>
+                </Grid.Col>
+              )}
+            </Grid>
           </Paper>
         )}
 
@@ -1251,13 +1298,13 @@ export default function ProductDetailPage() {
             <Group gap="sm" align="center">
               <IconShoppingBag size={22} className="text-violet-600" />
               <Text fw={600} className="text-base md:text-lg">
-                Cross Sale Products ({crossSaleCount}/3)
+                {t('catalog.productsDetail.crossSale.title')} ({crossSaleCount}/3)
               </Text>
             </Group>
           </Group>
 
           <Text c="dimmed" className="text-sm mb-4">
-            Products recommended as cross-sell when customers view this product. Max 3 products.
+            {t('catalog.productsDetail.crossSale.description')} {t('catalog.productsDetail.crossSale.maxProducts', { count: 3 })}
           </Text>
 
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="sm">
@@ -1337,7 +1384,7 @@ export default function ProductDetailPage() {
                     <IconPlus size={20} className="text-gray-500" />
                   </Box>
                   <Text className="text-xs md:text-sm" c="dimmed" fw={500}>
-                    Add Product
+                    {t('catalog.productsDetail.crossSale.addProduct')}
                   </Text>
                 </Stack>
               </Paper>
@@ -1349,7 +1396,7 @@ export default function ProductDetailPage() {
         <Modal
           opened={modalOpen}
           onClose={closeModal}
-          title="Select Cross Sale Products"
+          title={t('catalog.productsDetail.crossSale.title')}
           size="90%"
           centered
         >
@@ -1479,13 +1526,13 @@ export default function ProductDetailPage() {
             <Group gap="sm" align="center">
               <IconTrendingUp size={22} className="text-teal-600" />
               <Text fw={600} className="text-base md:text-lg">
-                Up Sale Products ({upSaleCount}/3)
+                {t('catalog.productsDetail.upSale.title')} ({upSaleCount}/3)
               </Text>
             </Group>
           </Group>
 
           <Text c="dimmed" className="text-sm mb-4">
-            Products suggested as upgrades or premium alternatives. Max 3 products.
+            {t('catalog.productsDetail.upSale.description')} {t('catalog.productsDetail.upSale.maxProducts', { count: 3 })}
           </Text>
 
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="sm">
@@ -1565,7 +1612,7 @@ export default function ProductDetailPage() {
                     <IconPlus size={20} className="text-gray-500" />
                   </Box>
                   <Text className="text-xs md:text-sm" c="dimmed" fw={500}>
-                    Add Product
+                    {t('catalog.productsDetail.upSale.addProduct')}
                   </Text>
                 </Stack>
               </Paper>
@@ -1577,7 +1624,7 @@ export default function ProductDetailPage() {
         <Modal
           opened={upSaleModalOpen}
           onClose={closeUpSaleModal}
-          title="Select Up Sale Products"
+          title={t('catalog.productsDetail.upSale.title')}
           size="90%"
           centered
         >
@@ -1710,10 +1757,10 @@ export default function ProductDetailPage() {
               </Box>
               <div>
                 <Text fw={600} className="text-base md:text-lg">
-                  Thank You Product
+                  {t('catalog.productsDetail.thankYou.title')}
                 </Text>
                 <Text c="dimmed" className="text-xs">
-                  Mark this product to be shown on order confirmation page
+                  {t('catalog.productsDetail.thankYou.description')}
                 </Text>
               </div>
             </Group>

@@ -19,12 +19,22 @@ const createInitialFormData = () => ({
   is_active: true,
   image_id: null as number | null,
   imageUrl: null as string | null,
+  category_code: null as number | null,
 })
 
-const validateForm = (name: string, t: (key: string) => string): Record<string, string> => {
+const validateForm = (name: string, categoryCode: number | null, t: (key: string) => string): Record<string, string> => {
   const errors: Record<string, string> = {}
   if (!name.trim()) {
     errors.name = t('catalog.categoriesPage.form.validation.nameRequired')
+  }
+  // Validate category code: 3-digit ending with 00 OR 4-digit ending with 000
+  if (categoryCode !== null) {
+    const codeStr = String(categoryCode)
+    const isValid3Digit = codeStr.length === 3 && /^[1-9]00$/.test(codeStr)
+    const isValid4Digit = codeStr.length === 4 && /^[1-9]000$/.test(codeStr)
+    if ((codeStr.length === 3 || codeStr.length === 4) && !isValid3Digit && !isValid4Digit) {
+      errors.category_code = 'Category code must be 3-digit ending with 00 (e.g., 100, 200, 300) or 4-digit ending with 000 (e.g., 1000, 2000, 3000)'
+    }
   }
   return errors
 }
@@ -83,7 +93,7 @@ export default function CreateCategoryPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    const validationErrors = validateForm(formData.name, t)
+    const validationErrors = validateForm(formData.name, formData.category_code, t)
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors)
       return
@@ -96,6 +106,7 @@ export default function CreateCategoryPage() {
         parent_id: formData.parent_id || undefined,
         is_active: formData.is_active,
         image_id: formData.image_id || undefined,
+        category_code: formData.category_code || undefined,
       })
 
       notifications.show({
@@ -169,6 +180,28 @@ export default function CreateCategoryPage() {
                 clearable
                 searchable
                 size="md"
+              />
+
+              <TextInput
+                label="Category Code"
+                placeholder="e.g., 100, 200, 300, 1000, 2000, 3000"
+                description="3-digit code ending with 00 (e.g., 100, 200, 300) or 4-digit code ending with 000 (e.g., 1000, 2000, 3000)."
+                value={formData.category_code ? String(formData.category_code) : ''}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (value === '') {
+                    setFormData({ ...formData, category_code: null })
+                  } else if (/^\d{0,4}$/.test(value)) {
+                    setFormData({ ...formData, category_code: value === '' ? null : Number(value) })
+                  }
+                  // Clear error when user modifies the value
+                  if (errors.category_code) {
+                    setErrors((prev) => ({ ...prev, category_code: '' }))
+                  }
+                }}
+                maxLength={4}
+                size="md"
+                error={errors.category_code}
               />
 
               <Switch

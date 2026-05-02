@@ -109,6 +109,12 @@ Route::group([
             Route::post('/eps/test', [\App\Http\Controllers\Admin\PaymentSettingsController::class, 'testEPS']);
         });
 
+        // Pricing Settings (Admin)
+        Route::group(['prefix' => 'settings/pricing'], function () {
+            Route::get('/', [\App\Http\Controllers\Admin\PricingSettingsController::class, 'index']);
+            Route::put('/', [\App\Http\Controllers\Admin\PricingSettingsController::class, 'update'])->middleware('permission:system.settings.edit');
+        });
+
         Route::apiResource('units', 'UnitController')
             ->middleware([
                 'store' => 'permission:system.settings.create',
@@ -173,6 +179,9 @@ Route::group([
     Route::group(['prefix' => 'catalog', 'middleware' => 'permission:catalog.products.index'], function () {
         // Specific routes must come BEFORE apiResource to avoid route matching conflicts
         Route::get('categories/dropdown', 'CategoryController@dropdown');
+        Route::get('categories/roots', 'CategoryController@roots');
+        Route::get('categories/{id}/children', 'CategoryController@children');
+        Route::get('categories/{id}/path', 'CategoryController@getPath');
         Route::get('helpers/categories/tree', 'CategoryController@treeStructure');
         Route::get('brands/dropdown', 'BrandController@dropdown');
         Route::post('products/{id}/duplicate', 'ProductController@duplicate')->middleware('permission:catalog.products.duplicate');
@@ -201,6 +210,7 @@ Route::group([
                 'update' => 'permission:catalog.attributes.edit',
                 'destroy' => 'permission:catalog.attributes.delete',
             ]);
+        Route::get('products/generate-code/{categoryId}', 'ProductController@generateProductCode');
         Route::apiResource('products', 'ProductController')
             ->middleware([
                 'store' => 'permission:catalog.products.create',
@@ -714,8 +724,51 @@ Route::group([
     // Delivery settings (public - returns rates and free delivery config for storefront)
     Route::get('delivery-settings', 'Website\OrderController@getDeliverySettings');
 
+    // Website settings (public - returns service charge config for storefront)
+    Route::get('settings/website', 'SettingController@websiteSettings');
+
     // Payment gateway configuration (public - returns only active gateway)
     Route::get('payment/gateway', 'Website\PaymentGatewayController@getActiveGateway');
+});
+
+// ====================================================
+// MODULE: STOREFRONT (Guest & Authenticated Customers)
+// ====================================================
+Route::group([
+    'prefix' => 'v2/store',
+    'namespace' => 'App\Http\Controllers\Api\V2'
+], function () {
+    // --- Orders (Authenticated) ---
+    Route::middleware('auth')->group(function () {
+        Route::post('orders', 'Website\OrderController@placeOrder');
+        Route::post('orders/verify', 'Website\OrderController@verifyOrder');
+        Route::get('account/orders', 'Website\OrderController@myOrders');
+        Route::get('account/orders/summary', 'Website\OrderController@orderSummary');
+        Route::get('account/orders/{invoice_no}', 'Website\OrderController@show');
+        Route::post('orders/{invoice_no}/thank-you', 'Website\OrderController@addThankYouProduct');
+    });
+
+    // --- Account (Authenticated) ---
+    Route::middleware('auth')->group(function () {
+        Route::get('account/me', 'Website\AccountController@me');
+        Route::put('account/profile', 'Website\AccountController@updateProfile');
+        Route::post('account/logout', 'Website\AccountController@logout');
+
+        // Address management
+        Route::get('account/addresses', 'Website\AccountController@getAddresses');
+        Route::post('account/addresses', 'Website\AccountController@addAddress');
+        Route::put('account/addresses/{id}', 'Website\AccountController@updateAddress');
+        Route::delete('account/addresses/{id}', 'Website\AccountController@deleteAddress');
+    });
+
+    // --- Coupons (Public) ---
+    Route::post('coupons/validate', 'Website\CouponController@validate');
+    Route::get('coupons/auto-apply', 'Website\CouponController@autoApply');
+
+    // --- Reviews (Public) ---
+    Route::get('reviews', 'Website\ReviewController@index');
+    Route::get('reviews/featured', 'Website\ReviewController@featured');
+    Route::get('reviews/product/{slug}', 'Website\ReviewController@getByProductSlug');
 });
 
 // ====================================================
@@ -748,6 +801,10 @@ Route::group([
     // Order Status
     Route::put('orders/{id}/status', 'OrderController@updateStatus')->middleware('permission:website.orders.status');
     Route::get('orders/{id}/status-history', 'OrderController@statusHistory')->middleware('permission:website.orders.status-history');
+
+    // Bulk Operations
+    Route::post('orders/bulk-update-status', 'OrderController@bulkUpdateStatus')->middleware('permission:website.orders.status');
+    Route::post('orders/bulk-send-to-courier', 'OrderController@bulkSendToCourier')->middleware('permission:website.orders.courier.send');
 
     // Payment
     Route::put('orders/{id}/payment', 'OrderController@updatePayment')->middleware('permission:website.orders.payment');
@@ -784,4 +841,15 @@ Route::group([
     Route::get('delivery-settings', 'DeliverySettingController@index');
     Route::put('delivery-settings', 'DeliverySettingController@update');
     Route::post('delivery-settings/calculate', 'DeliverySettingController@calculate');
+
+    // Reviews
+    Route::apiResource('reviews', 'ReviewController')
+        ->middleware([
+            'store' => 'permission:website.settings.edit',
+            'update' => 'permission:website.settings.edit',
+            'destroy' => 'permission:website.settings.edit',
+        ]);
+    Route::get('reviews/product/{productId}', 'ReviewController@getByProduct');
+    Route::put('reviews/{review}/toggle-featured', 'ReviewController@toggleFeatured')->middleware('permission:website.settings.edit');
+    Route::post('reviews/sort-order', 'ReviewController@updateSortOrder')->middleware('permission:website.settings.edit');
 });

@@ -360,29 +360,12 @@ class OrderController extends Controller
             $division = $validated['division'];
             $orderAmount = $validated['order_amount'] ?? null;
 
-            $charge = DeliveryChargeCalculator::calculate($weight, $division);
-            $breakdown = DeliveryChargeCalculator::breakdown($weight, $division);
-
-            // Check if free delivery applies based on order amount
-            $isFreeDelivery = false;
-            if ($orderAmount !== null) {
-                $isFreeDelivery = DeliveryChargeCalculator::isFreeDelivery(orderAmount: $orderAmount);
-                if ($isFreeDelivery) {
-                    $charge = 0;
-                }
-            }
+            $charge = DeliveryChargeCalculator::calculate($weight, $division, $orderAmount);
+            $breakdown = DeliveryChargeCalculator::breakdown($weight, $division, $orderAmount);
 
             return $this->sendSuccess([
                 'charge' => $charge,
-                'breakdown' => [
-                    'total_weight' => $breakdown['total_weight'],
-                    'zone' => $breakdown['zone'],
-                    'is_inside_dhaka' => $breakdown['is_inside_dhaka'],
-                    'base_charge' => $breakdown['base_charge'],
-                    'additional_kg' => $breakdown['additional_kg'],
-                    'per_kg_rate' => $breakdown['per_kg_rate'],
-                ],
-                'is_free_delivery' => $isFreeDelivery,
+                'breakdown' => $breakdown,
             ], 'Delivery charge calculated successfully');
 
         } catch (\Exception $e) {
@@ -390,6 +373,7 @@ class OrderController extends Controller
                 'error' => $e->getMessage(),
                 'weight' => $validated['weight'] ?? null,
                 'division' => $validated['division'] ?? null,
+                'order_amount' => $validated['order_amount'] ?? null,
             ]);
             return $this->sendError('Failed to calculate delivery charge', $e->getMessage(), 500);
         }
@@ -398,14 +382,34 @@ class OrderController extends Controller
     /**
      * Get delivery settings for storefront (public access).
      * Returns rates and free delivery configuration.
-     * GET /api/v2/public/delivery-settings
+     * GET /api/v2/store/delivery-settings
      */
     public function getDeliverySettings(): JsonResponse
     {
         try {
             $settings = \App\Services\Website\DeliveryChargeCalculator::getSettingsForAdmin();
 
-            return $this->sendSuccess($settings, 'Delivery settings retrieved successfully');
+            // Return only public-safe settings
+            $publicSettings = [
+                'delivery_mode' => $settings['delivery_mode'],
+                'base_weight' => $settings['base_weight'],
+                'inside_dhaka' => $settings['inside_dhaka'],
+                'outside_dhaka' => $settings['outside_dhaka'],
+                'flat_rate' => [
+                    'enabled' => $settings['flat_rate']['enabled'],
+                    'base_charge' => $settings['flat_rate']['base_charge'],
+                    'per_kg_charge' => $settings['flat_rate']['per_kg_charge'],
+                ],
+                'free_delivery' => [
+                    'enabled' => $settings['free_delivery']['enabled'],
+                ],
+                'progressive_delivery' => [
+                    'enabled' => $settings['progressive_delivery']['enabled'],
+                    'min_amount' => $settings['progressive_delivery']['min_amount'],
+                ],
+            ];
+
+            return $this->sendSuccess($publicSettings, 'Delivery settings retrieved successfully');
 
         } catch (\Exception $e) {
             \Log::error('Failed to retrieve delivery settings', [

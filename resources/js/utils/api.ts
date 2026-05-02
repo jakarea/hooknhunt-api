@@ -2946,14 +2946,17 @@ export type Category = {
   id: number
   name: string
   slug: string
-  parent_id?: number | null
-  image_id?: number | null
-  is_active: boolean
-  created_at: string
-  updated_at: string
+  parentId?: number | null
+  imageId?: number | null
+  isActive: boolean
+  sortOrder?: number
+  categoryCode?: number | null
+  createdAt: string
+  updatedAt: string
   parent?: Category
   children?: Category[]
-  image?: { id: number; url: string; file_name: string; file_path: string } | null
+  childrenCount?: number
+  image?: { id: number; url: string; fileName: string; filePath: string } | null
   productsCount?: number
 }
 
@@ -2997,6 +3000,33 @@ export const getCategoryTree = async () => {
 }
 
 /**
+ * Get category with full breadcrumb path
+ * GET /api/v2/catalog/categories/{id}/path
+ */
+export const getCategoryPath = async (id: number) => {
+  const response = await api.get(`catalog/categories/${id}/path`)
+  return response.data
+}
+
+/**
+ * Get root categories (parent categories only)
+ * GET /api/v2/catalog/categories/roots
+ */
+export const getRootCategories = async () => {
+  const response = await api.get('catalog/categories/roots')
+  return response.data
+}
+
+/**
+ * Get children by parent ID
+ * GET /api/v2/catalog/categories/{id}/children
+ */
+export const getCategoryChildren = async (parentId: number) => {
+  const response = await api.get(`catalog/categories/${parentId}/children`)
+  return response.data
+}
+
+/**
  * Create new category
  * POST /api/v2/catalog/categories
  */
@@ -3004,11 +3034,13 @@ export const createCategory = async (data: {
   name: string
   parent_id?: number | null
   image_id?: number | null
+  category_code?: number | null
 }) => {
   const response = await api.post('catalog/categories', {
     name: data.name,
     parent_id: data.parent_id,
     image_id: data.image_id,
+    category_code: data.category_code,
   })
   return response.data
 }
@@ -3022,12 +3054,14 @@ export const updateCategory = async (id: number, data: {
   parent_id?: number | null
   image_id?: number | null
   is_active?: boolean
+  category_code?: number | null
 }) => {
   const response = await api.put(`catalog/categories/${id}`, {
     name: data.name,
     parent_id: data.parent_id,
     image_id: data.image_id,
     is_active: data.is_active,
+    category_code: data.category_code,
   })
   return response.data
 }
@@ -3360,16 +3394,18 @@ export const deleteMediaFolder = async (id: number) => {
 }
 
 /**
- * Update/Rename folder
+ * Update/Rename/Move folder
  * PUT/PATCH /api/v2/media/folders/{id}
  */
 export const updateMediaFolder = async (id: number, data: {
-  name: string
+  name?: string
+  parentId?: number | null
   viewRoles?: string[]
   editRoles?: string[]
 }) => {
   const response = await api.put(`media/folders/${id}`, {
     name: data.name,
+    parent_id: data.parentId,
     view_roles: data.viewRoles,
     edit_roles: data.editRoles,
   })

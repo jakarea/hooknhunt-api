@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useSessionWarning } from '@/hooks/useSessionWarning'
 import { useTranslation } from 'react-i18next'
 import {
   Box,
@@ -49,7 +50,9 @@ import { notifications } from '@mantine/notifications'
 import { getSuppliers, getCategories, getBrands, getAttributes, type Supplier, type Category, type Brand, type Attribute } from '@/utils/api'
 import { useMediaSelector } from '@/hooks/useMediaSelector'
 import { useUIStore } from '@/stores/uiStore'
+
 import { apiMethods } from '@/lib/api'
+import api from '@/lib/api'
 import type { MediaFile } from '@/utils/api'
 import Quill from 'quill'
 import 'quill/dist/quill.snow.css'
@@ -185,12 +188,25 @@ interface ProductVariant {
   weight: number
   stock: number
   sellerSku: string
+  sellerSkuSuffix: string
   sellerSkuManuallyEdited?: boolean
   thumbnail?: string | null
 }
 
 export default function CreateProductPage() {
   const { t } = useTranslation()
+
+  // Session warning - alerts user before session expires
+  useSessionWarning({
+    enabled: true,
+    sessionDurationMinutes: 60, // 60 minute session
+    onWarning: (minutesRemaining) => {
+      console.log(`Session expiring in ${minutesRemaining} minutes`)
+    },
+    onExpired: () => {
+      console.log('Session expired - user should save work')
+    },
+  })
   const navigate = useNavigate()
   const { openSingleSelect, openMultipleSelect } = useMediaSelector()
   const { colorScheme } = useMantineColorScheme()
@@ -233,8 +249,9 @@ export default function CreateProductPage() {
   const [retailNameBn, setRetailNameBn] = useState('')
   const [wholesaleNameBn, setWholesaleNameBn] = useState('')
   const [includesInTheBoxBn, setIncludesInTheBoxBn] = useState('')
-  const [category, setCategory] = useState<string | null>(null)
   const [brand, setBrand] = useState<string | null>(null)
+  const [category, setCategory] = useState<string | null>(null)
+  const [productCode, setProductCode] = useState<number | null>(null)
   const [status, setStatus] = useState<string>('draft')
   const [videoUrl, setVideoUrl] = useState('')
   const [enableWarranty, setEnableWarranty] = useState(false)
@@ -243,8 +260,10 @@ export default function CreateProductPage() {
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState<string | null>(null)
   const [description, setDescription] = useState('')
   const [highlightsList, setHighlightsList] = useState<string[]>([])
+  const [attributesList, setAttributesList] = useState<string[]>([])
   const [descriptionBn, setDescriptionBn] = useState('')
   const [highlightsBn, setHighlightsBn] = useState<string[]>([])
+  const [attributesBn, setAttributesBn] = useState<string[]>([])
   const [includesInTheBox, setIncludesInTheBox] = useState('')
 
   // SEO state
@@ -281,9 +300,11 @@ export default function CreateProductPage() {
   // Quill editor refs
   const descriptionQuillRef = useRef<any>(null)
   const highlightsQuillRef = useRef<any>(null)
+  const attributesQuillRef = useRef<any>(null)
   const includesInTheBoxQuillRef = useRef<any>(null)
   const descriptionBnQuillRef = useRef<any>(null)
   const highlightsBnQuillRef = useRef<any>(null)
+  const attributesBnQuillRef = useRef<any>(null)
 
   // Media state
   const [featuredImage, setFeaturedImage] = useState<{ mediaId: number; url: string } | null>(null)
@@ -343,25 +364,46 @@ export default function CreateProductPage() {
     sellerSku: ''
   })
 
-  // Auto-calculate retail and wholesale prices when purchase cost changes
-  useEffect(() => {
-    if (defaultValues.purchaseCost > 0) {
-      const retailPrice = defaultValues.purchaseCost * 1.5 // 50% more
-      const wholesalePrice = defaultValues.purchaseCost * 1.2 // 20% more
-
-      setDefaultValues(prev => ({
-        ...prev,
-        price: retailPrice,
-        wholesalePrice: wholesalePrice
-      }))
-    }
-  }, [defaultValues.purchaseCost])
-
   // API data state
   const [categories, setCategories] = useState<Category[]>([])
   const [brands, setBrands] = useState<Brand[]>([])
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [brandsLoading, setBrandsLoading] = useState(true)
+
+  // Pricing settings state (MUST be declared before useEffect that uses it)
+  const [pricingSettings, setPricingSettings] = useState({
+    wholesaleProfitPercentage: 100,
+    wholesaleOfferPercentage: 25,
+    retailProfitPercentage: 100,
+    retailOfferPercentage: 25,
+  })
+
+  // Auto-calculate prices when purchase cost changes (using dynamic pricing settings)
+  useEffect(() => {
+    if (defaultValues.purchaseCost > 0) {
+      const cost = defaultValues.purchaseCost
+
+      // Purchase Cost → Wholesale Price
+      const wholesalePrice = cost * (1 + pricingSettings.wholesaleProfitPercentage / 100)
+
+      // Wholesale Price → Wholesale Offer Price
+      const wholesaleOfferPrice = wholesalePrice * (1 - pricingSettings.wholesaleOfferPercentage / 100)
+
+      // Wholesale Offer → Retail Price
+      const retailPrice = wholesaleOfferPrice * (1 + pricingSettings.retailProfitPercentage / 100)
+
+      // Retail Price → Retail Offer Price
+      const retailOfferPrice = retailPrice * (1 - pricingSettings.retailOfferPercentage / 100)
+
+      setDefaultValues(prev => ({
+        ...prev,
+        price: retailPrice,
+        wholesalePrice: wholesalePrice,
+        wholesaleOfferPrice: wholesaleOfferPrice,
+        specialPrice: retailOfferPrice,
+      }))
+    }
+  }, [defaultValues.purchaseCost, pricingSettings])
 
   // Fetch data on component mount
   useEffect(() => {
@@ -387,6 +429,41 @@ export default function CreateProductPage() {
         } catch (brandError) {
           console.error('❌ Failed to fetch brands:', brandError)
           setBrands([])
+        }
+
+        // Fetch pricing settings
+        try {
+          const settingsResponse = await api.get('/system/settings')
+          const pricingSettingsData = settingsResponse.data?.pricing || []
+
+          const parsedSettings = {
+            wholesaleProfitPercentage: 100,
+            wholesaleOfferPercentage: 25,
+            retailProfitPercentage: 100,
+            retailOfferPercentage: 25,
+          }
+
+          pricingSettingsData.forEach((item: any) => {
+            switch (item.key) {
+              case 'wholesale_profit_percentage':
+                parsedSettings.wholesaleProfitPercentage = parseFloat(item.value) || 100
+                break
+              case 'wholesale_offer_percentage':
+                parsedSettings.wholesaleOfferPercentage = parseFloat(item.value) || 25
+                break
+              case 'retail_profit_percentage':
+                parsedSettings.retailProfitPercentage = parseFloat(item.value) || 100
+                break
+              case 'retail_offer_percentage':
+                parsedSettings.retailOfferPercentage = parseFloat(item.value) || 25
+                break
+            }
+          })
+
+          setPricingSettings(parsedSettings)
+        } catch (settingsError) {
+          console.error('❌ Failed to fetch pricing settings:', settingsError)
+          // Keep default values
         }
       } catch (error) {
         console.error('Failed to fetch data:', error)
@@ -455,6 +532,20 @@ export default function CreateProductPage() {
             resize: vertical;
           }
 
+          #attributes-editor .ql-editor {
+            min-height: 200px;
+            max-height: 800px;
+            overflow-y: auto;
+            resize: vertical;
+          }
+
+          #attributes-bn-editor .ql-editor {
+            min-height: 200px;
+            max-height: 800px;
+            overflow-y: auto;
+            resize: vertical;
+          }
+
           #includes-in-the-box-editor .ql-editor {
             min-height: 150px;
             max-height: 300px;
@@ -463,17 +554,20 @@ export default function CreateProductPage() {
 
           /* Hide numbered list button from highlights editor and includes editor */
           #highlights-editor .ql-list[value="ordered"],
+          #attributes-editor .ql-list[value="ordered"],
           #includes-in-the-box-editor .ql-list[value="ordered"] {
             display: none !important;
           }
 
           /* Hide indent/outdent buttons to prevent nested lists */
           #highlights-editor .ql-indent,
+          #attributes-editor .ql-indent,
           #includes-in-the-box-editor .ql-indent {
             display: none !important;
           }
 
           #highlights-editor .ql-outdent,
+          #attributes-editor .ql-outdent,
           #includes-in-the-box-editor .ql-outdent {
             display: none !important;
           }
@@ -481,6 +575,7 @@ export default function CreateProductPage() {
           /* Dark mode support */
           [data-mantine-color-scheme="dark"] #description-editor .ql-toolbar,
           [data-mantine-color-scheme="dark"] #highlights-editor .ql-toolbar,
+          [data-mantine-color-scheme="dark"] #attributes-editor .ql-toolbar,
           [data-mantine-color-scheme="dark"] #includes-in-the-box-editor .ql-toolbar {
             background-color: #2C2E33;
             border-color: #45474E;
@@ -488,6 +583,7 @@ export default function CreateProductPage() {
 
           [data-mantine-color-scheme="dark"] #description-editor .ql-container,
           [data-mantine-color-scheme="dark"] #highlights-editor .ql-container,
+          [data-mantine-color-scheme="dark"] #attributes-editor .ql-container,
           [data-mantine-color-scheme="dark"] #includes-in-the-box-editor .ql-container {
             background-color: #25262B;
             border-color: #45474E;
@@ -496,30 +592,35 @@ export default function CreateProductPage() {
 
           [data-mantine-color-scheme="dark"] #description-editor .ql-editor.ql-blank::before,
           [data-mantine-color-scheme="dark"] #highlights-editor .ql-editor.ql-blank::before,
+          [data-mantine-color-scheme="dark"] #attributes-editor .ql-editor.ql-blank::before,
           [data-mantine-color-scheme="dark"] #includes-in-the-box-editor .ql-editor.ql-blank::before {
             color: #6c6c6c;
           }
 
           [data-mantine-color-scheme="dark"] #description-editor .ql-stroke,
           [data-mantine-color-scheme="dark"] #highlights-editor .ql-stroke,
+          [data-mantine-color-scheme="dark"] #attributes-editor .ql-stroke,
           [data-mantine-color-scheme="dark"] #includes-in-the-box-editor .ql-stroke {
             stroke: #C1C2C5;
           }
 
           [data-mantine-color-scheme="dark"] #description-editor .ql-fill,
           [data-mantine-color-scheme="dark"] #highlights-editor .ql-fill,
+          [data-mantine-color-scheme="dark"] #attributes-editor .ql-fill,
           [data-mantine-color-scheme="dark"] #includes-in-the-box-editor .ql-fill {
             fill: #C1C2C5;
           }
 
           [data-mantine-color-scheme="dark"] #description-editor .ql-picker,
           [data-mantine-color-scheme="dark"] #highlights-editor .ql-picker,
+          [data-mantine-color-scheme="dark"] #attributes-editor .ql-picker,
           [data-mantine-color-scheme="dark"] #includes-in-the-box-editor .ql-picker {
             color: #C1C2C5;
           }
 
           [data-mantine-color-scheme="dark"] #description-editor .ql-picker-options,
           [data-mantine-color-scheme="dark"] #highlights-editor .ql-picker-options,
+          [data-mantine-color-scheme="dark"] #attributes-editor .ql-picker-options,
           [data-mantine-color-scheme="dark"] #includes-in-the-box-editor .ql-picker-options {
             background-color: #25262B;
             border-color: #45474E;
@@ -528,12 +629,14 @@ export default function CreateProductPage() {
 
           [data-mantine-color-scheme="dark"] #description-editor .ql-picker-item:hover,
           [data-mantine-color-scheme="dark"] #highlights-editor .ql-picker-item:hover,
+          [data-mantine-color-scheme="dark"] #attributes-editor .ql-picker-item:hover,
           [data-mantine-color-scheme="dark"] #includes-in-the-box-editor .ql-picker-item:hover {
             background-color: #373A40;
           }
 
           [data-mantine-color-scheme="dark"] #description-editor .ql-picker-item.ql-selected,
           [data-mantine-color-scheme="dark"] #highlights-editor .ql-picker-item.ql-selected,
+          [data-mantine-color-scheme="dark"] #attributes-editor .ql-picker-item.ql-selected,
           [data-mantine-color-scheme="dark"] #includes-in-the-box-editor .ql-picker-item.ql-selected {
             background-color: #228BE6;
             color: white;
@@ -541,6 +644,7 @@ export default function CreateProductPage() {
 
           [data-mantine-color-scheme="dark"] #description-editor a,
           [data-mantine-color-scheme="dark"] #highlights-editor a,
+          [data-mantine-color-scheme="dark"] #attributes-editor a,
           [data-mantine-color-scheme="dark"] #includes-in-the-box-editor a {
             color: #228BE6;
           }
@@ -1279,6 +1383,124 @@ export default function CreateProductPage() {
         setupImageInteractions(quill2)
       }
 
+      // Initialize Attributes Editor (bullet list only, max 20 items)
+      const attributesContainer = document.getElementById('attributes-editor-container')
+      if (attributesContainer && !attributesQuillRef.current) {
+        attributesContainer.innerHTML = '<div id="attributes-editor"></div>'
+
+        // Flag to prevent recursive updates
+        let isProgrammaticUpdate = false
+
+        // Create a custom toolbar with only bullet list
+        const quill2a = new Quill('#attributes-editor', {
+          theme: 'snow',
+          placeholder: t('catalog.productsCreate.attributesPlaceholder') || '• Enter product attributes as bullet points...',
+          modules: {
+            toolbar: [
+              [{ 'list': 'bullet' }],  // Only bullet list
+              ['clean']                  // Clear formatting
+            ]
+          }
+        })
+
+        // Auto-enable bullet list format when user starts typing
+        const ensureBulletList = () => {
+          const format = quill2a.getFormat()
+          if (!format.list) {
+            quill2a.format('list', 'bullet')
+          }
+        }
+
+        // Enable bullet list on editor focus and collapse sidebar
+        quill2a.on('selection-change', (range: any) => {
+          if (range && range.length === 0) {
+            ensureBulletList()
+            if (collapseSidebarIfNeeded) {
+              collapseSidebarIfNeeded()
+            }
+          }
+        })
+
+        quill2a.root.addEventListener('keydown', (e) => {
+          const format = quill2a.getFormat()
+          if (!format.list && e.key.length === 1) {
+            quill2a.format('list', 'bullet', Quill.sources.USER)
+          }
+        })
+
+        // Parse list items from HTML and update state
+        const parseListItems = (html: string): string[] => {
+          const temp = document.createElement('div')
+          temp.innerHTML = html
+          const liElements = temp.querySelectorAll('li')
+          const items: string[] = []
+          liElements.forEach((li) => {
+            const text = li.textContent?.trim() || ''
+            if (text) items.push(text)
+          })
+          return items
+        }
+
+        // Convert array to HTML list
+        const arrayToListHtml = (items: string[]): string => {
+          if (items.length === 0 || (items.length === 1 && items[0] === '')) return ''
+          const nonEmptyItems = items.filter(item => item.trim() !== '')
+          if (nonEmptyItems.length === 0) return ''
+          return `<ul>${nonEmptyItems.map(item => `<li>${item}</li>`).join('')}</ul>`
+        }
+
+        // Update attributes state from editor content
+        const updateAttributesState = () => {
+          if (isProgrammaticUpdate) return
+          const html = quill2a.root.innerHTML
+          const items = parseListItems(html)
+
+          if (items.length > 20) {
+            notifications.show({
+              title: t('catalog.productsCreate.maxAttributesReached') || 'Maximum Limit Reached',
+              message: t('catalog.productsCreate.maxAttributesMessage') || 'You can only add up to 20 attributes. Extra items have been removed.',
+              color: 'red',
+            })
+            const truncatedItems = items.slice(0, 20)
+            isProgrammaticUpdate = true
+            quill2a.root.innerHTML = arrayToListHtml(truncatedItems)
+            setTimeout(() => { isProgrammaticUpdate = false }, 0)
+          } else {
+            setAttributesList(items)
+          }
+        }
+
+        // Initialize with existing attributes (if any)
+        if (attributesList.length > 0) {
+          const initialHtml = arrayToListHtml(attributesList)
+          if (initialHtml) {
+            isProgrammaticUpdate = true
+            quill2a.root.innerHTML = initialHtml
+            setTimeout(() => { isProgrammaticUpdate = false }, 0)
+          }
+        } else {
+          setTimeout(() => {
+            isProgrammaticUpdate = true
+            quill2a.format('list', 'bullet')
+            setTimeout(() => { isProgrammaticUpdate = false }, 0)
+          }, 100)
+        }
+
+        quill2a.on('text-change', (delta: any, _oldContents: any, source: any) => {
+          if (source === 'user') updateAttributesState()
+        })
+        quill2a.root.addEventListener('input', () => updateAttributesState())
+        quill2a.root.addEventListener('keydown', (e: KeyboardEvent) => {
+          if (e.key === 'Enter') e.stopPropagation()
+        })
+        quill2a.on('editor-change', (eventName: string) => {
+          if (eventName === 'text-change') updateAttributesState()
+        })
+
+        attributesQuillRef.current = quill2a
+        setupImageInteractions(quill2a)
+      }
+
       // Initialize Bangla Description Editor
       const descriptionBnContainer = document.getElementById('description-bn-editor-container')
       if (descriptionBnContainer && !descriptionBnQuillRef.current) {
@@ -1437,6 +1659,111 @@ export default function CreateProductPage() {
         setupImageInteractions(quillBn2)
       }
 
+      // Initialize Bangla Attributes Editor (bullet list only, max 20 items)
+      const attributesBnContainer = document.getElementById('attributes-bn-editor-container')
+      if (attributesBnContainer && !attributesBnQuillRef.current) {
+        attributesBnContainer.innerHTML = '<div id="attributes-bn-editor"></div>'
+
+        let isProgrammaticUpdate = false
+        const quillBn2a = new Quill('#attributes-bn-editor', {
+          theme: 'snow',
+          placeholder: 'পণ্যের বৈশিষ্ট্যসমূহ বুলেট পয়েন্ট হিসেবে লিখুন...',
+          modules: {
+            toolbar: [
+              [{ 'list': 'bullet' }],
+              ['clean']
+            ]
+          }
+        })
+
+        const ensureBulletList = () => {
+          const format = quillBn2a.getFormat()
+          if (!format.list) quillBn2a.format('list', 'bullet')
+        }
+
+        quillBn2a.on('selection-change', (range: any) => {
+          if (range && range.length === 0) {
+            ensureBulletList()
+            if (collapseSidebarIfNeeded) collapseSidebarIfNeeded()
+          }
+        })
+
+        quillBn2a.root.addEventListener('keydown', (e) => {
+          const format = quillBn2a.getFormat()
+          if (!format.list && e.key.length === 1) {
+            quillBn2a.format('list', 'bullet', Quill.sources.USER)
+          }
+        })
+
+        const parseListItems = (html: string): string[] => {
+          const temp = document.createElement('div')
+          temp.innerHTML = html
+          const liElements = temp.querySelectorAll('li')
+          const items: string[] = []
+          liElements.forEach((li) => {
+            const text = li.textContent?.trim() || ''
+            if (text) items.push(text)
+          })
+          return items
+        }
+
+        const arrayToListHtml = (items: string[]): string => {
+          if (items.length === 0 || (items.length === 1 && items[0] === '')) return ''
+          const nonEmptyItems = items.filter(item => item.trim() !== '')
+          if (nonEmptyItems.length === 0) return ''
+          return `<ul>${nonEmptyItems.map(item => `<li>${item}</li>`).join('')}</ul>`
+        }
+
+        const updateAttributesBnState = () => {
+          if (isProgrammaticUpdate) return
+          const html = quillBn2a.root.innerHTML
+          const items = parseListItems(html)
+
+          if (items.length > 20) {
+            notifications.show({
+              title: 'সর্বোচ্চ সীমা অতিক্রান্ত',
+              message: 'আপনি সর্বোচ্চ ২০টি বৈশিষ্ট্য যোগ করতে পারবেন। অতিরিক্ত আইটেম সরানো হয়েছে।',
+              color: 'red',
+            })
+            const truncatedItems = items.slice(0, 20)
+            isProgrammaticUpdate = true
+            quillBn2a.root.innerHTML = arrayToListHtml(truncatedItems)
+            setTimeout(() => { isProgrammaticUpdate = false }, 0)
+          } else {
+            setAttributesBn(items)
+          }
+        }
+
+        if (attributesBn.length > 0) {
+          const initialHtml = arrayToListHtml(attributesBn)
+          if (initialHtml) {
+            isProgrammaticUpdate = true
+            quillBn2a.root.innerHTML = initialHtml
+            setTimeout(() => { isProgrammaticUpdate = false }, 0)
+          }
+        } else {
+          setTimeout(() => {
+            isProgrammaticUpdate = true
+            quillBn2a.format('list', 'bullet')
+            setTimeout(() => { isProgrammaticUpdate = false }, 0)
+          }, 100)
+        }
+
+        quillBn2a.on('text-change', (delta: any, _oldContents: any, source: any) => {
+          if (source === 'user') updateAttributesBnState()
+        })
+        quillBn2a.root.addEventListener('input', () => updateAttributesBnState())
+        quillBn2a.root.addEventListener('keydown', (e: KeyboardEvent) => {
+          if (e.key === 'Enter') e.stopPropagation()
+        })
+        quillBn2a.on('editor-change', (eventName: string) => {
+          if (eventName === 'text-change') updateAttributesBnState()
+        })
+
+        attributesBnQuillRef.current = quillBn2a
+        setupImageInteractions(quillBn2a)
+      }
+
     }
 
     // Add a small delay to ensure all containers are rendered
@@ -1452,6 +1779,9 @@ export default function CreateProductPage() {
       if (highlightsQuillRef.current) {
         highlightsQuillRef.current = null
       }
+      if (attributesQuillRef.current) {
+        attributesQuillRef.current = null
+      }
       if (includesInTheBoxQuillRef.current) {
         includesInTheBoxQuillRef.current = null
       }
@@ -1460,6 +1790,9 @@ export default function CreateProductPage() {
       }
       if (highlightsBnQuillRef.current) {
         highlightsBnQuillRef.current = null
+      }
+      if (attributesBnQuillRef.current) {
+        attributesBnQuillRef.current = null
       }
     }
   }, [])
@@ -1476,6 +1809,12 @@ export default function CreateProductPage() {
         order: galleryImages.length + index
       }))
       setGalleryImages([...galleryImages, ...newImages])
+
+      notifications.show({
+        title: 'Success',
+        message: `Added ${mediaFiles.length} image(s) to gallery (${galleryImages.length + mediaFiles.length} total)`,
+        color: 'green'
+      })
     }, currentSelection)
   }
 
@@ -1527,18 +1866,35 @@ export default function CreateProductPage() {
       if (v.id !== id) return v
       const updated = { ...v, [field]: value }
 
-      // Auto-calculate retail & wholesale price when purchase cost changes
+      // Auto-calculate prices when purchase cost changes (using dynamic pricing settings)
       if (field === 'purchaseCost' && typeof value === 'number' && value > 0) {
-        updated.price = value * 1.5
-        updated.wholesalePrice = value * 1.2
+        const cost = value
+
+        // Purchase Cost → Wholesale Price
+        const wholesalePrice = cost * (1 + pricingSettings.wholesaleProfitPercentage / 100)
+
+        // Wholesale Price → Wholesale Offer Price
+        const wholesaleOfferPrice = wholesalePrice * (1 - pricingSettings.wholesaleOfferPercentage / 100)
+
+        // Wholesale Offer → Retail Price
+        const retailPrice = wholesaleOfferPrice * (1 + pricingSettings.retailProfitPercentage / 100)
+
+        // Retail Price → Retail Offer Price
+        const retailOfferPrice = retailPrice * (1 - pricingSettings.retailOfferPercentage / 100)
+
+        updated.price = retailPrice
+        updated.wholesalePrice = wholesalePrice
+        updated.wholesaleOfferPrice = wholesaleOfferPrice
+        updated.specialPrice = retailOfferPrice
       }
 
-      // Auto-generate SKU when variant name changes and SKU hasn't been manually edited
-      if (field === 'name' && !v.sellerSkuManuallyEdited) {
-        updated.sellerSku = generateSku(wholesaleName || productName || '', value)
+      // Auto-generate SKU when variant name changes (if not manually edited)
+      if (!v.sellerSkuManuallyEdited && field === 'name') {
+        const variantName = value?.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || ''
+        updated.sellerSku = defaultValues.sellerSku ? `${defaultValues.sellerSku}_${variantName}` : variantName
       }
 
-      // Mark sellerSku as manually edited when user changes it directly
+      // Mark sellerSku as manually edited when user changes sellerSku directly
       if (field === 'sellerSku' && value !== v.sellerSku) {
         updated.sellerSkuManuallyEdited = true
       }
@@ -1556,20 +1912,42 @@ export default function CreateProductPage() {
     const wop = typeof defaultValues.wholesaleOfferPrice === 'number' ? defaultValues.wholesaleOfferPrice : undefined
     const w = typeof defaultValues.weight === 'number' ? defaultValues.weight : parseFloat(String(defaultValues.weight)) || 0
 
-    setVariants(variants.map(v => ({
-      ...v,
+    setVariants(variants.map(v => {
+      const updated = { ...v }
       // Only apply defaults to empty/zero fields — leave existing data untouched
-      ...(defaultValues.name && !v.name.trim() ? { name: defaultValues.name } : {}),
-      ...(defaultValues.sellerSku && !v.sellerSku.trim() ? { sellerSku: defaultValues.sellerSku } : {}),
-      ...(!v.purchaseCost ? { purchaseCost: pc } : {}),
-      ...(!v.price ? { price: rp } : {}),
-      ...(!v.wholesalePrice ? { wholesalePrice: wp } : {}),
-      ...(v.specialPrice === undefined || v.specialPrice === 0 ? { specialPrice: sop } : {}),
-      ...(v.wholesaleOfferPrice === undefined || v.wholesaleOfferPrice === 0 ? { wholesaleOfferPrice: wop } : {}),
-      ...(!v.wholesaleMoq ? { wholesaleMoq: defaultValues.wholesaleMoq } : {}),
-      ...(!v.weight ? { weight: w } : {}),
-      ...(!v.stock ? { stock: defaultValues.stock } : {}),
-    })))
+      if (defaultValues.name && !v.name.trim()) {
+        updated.name = defaultValues.name
+      }
+      // Generate SKU from variant name (only if not manually edited)
+      if (defaultValues.name && !v.sellerSkuManuallyEdited && !v.name.trim()) {
+        updated.sellerSku = defaultValues.name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+      }
+      if (!v.purchaseCost) {
+        updated.purchaseCost = pc
+      }
+      if (!v.price) {
+        updated.price = rp
+      }
+      if (!v.wholesalePrice) {
+        updated.wholesalePrice = wp
+      }
+      if (v.specialPrice === undefined || v.specialPrice === 0) {
+        updated.specialPrice = sop
+      }
+      if (v.wholesaleOfferPrice === undefined || v.wholesaleOfferPrice === 0) {
+        updated.wholesaleOfferPrice = wop
+      }
+      if (!v.wholesaleMoq) {
+        updated.wholesaleMoq = defaultValues.wholesaleMoq
+      }
+      if (!v.weight) {
+        updated.weight = w
+      }
+      if (!v.stock) {
+        updated.stock = defaultValues.stock
+      }
+      return updated
+    }))
 
     notifications.show({
       title: t('catalog.productsCreate.notification.defaultValuesApplied'),
@@ -1592,16 +1970,6 @@ export default function CreateProductPage() {
     // Validate required fields
     const newErrors: Record<string, string> = {}
 
-    console.log('🔍 Form values:', {
-      productName,
-      wholesaleName,
-      category,
-      brand,
-      status: productStatus,
-      description: description?.substring(0, 50) + '...',
-      variantsCount: variants.length,
-      firstVariant: variants[0]
-    })
 
     if (!productName || productName.trim() === '') {
       newErrors.productName = t('catalog.productsCreate.validation.productNameRequired') || 'Product name is required'
@@ -1673,6 +2041,7 @@ export default function CreateProductPage() {
         wholesaleNameBn: wholesaleNameBn || undefined,
         category: parseInt(category!),
         brand: parseInt(brand!),
+        productCode: productCode ?? undefined,
         status: productStatus,
         videoUrl,
         enableWarranty,
@@ -1683,6 +2052,8 @@ export default function CreateProductPage() {
         descriptionBn: descriptionBn.trim() || undefined,
         highlights: highlightsList.filter(h => h.trim()).length > 0 ? highlightsList : null,
         highlightsBn: highlightsBn.filter(h => h.trim()).length > 0 ? highlightsBn : undefined,
+        attributes: attributesList.filter(a => a.trim()).length > 0 ? attributesList : null,
+        attributesBn: attributesBn.filter(a => a.trim()).length > 0 ? attributesBn : undefined,
         includesInTheBox: includesInTheBox.trim() || null,
         includesInTheBoxBn: includesInTheBoxBn.trim() || undefined,
         seoTitle,
@@ -1795,17 +2166,18 @@ export default function CreateProductPage() {
   }
 
   // Transform data for Select components
-  const categoryOptions = Array.isArray(categories)
-    ? categories.map(cat => ({
-        value: cat.id.toString(),
-        label: cat.name
-      }))
-    : []
 
   const brandOptions = Array.isArray(brands)
     ? brands.map(brand => ({
         value: brand.id.toString(),
         label: brand.name
+      }))
+    : []
+
+  const categoryOptions = Array.isArray(categories)
+    ? categories.map(category => ({
+        value: category.id.toString(),
+        label: category.name
       }))
     : []
 
@@ -1900,6 +2272,21 @@ export default function CreateProductPage() {
                         value={wholesaleNameBn}
                         onChange={(e) => setWholesaleNameBn(e.currentTarget.value)}
                         onFocus={collapseSidebarIfNeeded}
+                      />
+                    </SimpleGrid>
+
+                    <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                      
+                      <NumberInput
+                        id="productCode"
+                        label={t('catalog.productsCreate.productCode') || 'Product Code'}
+                        placeholder={t('catalog.productsCreate.productCodePlaceholder') || 'Auto-generated if empty'}
+                        value={productCode}
+                        onChange={(value) => setProductCode(value === '' ? null : value)}
+                        onFocus={collapseSidebarIfNeeded}
+                        allowDecimal={false}
+                        allowNegative={false}
+                        description={t('catalog.productsCreate.productCodeDescription') || 'Leave empty to auto-generate from category'}
                       />
                     </SimpleGrid>
 
@@ -2151,7 +2538,7 @@ export default function CreateProductPage() {
                         p="xs"
                         bg={colorScheme === 'dark' ? 'dark.7' : 'blue.0'}
                       >
-                        <Box style={{ display: 'grid', gridTemplateColumns: '44px 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr 0.8fr 0.8fr 1fr 36px', gap: '8px', alignItems: 'start' }}>
+                        <Box style={{ display: 'grid', gridTemplateColumns: '48px 2.2fr 1.4fr 1.4fr 1.4fr 1.4fr 1.4fr 1.4fr 1.1fr 1.1fr 1.4fr', gap: '6px', alignItems: 'start' }}>
                           {/* Thumbnail placeholder */}
                           <Box />
 
@@ -2167,14 +2554,13 @@ export default function CreateProductPage() {
                             />
                           </Stack>
 
-                          {/* Seller SKU */}
+                          {/* SELLER SKU */}
                           <Stack gap={4}>
                             <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.sellerSku') || 'SELLER SKU'}</Text>
                             <TextInput
-                              placeholder={t('catalog.productsCreate.sellerSkuPlaceholder') || 'SKU'}
+                              placeholder=""
                               value={defaultValues.sellerSku}
-                              onChange={(value) => setDefaultValues(prev => ({ ...prev, sellerSku: typeof value === 'string' ? value : value?.currentTarget?.value || '' }))}
-                              onFocus={collapseSidebarIfNeeded}
+                              onChange={(e) => setDefaultValues(prev => ({ ...prev, sellerSku: e.target.value }))}
                               size="xs"
                             />
                           </Stack>
@@ -2192,24 +2578,6 @@ export default function CreateProductPage() {
                               decimalScale={2}
                               size="xs"
                             />
-                          </Stack>
-
-                          {/* Retail Price */}
-                          <Stack gap={4}>
-                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.retailPrice') || 'RETAIL'}</Text>
-                            <NumberInput
-                              placeholder="0"
-                              value={defaultValues.price}
-                              onChange={(value) => setDefaultValues(prev => ({ ...prev, price: typeof value === 'number' ? value : prev.price }))}
-                              onFocus={collapseSidebarIfNeeded}
-                              min={0}
-                              step={0.01}
-                              decimalScale={2}
-                              size="xs"
-                            />
-                            <Text size="xs" c={defaultValues.price - defaultValues.purchaseCost < 0 ? 'red' : 'green'}>
-                              {defaultValues.price - defaultValues.purchaseCost > 0 ? '+' : ''}{(defaultValues.price - defaultValues.purchaseCost).toFixed(2)} ({defaultValues.purchaseCost > 0 ? ((defaultValues.price - defaultValues.purchaseCost) / defaultValues.purchaseCost * 100).toFixed(0) : 0}%)
-                            </Text>
                           </Stack>
 
                           {/* Wholesale Price */}
@@ -2230,27 +2598,6 @@ export default function CreateProductPage() {
                             </Text>
                           </Stack>
 
-                          {/* Retail Offer Price */}
-                          <Stack gap={4}>
-                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.retailOfferPrice') || 'R. OFFER'}</Text>
-                            <NumberInput
-                              placeholder="0"
-                              value={defaultValues.specialPrice}
-                              onChange={(value) => setDefaultValues(prev => ({ ...prev, specialPrice: typeof value === 'number' ? value : prev.specialPrice }))}
-                              onBlur={() => setDefaultValues(prev => ({ ...prev, specialPrice: prev.specialPrice || undefined }))}
-                              onFocus={collapseSidebarIfNeeded}
-                              min={0}
-                              step={0.01}
-                              decimalScale={2}
-                              size="xs"
-                            />
-                            {defaultValues.specialPrice !== undefined && defaultValues.specialPrice > 0 && (
-                              <Text size="xs" c={(defaultValues.specialPrice - defaultValues.purchaseCost) < 0 ? 'red' : 'green'}>
-                                {(defaultValues.specialPrice - defaultValues.purchaseCost) > 0 ? '+' : ''}{(defaultValues.specialPrice - defaultValues.purchaseCost).toFixed(2)} ({defaultValues.purchaseCost > 0 ? ((defaultValues.specialPrice - defaultValues.purchaseCost) / defaultValues.purchaseCost * 100).toFixed(0) : 0}%)
-                              </Text>
-                            )}
-                          </Stack>
-
                           {/* Wholesale Offer Price */}
                           <Stack gap={4}>
                             <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.wholesaleOfferPrice') || 'WS OFFER'}</Text>
@@ -2268,6 +2615,45 @@ export default function CreateProductPage() {
                             {defaultValues.wholesaleOfferPrice !== undefined && defaultValues.wholesaleOfferPrice > 0 && (
                               <Text size="xs" c={(defaultValues.wholesaleOfferPrice - defaultValues.purchaseCost) < 0 ? 'red' : 'green'}>
                                 {(defaultValues.wholesaleOfferPrice - defaultValues.purchaseCost) > 0 ? '+' : ''}{(defaultValues.wholesaleOfferPrice - defaultValues.purchaseCost).toFixed(2)} ({defaultValues.purchaseCost > 0 ? ((defaultValues.wholesaleOfferPrice - defaultValues.purchaseCost) / defaultValues.purchaseCost * 100).toFixed(0) : 0}%)
+                              </Text>
+                            )}
+                          </Stack>
+
+                          {/* Retail Price */}
+                          <Stack gap={4}>
+                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.retailPrice') || 'RETAIL'}</Text>
+                            <NumberInput
+                              placeholder="0"
+                              value={defaultValues.price}
+                              onChange={(value) => setDefaultValues(prev => ({ ...prev, price: typeof value === 'number' ? value : prev.price }))}
+                              onFocus={collapseSidebarIfNeeded}
+                              min={0}
+                              step={0.01}
+                              decimalScale={2}
+                              size="xs"
+                            />
+                            <Text size="xs" c={defaultValues.price - defaultValues.purchaseCost < 0 ? 'red' : 'green'}>
+                              {defaultValues.price - defaultValues.purchaseCost > 0 ? '+' : ''}{(defaultValues.price - defaultValues.purchaseCost).toFixed(2)} ({defaultValues.purchaseCost > 0 ? ((defaultValues.price - defaultValues.purchaseCost) / defaultValues.purchaseCost * 100).toFixed(0) : 0}%)
+                            </Text>
+                          </Stack>
+
+                          {/* Retail Offer Price */}
+                          <Stack gap={4}>
+                            <Text size="xs" fw={500} c="dimmed">{t('catalog.productsCreate.retailOfferPrice') || 'R. OFFER'}</Text>
+                            <NumberInput
+                              placeholder="0"
+                              value={defaultValues.specialPrice}
+                              onChange={(value) => setDefaultValues(prev => ({ ...prev, specialPrice: typeof value === 'number' ? value : prev.specialPrice }))}
+                              onBlur={() => setDefaultValues(prev => ({ ...prev, specialPrice: prev.specialPrice || undefined }))}
+                              onFocus={collapseSidebarIfNeeded}
+                              min={0}
+                              step={0.01}
+                              decimalScale={2}
+                              size="xs"
+                            />
+                            {defaultValues.specialPrice !== undefined && defaultValues.specialPrice > 0 && (
+                              <Text size="xs" c={(defaultValues.specialPrice - defaultValues.purchaseCost) < 0 ? 'red' : 'green'}>
+                                {(defaultValues.specialPrice - defaultValues.purchaseCost) > 0 ? '+' : ''}{(defaultValues.specialPrice - defaultValues.purchaseCost).toFixed(2)} ({defaultValues.purchaseCost > 0 ? ((defaultValues.specialPrice - defaultValues.purchaseCost) / defaultValues.purchaseCost * 100).toFixed(0) : 0}%)
                               </Text>
                             )}
                           </Stack>
@@ -2321,8 +2707,6 @@ export default function CreateProductPage() {
                               {t('catalog.productsCreate.applyToAll') || 'Apply'}
                             </Button>
                           </Stack>
-                          {/* Delete placeholder */}
-                          <Box />
                         </Box>
                       </Paper>
                     </Stack>
@@ -2332,15 +2716,15 @@ export default function CreateProductPage() {
                     <Box className="overflow-x-auto">
                       <Box style={{ minWidth: '900px' }}>
                         {/* Header Row */}
-                        <Box style={{ display: 'grid', gridTemplateColumns: '44px 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr 0.8fr 0.8fr 1fr 36px', gap: '8px', alignItems: 'start' }} mb="xs" px="sm">
-                          <Text size="xs" fw={600} c="dimmed">{'IMG'}</Text>
+                        <Box style={{ display: 'grid', gridTemplateColumns: '48px 2.2fr 1.4fr 1.4fr 1.4fr 1.4fr 1.4fr 1.4fr 1.1fr 1.1fr 1.4fr 36px', gap: '6px', alignItems: 'start' }} mb="xs" px="sm">
+                          <Text size="xs" fw={600} c="dimmed">{'Image'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.variantName') || 'VARIANT NAME'}</Text>
-                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.sellerSku') || 'SKU'}</Text>
+                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.sellerSku') || 'SELLER SKU'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.purchaseCost') || 'COST'}</Text>
-                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.retailPrice') || 'RETAIL'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.wholesalePrice') || 'WS PRICE'}</Text>
-                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.retailOfferPrice') || 'R. OFFER'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.wholesaleOfferPrice') || 'WS OFFER'}</Text>
+                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.retailPrice') || 'RETAIL'}</Text>
+                          <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.retailOfferPrice') || 'R. OFFER'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.wholesaleMoq') || 'MOQ'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.weight') || 'WT'}</Text>
                           <Text size="xs" fw={600} c="dimmed">{t('catalog.productsCreate.stock') || 'STOCK'}</Text>
@@ -2351,7 +2735,7 @@ export default function CreateProductPage() {
                         <Stack gap="xs">
                           {variants.map((variant, index) => (
                             <Paper key={variant.id} withBorder p="xs">
-                              <Box style={{ display: 'grid', gridTemplateColumns: '44px 1.5fr 1fr 1fr 1fr 1fr 1fr 1fr 0.8fr 0.8fr 1fr 36px', gap: '8px', alignItems: 'start' }}>
+                              <Box style={{ display: 'grid', gridTemplateColumns: '48px 2.2fr 1.4fr 1.4fr 1.4fr 1.4fr 1.4fr 1.4fr 1.1fr 1.1fr 1.4fr 36px', gap: '6px', alignItems: 'start' }}>
                                 {/* Thumbnail */}
                                 <Box
                                   style={{ width: 44, height: 44, cursor: 'pointer', borderRadius: 4, overflow: 'hidden', border: '1px dashed var(--mantine-color-gray-4)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: variant.thumbnail ? 'transparent' : 'var(--mantine-color-gray-0)' }}
@@ -2379,7 +2763,7 @@ export default function CreateProductPage() {
                                   />
                                 </Group>
 
-                                {/* Seller SKU */}
+                                {/* SELLER SKU */}
                                 <TextInput
                                   placeholder={t('catalog.productsCreate.sellerSkuPlaceholder') || 'SKU'}
                                   value={variant.sellerSku}
@@ -2402,26 +2786,6 @@ export default function CreateProductPage() {
                                   error={errors[`variant.${index}.purchaseCost`]}
                                 />
 
-                                {/* Retail Price */}
-                                <Stack gap={4}>
-                                  <NumberInput
-                                    placeholder="0"
-                                    value={variant.price}
-                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'price', value)}
-                                    onFocus={collapseSidebarIfNeeded}
-                                    min={0}
-                                    step={0.01}
-                                    decimalScale={2}
-                                    size="sm"
-                                    error={errors[`variant.${index}.price`]}
-                                  />
-                                  {variant.price > 0 && (
-                                    <Text size="xs" c={(variant.price - variant.purchaseCost) < 0 ? 'red' : 'green'}>
-                                      {(variant.price - variant.purchaseCost) > 0 ? '+' : ''}{(variant.price - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.price - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
-                                    </Text>
-                                  )}
-                                </Stack>
-
                                 {/* Wholesale Price */}
                                 <Stack gap={4}>
                                   <NumberInput
@@ -2438,27 +2802,6 @@ export default function CreateProductPage() {
                                   {variant.wholesalePrice > 0 && (
                                     <Text size="xs" c={(variant.wholesalePrice - variant.purchaseCost) < 0 ? 'red' : 'green'}>
                                       {(variant.wholesalePrice - variant.purchaseCost) > 0 ? '+' : ''}{(variant.wholesalePrice - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.wholesalePrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
-                                    </Text>
-                                  )}
-                                </Stack>
-
-                                {/* Retail Offer Price */}
-                                <Stack gap={4}>
-                                  <NumberInput
-                                    placeholder="0"
-                                    value={variant.specialPrice}
-                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'specialPrice', value)}
-                                    onBlur={(e) => { const v = variant.specialPrice; if (!v) handleUpdateVariant(variant.id, 'specialPrice', undefined) }}
-                                    onFocus={collapseSidebarIfNeeded}
-                                    min={0}
-                                    step={0.01}
-                                    decimalScale={2}
-                                    size="sm"
-                                    error={errors[`variant.${index}.specialPrice`]}
-                                  />
-                                  {variant.specialPrice > 0 && (
-                                    <Text size="xs" c={(variant.specialPrice - variant.purchaseCost) < 0 ? 'red' : 'green'}>
-                                      {(variant.specialPrice - variant.purchaseCost) > 0 ? '+' : ''}{(variant.specialPrice - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.specialPrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
                                     </Text>
                                   )}
                                 </Stack>
@@ -2480,6 +2823,47 @@ export default function CreateProductPage() {
                                   {variant.wholesaleOfferPrice > 0 && (
                                     <Text size="xs" c={(variant.wholesaleOfferPrice - variant.purchaseCost) < 0 ? 'red' : 'green'}>
                                       {(variant.wholesaleOfferPrice - variant.purchaseCost) > 0 ? '+' : ''}{(variant.wholesaleOfferPrice - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.wholesaleOfferPrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
+                                    </Text>
+                                  )}
+                                </Stack>
+
+                                {/* Retail Price */}
+                                <Stack gap={4}>
+                                  <NumberInput
+                                    placeholder="0"
+                                    value={variant.price}
+                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'price', value)}
+                                    onFocus={collapseSidebarIfNeeded}
+                                    min={0}
+                                    step={0.01}
+                                    decimalScale={2}
+                                    size="sm"
+                                    error={errors[`variant.${index}.price`]}
+                                  />
+                                  {variant.price > 0 && (
+                                    <Text size="xs" c={(variant.price - variant.purchaseCost) < 0 ? 'red' : 'green'}>
+                                      {(variant.price - variant.purchaseCost) > 0 ? '+' : ''}{(variant.price - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.price - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
+                                    </Text>
+                                  )}
+                                </Stack>
+
+                                {/* Retail Offer Price */}
+                                <Stack gap={4}>
+                                  <NumberInput
+                                    placeholder="0"
+                                    value={variant.specialPrice}
+                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'specialPrice', value)}
+                                    onBlur={(e) => { const v = variant.specialPrice; if (!v) handleUpdateVariant(variant.id, 'specialPrice', undefined) }}
+                                    onFocus={collapseSidebarIfNeeded}
+                                    min={0}
+                                    step={0.01}
+                                    decimalScale={2}
+                                    size="sm"
+                                    error={errors[`variant.${index}.specialPrice`]}
+                                  />
+                                  {variant.specialPrice > 0 && (
+                                    <Text size="xs" c={(variant.specialPrice - variant.purchaseCost) < 0 ? 'red' : 'green'}>
+                                      {(variant.specialPrice - variant.purchaseCost) > 0 ? '+' : ''}{(variant.specialPrice - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.specialPrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
                                     </Text>
                                   )}
                                 </Stack>
@@ -2648,6 +3032,61 @@ export default function CreateProductPage() {
                           <div id="highlights-bn-editor-container">
                             <Box
                               id="highlights-bn-editor"
+                              style={{
+                                borderRadius: '4px'
+                              }}
+                            />
+                          </div>
+                          <Group justify="flex-end">
+                            <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
+                              Enhance with AI
+                            </Button>
+                          </Group>
+                        </Stack>
+                      </Grid.Col>
+                    </Grid>
+
+                    {/* Attributes - English & Bangla side by side */}
+                    <Grid>
+                      <Grid.Col span={6}>
+                        <Stack gap="sm">
+                          <Group justify="space-between" align="center">
+                            <Text size="sm" fw={500}>
+                              {t('catalog.productsCreate.productAttributes') || 'Product Attributes'}
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              {attributesList.filter(a => a.trim()).length}/20
+                            </Text>
+                          </Group>
+
+                          <div id="attributes-editor-container">
+                            <Box
+                              id="attributes-editor"
+                              style={{
+                                borderRadius: '4px'
+                              }}
+                            />
+                          </div>
+
+                          <Group justify="flex-end">
+                            <Button size="compact-xs" variant="subtle" color="violet" leftSection={<IconSparkles size={12} />}>
+                              Enhance with AI
+                            </Button>
+                          </Group>
+
+                          <Text size="xs" c="dimmed">
+                            {t('catalog.productsCreate.attributesTip') || 'Add key product attributes, specifications, or technical details as bullet points. Maximum 20 items.'}
+                          </Text>
+                        </Stack>
+                      </Grid.Col>
+                      <Grid.Col span={6}>
+                        <Stack gap="sm">
+                          <Text size="sm" fw={500}>
+                            পণ্যের বৈশিষ্ট্য (বাংলা)
+                          </Text>
+                          <div id="attributes-bn-editor-container">
+                            <Box
+                              id="attributes-bn-editor"
                               style={{
                                 borderRadius: '4px'
                               }}

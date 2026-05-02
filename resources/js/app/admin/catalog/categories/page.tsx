@@ -11,6 +11,24 @@ import {
 import { notifications } from '@mantine/notifications'
 import { useDebouncedValue } from '@mantine/hooks'
 import { useCategoriesStore } from '@/stores/categoriesStore'
+import type { Category } from '@/utils/api'
+
+// Helper to decode HTML entities
+const decodeHTMLEntities = (text: string): string => {
+  if (!text) return ''
+  let decoded = text
+  let maxIterations = 5
+  let iteration = 0
+  while (iteration < maxIterations && (decoded.includes('&') || decoded.includes('<') || decoded.includes('>'))) {
+    const textArea = document.createElement('textarea')
+    textArea.innerHTML = decoded
+    const newDecoded = textArea.value
+    if (newDecoded === decoded) break
+    decoded = newDecoded
+    iteration++
+  }
+  return decoded
+}
 
 export default function CategoriesPage() {
   const { t } = useTranslation()
@@ -23,6 +41,7 @@ export default function CategoriesPage() {
   const categories = useCategoriesStore((s) => s.categories)
   const loading = useCategoriesStore((s) => s.loading)
   const fetchCategories = useCategoriesStore((s) => s.fetchCategories)
+
   // Fetch categories on search change
   useEffect(() => {
     fetchCategories({ search: debouncedSearch || undefined, page: 1, per_page: 50 })
@@ -47,7 +66,7 @@ export default function CategoriesPage() {
   // Helper
   const getParentName = (category: Category): string => {
     if (!category.parent) return t('catalog.categoriesPage.noParent')
-    return category.parent.name
+    return decodeHTMLEntities(category.parent.name)
   }
 
   // Loading skeleton
@@ -112,6 +131,7 @@ export default function CategoriesPage() {
               <Table.Th w={50}></Table.Th>
               <Table.Th>{t('catalog.categoriesPage.tableHeaders.name')}</Table.Th>
               <Table.Th>{t('catalog.categoriesPage.tableHeaders.slug')}</Table.Th>
+              <Table.Th>Code</Table.Th>
               <Table.Th>{t('catalog.categoriesPage.tableHeaders.parent')}</Table.Th>
               <Table.Th>{t('catalog.categoriesPage.tableHeaders.products')}</Table.Th>
             </Table.Tr>
@@ -119,7 +139,7 @@ export default function CategoriesPage() {
           <Table.Tbody>
             {categories.length === 0 ? (
               <Table.Tr>
-                <Table.Td colSpan={5}>
+                <Table.Td colSpan={6}>
                   <Text ta="center" c="dimmed" py="xl">
                     {t('catalog.categoriesPage.noCategoriesFound')}
                   </Text>
@@ -154,7 +174,7 @@ export default function CategoriesPage() {
                         onClick={() => navigate(`/catalog/categories/${category.id}`)}
                         className="cursor-pointer"
                       >
-                        {category.name}
+                        {decodeHTMLEntities(category.name)}
                       </Anchor>
                       {category.is_active === false && (
                         <Badge size="xs" color="red" variant="light">
@@ -166,6 +186,13 @@ export default function CategoriesPage() {
                   <Table.Td>
                     <Text size="sm" c="dimmed" className="hidden lg:block">{category.slug}</Text>
                     <Text size="sm" c="dimmed" className="lg:hidden">...</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    {category.categoryCode ? (
+                      <Badge size="sm" variant="light" color="blue">{category.categoryCode}</Badge>
+                    ) : (
+                      <Text size="sm" c="dimmed">-</Text>
+                    )}
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm">{getParentName(category)}</Text>
@@ -221,7 +248,7 @@ export default function CategoriesPage() {
                       className="text-sm md:text-base"
                       onClick={() => navigate(`/catalog/categories/${category.id}`)}
                     >
-                      {category.name}
+                      {decodeHTMLEntities(category.name)}
                     </Anchor>
                     {category.is_active === false && (
                       <Badge size="xs" color="red" variant="light">
@@ -234,6 +261,14 @@ export default function CategoriesPage() {
                   <Group justify="space-between">
                     <Text size="sm" c="dimmed">{t('catalog.categoriesPage.tableHeaders.slug')}</Text>
                     <Text size="sm" truncate className="max-w-[150px]">{category.slug}</Text>
+                  </Group>
+                  <Group justify="space-between">
+                    <Text size="sm" c="dimmed">Code</Text>
+                    {category.categoryCode ? (
+                      <Badge size="xs" variant="light" color="blue">{category.categoryCode}</Badge>
+                    ) : (
+                      <Text size="sm" c="dimmed">-</Text>
+                    )}
                   </Group>
                   <Group justify="space-between">
                     <Text size="sm" c="dimmed">{t('catalog.categoriesPage.tableHeaders.parent')}</Text>

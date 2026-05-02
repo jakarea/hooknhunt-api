@@ -7,6 +7,7 @@ import {
   getMediaFolders,
   bulkDeleteMediaFiles,
   bulkMoveMediaFiles,
+  updateMediaFolder,
   type MediaFile,
   type MediaFolder,
 } from '@/utils/api'
@@ -83,6 +84,7 @@ interface MediaStoreState {
   // Modals
   moveModalOpened: boolean
   targetFolderId: number | null
+  movingFolderId: number | null  // For moving a single folder
   createFolderModalOpened: boolean
   newFolderName: string
   creatingFolder: boolean
@@ -99,12 +101,14 @@ interface MediaStoreState {
   clearSelection: () => void
   deleteFiles: (ids: number[]) => Promise<void>
   moveFiles: (ids: number[], targetFolderId: number | null) => Promise<void>
+  moveFolder: (folderId: number, targetFolderId: number | null) => Promise<void>
   createFolder: (name: string, parentId: number | null) => Promise<boolean>
   openPreview: (file: MediaFile) => void
   closePreview: () => void
   saveFileChanges: () => Promise<void>
   resetEditingFields: () => void
   openMoveModal: (fileIds?: number[]) => void
+  openMoveFolderModal: (folderId: number) => void
   closeMoveModal: () => void
   openCreateFolderModal: () => void
   closeCreateFolderModal: () => void
@@ -144,6 +148,7 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
   // Modals
   moveModalOpened: false,
   targetFolderId: null,
+  movingFolderId: null,
   createFolderModalOpened: false,
   newFolderName: '',
   creatingFolder: false,
@@ -371,8 +376,29 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
   openMoveModal: (fileIds) =>
     set({ singleActionFileIds: fileIds ?? [], moveModalOpened: true }),
 
+  openMoveFolderModal: (folderId) =>
+    set({ movingFolderId: folderId, moveModalOpened: true }),
+
   closeMoveModal: () =>
-    set({ moveModalOpened: false, targetFolderId: null, singleActionFileIds: [] }),
+    set({ moveModalOpened: false, targetFolderId: null, singleActionFileIds: [], movingFolderId: null }),
+
+  moveFolder: async (folderId, targetFolderId) => {
+    try {
+      await updateMediaFolder(folderId, { parentId: targetFolderId })
+      notifications.show({ title: 'Moved', message: 'Folder moved successfully', color: 'green' })
+      set({ moveModalOpened: false, targetFolderId: null, movingFolderId: null })
+      // Reload folders to update the tree
+      await get().loadFolders()
+      // Reload files if we're viewing the moved folder
+      const { currentFolder } = get()
+      if (currentFolder === folderId) {
+        get().invalidateCache(folderId)
+        await get().loadFiles()
+      }
+    } catch {
+      notifications.show({ title: 'Error', message: 'Failed to move folder', color: 'red' })
+    }
+  },
 
   openCreateFolderModal: () => set({ createFolderModalOpened: true }),
   closeCreateFolderModal: () => set({ createFolderModalOpened: false, newFolderName: '' }),

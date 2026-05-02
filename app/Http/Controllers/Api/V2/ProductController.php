@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Helpers\SlugHelper;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Services\ProductCodeService;
 use App\Traits\ApiResponse;
 use App\Events\Product\ProductCreated;
 use App\Events\Product\ProductUpdated;
@@ -153,6 +154,10 @@ class ProductController extends Controller
             'descriptionBn' => 'nullable|string',
             'highlightsBn' => 'nullable|array|max:20',
             'highlightsBn.*' => 'string|max:255',
+            'attributes' => 'nullable|array|max:20',
+            'attributes.*' => 'string|max:255',
+            'attributesBn' => 'nullable|array|max:20',
+            'attributesBn.*' => 'string|max:255',
             'includesInTheBox' => 'nullable|string|max:1000',
             'includesInTheBoxBn' => 'nullable|string|max:1000',
 
@@ -163,7 +168,7 @@ class ProductController extends Controller
 
             // Media
             'featuredImage' => 'nullable|integer|exists:media_files,id',
-            'galleryImages' => 'nullable|array|max:6',
+            'galleryImages' => 'nullable|array',
             'galleryImages.*' => 'integer|exists:media_files,id',
 
             // Variants (at least one required)
@@ -191,11 +196,12 @@ class ProductController extends Controller
             'description.min' => 'Description must be at least 10 characters',
             'highlights.max' => 'Maximum 20 highlights allowed',
             'highlightsBn.max' => 'Maximum 20 highlights allowed',
+            'attributes.max' => 'Maximum 20 attributes allowed',
+            'attributesBn.max' => 'Maximum 20 attributes allowed',
             'includesInTheBox.max' => 'Maximum 20 items allowed in box',
             'seoTitle.max' => 'SEO title must not exceed 60 characters',
             'seoDescription.max' => 'SEO description must not exceed 160 characters',
             'featuredImage.exists' => 'Featured image does not exist',
-            'galleryImages.max' => 'Maximum 6 gallery images allowed',
             'variants.required' => 'At least one variant is required',
             'variants.min' => 'At least one variant is required',
             'variants.*.name.required' => 'Variant name is required',
@@ -239,6 +245,8 @@ class ProductController extends Controller
                 'description_bn' => $validated['descriptionBn'] ?? null,
                 'highlights' => $validated['highlights'],
                 'highlights_bn' => $validated['highlightsBn'] ?? null,
+                'attributes' => $validated['attributes'],
+                'attributes_bn' => $validated['attributesBn'] ?? null,
                 'includes_in_box' => !empty($validated['includesInTheBox']) ? json_encode(array_map('trim', explode(',', $validated['includesInTheBox']))) : null,
                 'includes_in_box_bn' => !empty($validated['includesInTheBoxBn']) ? json_encode(array_map('trim', explode(',', $validated['includesInTheBoxBn']))) : null,
                 'seo_title' => $validated['seoTitle'],
@@ -247,6 +255,15 @@ class ProductController extends Controller
                 'thumbnail_id' => $validated['featuredImage'],
                 'gallery_images' => $validated['galleryImages'],
             ]);
+
+            // Auto-generate product_code based on category
+            if ($product->category_id) {
+                $generatedCode = ProductCodeService::generateProductCode($product->category_id);
+                if ($generatedCode !== null) {
+                    $product->product_code = $generatedCode;
+                    $product->save();
+                }
+            }
 
             // 2. Create Variants - TWO ROWS PER VARIANT (Retail + Wholesale)
             $createdVariants = [];
@@ -393,7 +410,7 @@ class ProductController extends Controller
                 'variantSlug'           => $base->variant_slug,
                 'customSku'             => $base->custom_sku,
                 'sku'                   => $base->sku,
-                'thumbnail'             => $base->thumbnail,
+                'thumbnail'             => $base->thumbnail ? (str_starts_with($base->thumbnail, 'http') ? $base->thumbnail : url($base->thumbnail)) : null,
                 'color'                 => $base->color,
                 'size'                  => $base->size,
                 'material'              => $base->material,
@@ -478,10 +495,14 @@ class ProductController extends Controller
             'descriptionBn' => 'nullable|string',
             'highlightsBn' => 'nullable|array|max:20',
             'highlightsBn.*' => 'string|max:255',
+            'attributes' => 'nullable|array|max:20',
+            'attributes.*' => 'string|max:255',
+            'attributesBn' => 'nullable|array|max:20',
+            'attributesBn.*' => 'string|max:255',
             'includesInTheBox' => 'nullable|string|max:1000',
             'includesInTheBoxBn' => 'nullable|string|max:1000',
             'featuredImage' => 'nullable|integer|exists:media_files,id',
-            'galleryImages' => 'nullable|array|max:6',
+            'galleryImages' => 'nullable|array',
             'galleryImages.*' => 'integer|exists:media_files,id',
             'crossSale' => 'nullable|string',
             'upSale' => 'nullable|string',
@@ -565,12 +586,23 @@ class ProductController extends Controller
                 'warranty_details' => $warrantyDetails,
                 'highlights' => $request->highlights ?? $product->highlights,
                 'highlights_bn' => $request->has('highlightsBn') ? $request->highlightsBn : $product->highlights_bn,
+                'attributes' => $request->attributes ?? $product->attributes,
+                'attributes_bn' => $request->has('attributesBn') ? $request->attributesBn : $product->attributes_bn,
                 'includes_in_box' => $includesInTheBox,
                 'includes_in_box_bn' => $includesInTheBoxBn,
                 'cross_sale' => $request->has('crossSale') ? $request->crossSale : $product->cross_sale,
                 'up_sale' => $request->has('upSale') ? $request->upSale : $product->up_sale,
                 'thank_you' => $request->has('thankYou') ? $request->thankYou : $product->thank_you,
             ]);
+
+            // Auto-generate product_code if null and category has code
+            if ($product->product_code === null && $product->category_id) {
+                $generatedCode = ProductCodeService::generateProductCode($product->category_id);
+                if ($generatedCode !== null) {
+                    $product->product_code = $generatedCode;
+                    $product->save();
+                }
+            }
 
             // Handle variants update (create, update, delete)
             if ($request->has('variants') && is_array($request->variants)) {
@@ -591,7 +623,6 @@ class ProductController extends Controller
                     // Common fields (same for both channels)
                     $commonFields = [
                         'variant_name' => $variantData['name'],
-                        'thumbnail' => $variantData['thumbnail'] ?? null,
                         'purchase_cost' => $variantData['purchaseCost'] ?? 0,
                         'weight' => $variantData['weight'] ?? 0,
                         'stock' => $variantData['stock'] ?? 0,
@@ -615,6 +646,7 @@ class ProductController extends Controller
                             'product_id' => $product->id,
                             'channel' => 'retail',
                             'variant_slug' => $retailSlug,
+                            'thumbnail' => $variantData['thumbnail'] ?? null,
                             'sku' => $baseSku . '-R-' . rand(1000, 9999),
                             'custom_sku' => $variantData['sellerSku'] ?? null,
                             'price' => $variantData['retailPrice'] ?? 0,
@@ -627,6 +659,7 @@ class ProductController extends Controller
                             'product_id' => $product->id,
                             'channel' => 'wholesale',
                             'variant_slug' => $wholesaleSlug,
+                            'thumbnail' => $variantData['thumbnail'] ?? null,
                             'sku' => $baseSku . '-W-' . rand(1000, 9999),
                             'custom_sku' => $variantData['sellerSku'] ?? null,
                             'price' => $variantData['wholesalePrice'] ?? 0,
@@ -658,12 +691,19 @@ class ProductController extends Controller
                                     $newRetailVariantSlug = SlugHelper::generateVariantSlug($product->slug, $variantData['name'], 'retail');
                                 }
 
-                                $retailVariant->update(array_merge($commonFields, [
+                                $retailUpdateData = [
                                     'variant_slug' => $newRetailVariantSlug,
                                     'sku' => $variantData['sellerSku'] ?? $retailVariant->sku,
                                     'price' => $variantData['retailPrice'] ?? 0,
                                     'offer_price' => $variantData['retailOfferPrice'] ?? 0,
-                                ]));
+                                ];
+
+                                // Only update thumbnail if explicitly provided (non-null or empty string to clear)
+                                if (array_key_exists('thumbnail', $variantData)) {
+                                    $retailUpdateData['thumbnail'] = $variantData['thumbnail'];
+                                }
+
+                                $retailVariant->update(array_merge($commonFields, $retailUpdateData));
                             }
                         }
 
@@ -686,6 +726,11 @@ class ProductController extends Controller
                                 // Only update MOQ if it's explicitly provided (allow 0, but use current value if not provided)
                                 if (array_key_exists('wholesaleMoq', $variantData)) {
                                     $wholesaleUpdateData['moq'] = is_null($variantData['wholesaleMoq']) ? $wholesaleVariant->moq : $variantData['wholesaleMoq'];
+                                }
+
+                                // Only update thumbnail if explicitly provided (non-null or empty string to clear)
+                                if (array_key_exists('thumbnail', $variantData)) {
+                                    $wholesaleUpdateData['thumbnail'] = $variantData['thumbnail'];
                                 }
 
                                 $wholesaleVariant->update(array_merge($commonFields, $wholesaleUpdateData));
@@ -711,7 +756,52 @@ class ProductController extends Controller
             // Dispatch ProductUpdated event for Lazychat sync
             event(new ProductUpdated($product));
 
-            return $this->sendSuccess($product->load(['category', 'brand', 'thumbnail', 'variants']), 'Product updated successfully');
+            // Transform variants to match show method format with full thumbnail URLs
+            $variants = $product->variants->groupBy('variant_name')->map(function ($group) {
+                $retail  = $group->firstWhere('channel', 'retail');
+                $wholesale = $group->firstWhere('channel', 'wholesale');
+                $base = $retail ?? $wholesale;
+
+                return [
+                    'id'                    => $base->id,
+                    'retailId'              => $retail?->id,
+                    'wholesaleId'           => $wholesale?->id,
+                    'productId'             => $base->product_id,
+                    'variantName'           => $base->variant_name,
+                    'variantSlug'           => $base->variant_slug,
+                    'customSku'             => $base->custom_sku,
+                    'sku'                   => $base->sku,
+                    'thumbnail'             => $base->thumbnail ? (str_starts_with($base->thumbnail, 'http') ? $base->thumbnail : url($base->thumbnail)) : null,
+                    'color'                 => $base->color,
+                    'size'                  => $base->size,
+                    'material'              => $base->material,
+                    'weight'                => $base->weight,
+                    'pattern'               => $base->pattern,
+                    'unitId'                => $base->unit_id,
+                    'unitValue'             => $base->unit_value,
+                    'purchaseCost'          => $base->purchase_cost ? (float) $base->purchase_cost : 0,
+                    'stock'                 => $base->stock ?? 0,
+                    'currentStock'          => $base->current_stock ?? 0,
+                    'stockAlertLevel'       => $base->stock_alert_level ?? 5,
+                    'moq'                   => $base->moq ?? 1,
+                    'isActive'              => $base->is_active ?? true,
+                    'allowPreorder'         => $base->allow_preorder ?? false,
+                    'expectedDelivery'      => $base->expected_delivery,
+                    'retailPrice'           => $retail ? (float) $retail->price : 0,
+                    'retailOfferPrice'      => $retail && $retail->offer_price ? (float) $retail->offer_price : null,
+                    'retailOfferStarts'     => $retail?->offer_starts,
+                    'retailOfferEnds'       => $retail?->offer_ends,
+                    'retailSku'             => $retail?->sku,
+                    'wholesalePrice'        => $wholesale ? (float) $wholesale->price : 0,
+                    'wholesaleOfferPrice'   => $wholesale && $wholesale->offer_price ? (float) $wholesale->offer_price : null,
+                    'wholesaleOfferStarts'  => $wholesale?->offer_starts,
+                    'wholesaleOfferEnds'    => $wholesale?->offer_ends,
+                    'wholesaleSku'          => $wholesale?->sku,
+                ];
+            })->values();
+            $product->setRelation('variants', $variants);
+
+            return $this->sendSuccess($product->load(['category', 'brand', 'thumbnail']), 'Product updated successfully');
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -794,12 +884,75 @@ class ProductController extends Controller
             // Dispatch ProductCreated event for Lazychat sync (duplicated product is new)
             event(new ProductCreated($newProduct));
 
-            return $this->sendSuccess($newProduct->load(['variants', 'category', 'brand', 'thumbnail']), 'Product duplicated successfully');
+            // Transform variants to match show method format with full thumbnail URLs
+            $variants = $newProduct->variants->groupBy('variant_name')->map(function ($group) {
+                $retail  = $group->firstWhere('channel', 'retail');
+                $wholesale = $group->firstWhere('channel', 'wholesale');
+                $base = $retail ?? $wholesale;
+
+                return [
+                    'id'                    => $base->id,
+                    'retailId'              => $retail?->id,
+                    'wholesaleId'           => $wholesale?->id,
+                    'productId'             => $base->product_id,
+                    'variantName'           => $base->variant_name,
+                    'variantSlug'           => $base->variant_slug,
+                    'customSku'             => $base->custom_sku,
+                    'sku'                   => $base->sku,
+                    'thumbnail'             => $base->thumbnail ? (str_starts_with($base->thumbnail, 'http') ? $base->thumbnail : url($base->thumbnail)) : null,
+                    'color'                 => $base->color,
+                    'size'                  => $base->size,
+                    'material'              => $base->material,
+                    'weight'                => $base->weight,
+                    'pattern'               => $base->pattern,
+                    'unitId'                => $base->unit_id,
+                    'unitValue'             => $base->unit_value,
+                    'purchaseCost'          => $base->purchase_cost ? (float) $base->purchase_cost : 0,
+                    'stock'                 => $base->stock ?? 0,
+                    'currentStock'          => $base->current_stock ?? 0,
+                    'stockAlertLevel'       => $base->stock_alert_level ?? 5,
+                    'moq'                   => $base->moq ?? 1,
+                    'isActive'              => $base->is_active ?? true,
+                    'allowPreorder'         => $base->allow_preorder ?? false,
+                    'expectedDelivery'      => $base->expected_delivery,
+                    'retailPrice'           => $retail ? (float) $retail->price : 0,
+                    'retailOfferPrice'      => $retail && $retail->offer_price ? (float) $retail->offer_price : null,
+                    'retailOfferStarts'     => $retail?->offer_starts,
+                    'retailOfferEnds'       => $retail?->offer_ends,
+                    'retailSku'             => $retail?->sku,
+                    'wholesalePrice'        => $wholesale ? (float) $wholesale->price : 0,
+                    'wholesaleOfferPrice'   => $wholesale && $wholesale->offer_price ? (float) $wholesale->offer_price : null,
+                    'wholesaleOfferStarts'  => $wholesale?->offer_starts,
+                    'wholesaleOfferEnds'    => $wholesale?->offer_ends,
+                    'wholesaleSku'          => $wholesale?->sku,
+                ];
+            })->values();
+            $newProduct->setRelation('variants', $variants);
+
+            return $this->sendSuccess($newProduct->load(['category', 'brand', 'thumbnail']), 'Product duplicated successfully');
 
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->sendError('Product duplication failed', ['error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Generate Product Code for a Category
+     * GET /api/v2/catalog/products/generate-code/{categoryId}
+     */
+    public function generateProductCode($categoryId)
+    {
+        $generatedCode = ProductCodeService::generateProductCode((int) $categoryId);
+
+        if ($generatedCode === null) {
+            return $this->sendError('Category has no code assigned', ['categoryId' => $categoryId], 404);
+        }
+
+        return $this->sendSuccess([
+            'product_code' => $generatedCode,
+            'category_id' => $categoryId,
+        ], 'Product code generated successfully');
     }
 
     /**

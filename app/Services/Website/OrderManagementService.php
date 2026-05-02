@@ -18,10 +18,14 @@ use Illuminate\Support\Facades\Log;
 class OrderManagementService
 {
     private SteadfastCourierService $courierService;
+    private OrderStatusTransitionService $transitionService;
 
-    public function __construct(SteadfastCourierService $courierService)
-    {
+    public function __construct(
+        SteadfastCourierService $courierService,
+        OrderStatusTransitionService $transitionService
+    ) {
         $this->courierService = $courierService;
+        $this->transitionService = $transitionService;
     }
 
     // -------------------------------------------------------
@@ -30,8 +34,14 @@ class OrderManagementService
 
     /**
      * Update order status with validation and logging.
+     *
+     * @param int $orderId Order ID
+     * @param string $newStatus New status
+     * @param string|null $note Optional note/comment
+     * @param string|null $cancellationReason Cancellation reason (for cancelled status)
+     * @return array Result with success status and message
      */
-    public function updateStatus(int $orderId, string $newStatus, ?string $comment = null): array
+    public function updateStatus(int $orderId, string $newStatus, ?string $note = null, ?string $cancellationReason = null): array
     {
         $order = WebsiteOrder::find($orderId);
 
@@ -39,29 +49,62 @@ class OrderManagementService
             return ['success' => false, 'message' => 'Order not found', 'code' => 404];
         }
 
+        // Validate status
         if (!in_array($newStatus, WebsiteOrder::STATUSES)) {
-            return ['success' => false, 'message' => 'Invalid status.', 'code' => 422];
+            return ['success' => false, 'message' => 'Invalid status', 'code' => 422];
         }
 
         $oldStatus = $order->status;
         $userId = Auth::id();
 
-        DB::transaction(function () use ($order, $oldStatus, $newStatus, $comment, $userId) {
+        // Validate transition using transition service
+        $validation = $this->transitionService->validateTransition(
+            $oldStatus,
+            $newStatus,
+            $note,
+            $cancellationReason
+        );
+
+        if (!$validation['valid']) {
+            return [
+                'success' => false,
+                'message' => $validation['error'],
+                'code' => 422,
+            ];
+        }
+
+        DB::transaction(function () use ($order, $oldStatus, $newStatus, $note, $cancellationReason, $userId) {
+            // Format note with cancellation prefix if applicable
+            $formattedNote = $this->transitionService->formatNote($note ?? '', $cancellationReason);
+
             // Update the order
             $order->status = $newStatus;
 
             // Set timestamp based on status
             match ($newStatus) {
-                'confirmed', 'approved' => $order->confirmed_at = now(),
-                'shipped' => $order->shipped_at = now(),
+                'approved' => $order->confirmed_at = now(),
+                'processing' => $order->confirmed_at = $order->confirmed_at ?? now(),
+                'sent_to_steadfast', 'shipped', 'in_review', 'in_transit' => $order->shipped_at = now(),
+                'delivered', 'partial_delivered' => $order->delivered_at = now(),
                 'cancelled' => $order->cancelled_at = now(),
                 'completed' => $order->confirmed_at = $order->confirmed_at ?? now(),
                 default => null,
             };
 
+            // Set cancellation reason if provided
+            if ($cancellationReason) {
+                $order->cancellation_reason = $cancellationReason;
+                $order->cancellation_detail = $note;
+            }
+
             // Lock editing after certain statuses
-            if (in_array($newStatus, ['shipped', 'delivered', 'completed', 'cancelled'])) {
+            if ($this->transitionService->isTerminalStatus($newStatus)) {
                 $order->editing_locked = true;
+            }
+
+            // Append note
+            if ($formattedNote) {
+                $order->note = trim(($order->note ? $order->note . "\n" : '') . $formattedNote);
             }
 
             $order->save();
@@ -71,7 +114,7 @@ class OrderManagementService
                 $order->id,
                 $newStatus,
                 $oldStatus,
-                $comment,
+                $formattedNote,
                 $userId
             );
 
@@ -83,11 +126,22 @@ class OrderManagementService
                 ['status' => $newStatus],
                 $userId
             );
+
+            // Log transition for debugging
+            $this->transitionService->logTransition($order->id, $oldStatus, $newStatus, $formattedNote);
         });
+
+        // Auto-send to Steadfast when status changes to sent_to_steadfast
+        if ($newStatus === 'sent_to_steadfast' && !$order->sent_to_courier) {
+            $courierResult = $this->courierService->sendOrder($order->id);
+            if (!$courierResult['success']) {
+                Log::warning("Failed to auto-send order {$order->id} to Steadfast: " . $courierResult['message']);
+            }
+        }
 
         return [
             'success' => true,
-            'message' => "Status updated to {$newStatus}",
+            'message' => "Status updated to {$this->transitionService->getTransitionLabel($oldStatus, $newStatus)}",
             'data' => $order->fresh()->load('customer', 'items.variant.product'),
         ];
     }
@@ -287,6 +341,22 @@ class OrderManagementService
             ];
         }
 
+        // Validate transition
+        $validation = $this->transitionService->validateTransition(
+            $order->status,
+            'sent_to_steadfast',
+            null,
+            null
+        );
+
+        if (!$validation['valid']) {
+            return [
+                'success' => false,
+                'message' => $validation['error'],
+                'code' => 422,
+            ];
+        }
+
         // Validate required fields
         $customerData = $order->getCustomerData();
         $shippingData = $order->getShippingData();
@@ -331,21 +401,23 @@ class OrderManagementService
 
         // Update order with courier data
         DB::transaction(function () use ($order, $result) {
+            $oldStatus = $order->status;
+
             $order->consignment_id = $result['consignment_id'];
             $order->tracking_code = $result['tracking_code'];
             $order->tracking_link = $result['tracking_link'] ?? null;
             $order->sent_to_courier = true;
-            $order->delivery_status = 'in_review';
-            $order->status = 'shipped';
+            $order->delivery_status = 'pending';
+            $order->status = 'sent_to_steadfast';
             $order->shipped_at = now();
             $order->editing_locked = true;
             $order->save();
 
             WebsiteOrderStatusHistory::logChange(
                 $order->id,
-                'shipped',
-                $order->status,
-                'Sent to Steadfast courier',
+                'sent_to_steadfast',
+                $oldStatus,
+                'Sent to Steadfast courier. Tracking: ' . $result['tracking_code'],
                 Auth::id()
             );
 
@@ -354,7 +426,11 @@ class OrderManagementService
                 'sent_to_courier',
                 'Order sent to Steadfast. Consignment: ' . $result['consignment_id'],
                 null,
-                ['consignment_id' => $result['consignment_id'], 'tracking_code' => $result['tracking_code'], 'tracking_link' => $result['tracking_link'] ?? null],
+                [
+                    'consignment_id' => $result['consignment_id'],
+                    'tracking_code' => $result['tracking_code'],
+                    'tracking_link' => $result['tracking_link'] ?? null,
+                ],
                 Auth::id()
             );
         });
@@ -502,6 +578,97 @@ class OrderManagementService
             'success' => true,
             'message' => 'Payment updated successfully',
             'data' => $order->fresh(),
+        ];
+    }
+
+    // -------------------------------------------------------
+    // BULK OPERATIONS
+    // -------------------------------------------------------
+
+    /**
+     * Bulk update order status.
+     *
+     * @param array $orderIds Array of order IDs
+     * @param string $newStatus The new status
+     * @param string|null $note Optional note/comment
+     * @param string|null $cancellationReason Cancellation reason for cancelled status
+     * @return array Result with success count and details
+     */
+    public function bulkUpdateStatus(array $orderIds, string $newStatus, ?string $note = null, ?string $cancellationReason = null): array
+    {
+        $results = [];
+        $successCount = 0;
+        $failCount = 0;
+
+        foreach ($orderIds as $orderId) {
+            $result = $this->updateStatus($orderId, $newStatus, $note, $cancellationReason);
+            $results[] = [
+                'order_id' => $orderId,
+                'success' => $result['success'],
+                'message' => $result['message'] ?? 'Unknown error',
+            ];
+
+            if ($result['success']) {
+                $successCount++;
+            } else {
+                $failCount++;
+            }
+        }
+
+        return [
+            'success' => $successCount > 0,
+            'message' => "Updated {$successCount} of " . count($orderIds) . " orders successfully. {$failCount} failed.",
+            'data' => [
+                'total' => count($orderIds),
+                'success_count' => $successCount,
+                'fail_count' => $failCount,
+                'results' => $results,
+            ],
+        ];
+    }
+
+    /**
+     * Bulk send orders to Steadfast courier with delay.
+     *
+     * @param array $orderIds Array of order IDs
+     * @param float $delaySeconds Delay between each API call
+     * @return array Result with success count and details
+     */
+    public function bulkSendToCourier(array $orderIds, float $delaySeconds = 0.5): array
+    {
+        $results = [];
+        $successCount = 0;
+        $failCount = 0;
+
+        foreach ($orderIds as $index => $orderId) {
+            // Add delay between requests (except for the first one)
+            if ($index > 0) {
+                usleep((int)($delaySeconds * 1000000)); // Convert to microseconds
+            }
+
+            $result = $this->sendToCourier($orderId);
+            $results[] = [
+                'order_id' => $orderId,
+                'success' => $result['success'],
+                'message' => $result['message'] ?? 'Unknown error',
+            ];
+
+            if ($result['success']) {
+                $successCount++;
+            } else {
+                $failCount++;
+            }
+        }
+
+        return [
+            'success' => $successCount > 0,
+            'message' => "Sent {$successCount} of " . count($orderIds) . " orders to courier. {$failCount} failed.",
+            'data' => [
+                'total' => count($orderIds),
+                'success_count' => $successCount,
+                'fail_count' => $failCount,
+                'results' => $results,
+            ],
         ];
     }
 }

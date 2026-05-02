@@ -44,4 +44,21 @@ class SettingController extends Controller
         return Setting::whereIn('key', ['site_name', 'site_logo', 'currency_symbol'])
                       ->pluck('value', 'key');
     }
+
+    /**
+     * Get website settings for public use (checkout, etc)
+     * GET /api/v2/settings/website
+     */
+    public function websiteSettings()
+    {
+        $settings = Setting::where('group', 'website')->pluck('value', 'key');
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'service_charge_enabled' => filter_var($settings['service_charge_enabled'] ?? 'false', FILTER_VALIDATE_BOOLEAN),
+                'service_charge_amount' => (float) ($settings['service_charge_amount'] ?? 0),
+            ],
+        ]);
+    }
 }

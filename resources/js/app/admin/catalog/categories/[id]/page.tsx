@@ -195,6 +195,14 @@ export default function CategoryDetailPage() {
                   <Text fw={500} className="text-sm">{category.slug}</Text>
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 6 }}>
+                  <Text size="sm" c="dimmed">Category Code</Text>
+                  {category.categoryCode ? (
+                    <Badge size="lg" variant="light" color="blue">{category.categoryCode}</Badge>
+                  ) : (
+                    <Text fw={500} c="dimmed">Not set</Text>
+                  )}
+                </Grid.Col>
+                <Grid.Col span={{ base: 12, sm: 6 }}>
                   <Text size="sm" c="dimmed">{t('catalog.categoriesPage.tableHeaders.parent')}</Text>
                   <Text fw={500}>
                     {category.parent

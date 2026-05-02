@@ -18,62 +18,85 @@ class WebsiteOrder extends Model
     protected $guarded = ['id'];
 
     // Status constants
-    public const STATUS_PENDING    = 'pending';
-    public const STATUS_DRAFT      = 'draft';
-    public const STATUS_PROCESSING = 'processing';
-    public const STATUS_ON_HOLD    = 'on_hold';
-    public const STATUS_APPROVED   = 'approved';
-    public const STATUS_ON_SHIPPING = 'on_shipping';
-    public const STATUS_SHIPPED    = 'shipped';
-    public const STATUS_DELIVERED  = 'delivered';
-    public const STATUS_COMPLETED  = 'completed';
-    public const STATUS_CANCELLED  = 'cancelled';
-    public const STATUS_RETURNED   = 'returned';
-    public const STATUS_REFUNDED   = 'refunded';
+    public const STATUS_PENDING                 = 'pending';
+    public const STATUS_DRAFT                   = 'draft';
+    public const STATUS_ON_HOLD                 = 'on_hold';
+    public const STATUS_APPROVED                = 'approved';
+    public const STATUS_PROCESSING              = 'processing';
+    public const STATUS_SENT_TO_STEADFAST       = 'sent_to_steadfast';
+    public const STATUS_IN_REVIEW               = 'in_review';
+    public const STATUS_IN_TRANSIT               = 'in_transit';
+    public const STATUS_DELIVERED               = 'delivered';
+    public const STATUS_DELIVERED_PAYMENT_REVIEW = 'delivered_payment_review';
+    public const STATUS_PARTIAL_DELIVERED        = 'partial_delivered';
+    public const STATUS_DELIVERY_FAILED_RETURN  = 'delivery_failed_return';
+    public const STATUS_RETURN_RECEIVED         = 'return_received';
+    public const STATUS_REFUNDED_COMPLETED       = 'refunded_completed';
+    public const STATUS_COMPLETED               = 'completed';
+    public const STATUS_CANCELLED                = 'cancelled';
+
+    // Legacy status aliases (for backward compatibility)
+    public const STATUS_ON_SHIPPING            = 'sent_to_steadfast';
+    public const STATUS_SHIPPED                 = 'in_review';
 
     public const STATUSES = [
         self::STATUS_PENDING,
         self::STATUS_DRAFT,
-        self::STATUS_PROCESSING,
         self::STATUS_ON_HOLD,
         self::STATUS_APPROVED,
-        self::STATUS_ON_SHIPPING,
-        self::STATUS_SHIPPED,
+        self::STATUS_PROCESSING,
+        self::STATUS_SENT_TO_STEADFAST,
+        self::STATUS_IN_REVIEW,
+        self::STATUS_IN_TRANSIT,
         self::STATUS_DELIVERED,
+        self::STATUS_DELIVERED_PAYMENT_REVIEW,
+        self::STATUS_PARTIAL_DELIVERED,
+        self::STATUS_DELIVERY_FAILED_RETURN,
+        self::STATUS_RETURN_RECEIVED,
+        self::STATUS_REFUNDED_COMPLETED,
         self::STATUS_COMPLETED,
         self::STATUS_CANCELLED,
-        self::STATUS_RETURNED,
-        self::STATUS_REFUNDED,
     ];
 
     public const STATUS_LABELS = [
-        'pending'     => 'Pending',
-        'draft'       => 'Draft',
-        'processing'  => 'Processing',
-        'on_hold'     => 'On Hold',
-        'approved'    => 'Approved',
-        'on_shipping' => 'On Shipping',
-        'shipped'     => 'Shipped',
-        'delivered'   => 'Delivered',
-        'completed'   => 'Completed',
-        'cancelled'   => 'Cancelled',
-        'returned'    => 'Returned',
-        'refunded'    => 'Refunded',
+        'pending'                    => 'Pending',
+        'draft'                      => 'Draft',
+        'on_hold'                    => 'On Hold',
+        'approved'                   => 'Approved',
+        'processing'                 => 'Processing',
+        'sent_to_steadfast'          => 'Sent to SteadFast',
+        'in_review'                  => 'In Review',
+        'in_transit'                 => 'In Transit',
+        'delivered'                  => 'Delivered',
+        'delivered_payment_review'   => 'Delivered – Payment Review',
+        'partial_delivered'          => 'Partial Delivered',
+        'delivery_failed_return'     => 'Delivery Failed & Return',
+        'return_received'            => 'Return Received',
+        'refunded_completed'        => 'Refunded & Completed',
+        'completed'                  => 'Completed',
+        'cancelled'                  => 'Cancelled',
+        // Legacy labels for backward compatibility
+        'on_shipping'                => 'Sent to SteadFast',
+        'shipped'                    => 'In Review',
     ];
 
     public const STATUS_COLORS = [
-        'pending'     => 'yellow',
-        'draft'       => 'gray',
-        'processing'  => 'blue',
-        'on_hold'     => 'orange',
-        'approved'    => 'teal',
-        'on_shipping' => 'cyan',
-        'shipped'     => 'indigo',
-        'delivered'   => 'green',
-        'completed'   => 'green',
-        'cancelled'   => 'red',
-        'returned'    => 'orange',
-        'refunded'    => 'violet',
+        'pending'                    => 'yellow',
+        'draft'                      => 'gray',
+        'on_hold'                    => 'orange',
+        'approved'                   => 'teal',
+        'processing'                 => 'blue',
+        'sent_to_steadfast'          => 'cyan',
+        'in_review'                  => 'indigo',
+        'in_transit'                 => 'blue',
+        'delivered'                  => 'green',
+        'delivered_payment_review'   => 'yellow',
+        'partial_delivered'          => 'orange',
+        'delivery_failed_return'     => 'red',
+        'return_received'            => 'darkorange',
+        'refunded_completed'        => 'violet',
+        'completed'                  => 'green',
+        'cancelled'                  => 'red',
     ];
 
     protected $casts = [
@@ -84,6 +107,9 @@ class WebsiteOrder extends Model
         'shipped_at' => 'datetime',
         'confirmed_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'delivered_at' => 'datetime',
+        'webhook_received_at' => 'datetime',
+        'courier_webhook_data' => 'array',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

@@ -191,6 +191,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Extract permission keys from permissionObjects (optimized - single pass)
     const permissionKeys = permissionObjects.map((p: Permission) => p.key).filter(Boolean)
 
+    // Store login time for session warning
+    localStorage.setItem('loginTime', new Date().toISOString())
+
     // Batch all localStorage writes into a single object (faster than multiple setItem calls)
     const authData = {
       token,

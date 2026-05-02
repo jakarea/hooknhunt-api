@@ -20,12 +20,12 @@ return new class extends Migration
             $table->string('custom_name')->nullable();
             $table->string('slug')->unique();
             $table->foreignId('category_id')->constrained()->onDelete('restrict');
+            $table->string('product_code')->nullable()->unique()->comment('Unique product code');
             $table->foreignId('brand_id')->nullable()->constrained()->onDelete('set null');
             $table->foreignId('thumbnail_id')->nullable()->constrained('media_files')->onDelete('set null');
             $table->json('gallery_images')->nullable();
             $table->text('description')->nullable();
             $table->text('description_bn')->nullable();
-            $table->text('short_description')->nullable();
             $table->string('video_url')->nullable();
             $table->string('seo_title')->nullable();
             $table->text('seo_description')->nullable();
@@ -34,6 +34,8 @@ return new class extends Migration
             $table->text('warranty_details')->nullable();
             $table->json('highlights')->nullable();
             $table->json('highlights_bn')->nullable();
+            $table->json('attributes')->nullable();
+            $table->json('attributes_bn')->nullable();
             $table->json('includes_in_box')->nullable();
             $table->string('includes_in_box_bn')->nullable();
             $table->string('cross_sale')->nullable();

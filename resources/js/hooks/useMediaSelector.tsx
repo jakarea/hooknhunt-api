@@ -3,8 +3,8 @@ import { MediaSelectorModal } from '@/components/media-selector-modal'
 import type { MediaFile } from '@/utils/api'
 
 interface MediaSelectorContextValue {
-  openSingleSelect: (onSelect: (file: MediaFile) => void, currentSelection?: number[]) => void
-  openMultipleSelect: (onSelect: (files: MediaFile[]) => void, currentSelection?: number[]) => void
+  openSingleSelect: (onSelect: (file: MediaFile) => void, currentSelection?: number[], folderId?: number | null) => void
+  openMultipleSelect: (onSelect: (files: MediaFile[]) => void, currentSelection?: number[], folderId?: number | null) => void
 }
 
 const MediaSelectorContext = createContext<MediaSelectorContextValue | undefined>(undefined)
@@ -13,6 +13,7 @@ interface MediaSelectorState {
   opened: boolean
   mode: 'single' | 'multiple'
   currentSelection: number[]
+  folderId: number | null
   onSelect: (file: MediaFile) => void
   onSelectMultiple: (files: MediaFile[]) => void
 }
@@ -47,25 +48,28 @@ export function GlobalMediaSelectorProvider({ children }: { children: React.Reac
     opened: false,
     mode: 'single',
     currentSelection: [],
+    folderId: null,
     onSelect: () => {},
     onSelectMultiple: () => {},
   })
 
-  const openSingleSelect = useCallback((onSelect: (file: MediaFile) => void, currentSelection: number[] = []) => {
+  const openSingleSelect = useCallback((onSelect: (file: MediaFile) => void, currentSelection: number[] = [], folderId: number | null = null) => {
     setState({
       opened: true,
       mode: 'single',
       currentSelection,
+      folderId,
       onSelect,
       onSelectMultiple: () => {},
     })
   }, [])
 
-  const openMultipleSelect = useCallback((onSelect: (files: MediaFile[]) => void, currentSelection: number[] = []) => {
+  const openMultipleSelect = useCallback((onSelect: (files: MediaFile[]) => void, currentSelection: number[] = [], folderId: number | null = null) => {
     setState({
       opened: true,
       mode: 'multiple',
       currentSelection,
+      folderId,
       onSelect: () => {},
       onSelectMultiple: onSelect,
     })
@@ -76,6 +80,7 @@ export function GlobalMediaSelectorProvider({ children }: { children: React.Reac
       opened: false,
       mode: 'single',
       currentSelection: [],
+      folderId: null,
       onSelect: () => {},
       onSelectMultiple: () => {},
     })
@@ -96,6 +101,7 @@ export function GlobalMediaSelectorProvider({ children }: { children: React.Reac
         onSelectMultiple={state.onSelectMultiple}
         multiple={state.mode === 'multiple'}
         currentSelection={state.currentSelection}
+        initialFolderId={state.folderId}
       />
     </MediaSelectorContext.Provider>
   )

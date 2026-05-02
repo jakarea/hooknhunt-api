@@ -4,7 +4,27 @@ import { api } from '@/lib/api'
 // TYPES
 // ============================================
 
-export type WebsiteOrderStatus = 'pending' | 'draft' | 'processing' | 'on_hold' | 'approved' | 'on_shipping' | 'shipped' | 'delivered' | 'completed' | 'cancelled' | 'returned' | 'refunded'
+export type WebsiteOrderStatus =
+  'pending' |
+  'draft' |
+  'on_hold' |
+  'approved' |
+  'processing' |
+  'on_shipping' | // Legacy alias for sent_to_steadfast
+  'sent_to_steadfast' |
+  'shipped' | // Legacy alias for in_review
+  'in_review' |
+  'in_transit' |
+  'delivered' |
+  'completed' |
+  'cancelled' |
+  'delivered_payment_review' |
+  'partial_delivered' |
+  'delivery_failed_return' |
+  'return_received' |
+  'refunded_completed'
+
+export type CancellationReason = 'customer' | 'admin' | 'courier' | 'system'
 export type PaymentStatus = 'unpaid' | 'paid' | 'partial'
 export type OrderChannel = 'retail_web' | 'wholesale_web' | 'app'
 
@@ -61,6 +81,8 @@ export type WebsiteOrderDetail = {
   consignmentId: string | null
   trackingCode: string | null
   trackingLink: string | null
+  cancellationReason: CancellationReason | null
+  cancellationDetail: string | null
   shipping: {
     address: string | null
     district: string | null
@@ -176,8 +198,12 @@ export const getWebsiteOrder = async (id: number) => {
   return response.data
 }
 
-export const updateWebsiteOrderStatus = async (id: number, data: { status: WebsiteOrderStatus; comment?: string }) => {
-  const response = await api.put(`website-admin/orders/${id}/status`, data)
+export const updateWebsiteOrderStatus = async (id: number, data: { status: WebsiteOrderStatus; note?: string; cancellation_reason?: CancellationReason }) => {
+  const response = await api.put(`website-admin/orders/${id}/status`, {
+    status: data.status,
+    note: data.note,
+    cancellation_reason: data.cancellation_reason,
+  })
   return response.data
 }
 
@@ -286,6 +312,27 @@ export const sendOrderSms = async (id: number, message: string) => {
 }
 
 // ============================================
+// BULK OPERATIONS API
+// ============================================
+
+export const bulkUpdateOrderStatus = async (data: {
+  order_ids: number[]
+  status: WebsiteOrderStatus
+  comment?: string
+}) => {
+  const response = await api.post('website-admin/orders/bulk-update-status', data)
+  return response.data
+}
+
+export const bulkSendToCourier = async (orderIds: number[], delaySeconds = 0.5) => {
+  const response = await api.post('website-admin/orders/bulk-send-to-courier', {
+    order_ids: orderIds,
+    delay_seconds: delaySeconds,
+  })
+  return response.data
+}
+
+// ============================================
 // WEBSITE SETTINGS API
 // ============================================
 
@@ -301,6 +348,8 @@ export const updateWebsiteSettings = async (settings: {
   google_analytics_code?: string | null
   google_tag_manager_id?: string | null
   google_tag_manager_code?: string | null
+  serviceChargeEnabled?: boolean
+  serviceChargeAmount?: number
 }) => {
   const response = await api.put('website-admin/settings', settings)
   return response.data
@@ -313,6 +362,8 @@ export type WebsiteSettings = {
   google_analytics_code: string | null
   google_tag_manager_id: string | null
   google_tag_manager_code: string | null
+  serviceChargeEnabled?: boolean
+  serviceChargeAmount?: number
 }
 
 
@@ -323,31 +374,43 @@ export type WebsiteSettings = {
 export const statusColors: Record<WebsiteOrderStatus, string> = {
   pending: 'yellow',
   draft: 'gray',
-  processing: 'blue',
   on_hold: 'orange',
   approved: 'teal',
-  on_shipping: 'cyan',
-  shipped: 'indigo',
+  processing: 'blue',
+  on_shipping: 'cyan', // Legacy
+  sent_to_steadfast: 'cyan',
+  shipped: 'indigo', // Legacy
+  in_review: 'indigo',
+  in_transit: 'blue',
   delivered: 'green',
   completed: 'green',
   cancelled: 'red',
-  returned: 'orange',
-  refunded: 'violet',
+  delivered_payment_review: 'yellow',
+  partial_delivered: 'orange',
+  delivery_failed_return: 'red',
+  return_received: 'darkorange',
+  refunded_completed: 'violet',
 }
 
 export const statusLabels: Record<WebsiteOrderStatus, string> = {
   pending: 'Pending',
   draft: 'Draft',
-  processing: 'Processing',
   on_hold: 'On Hold',
   approved: 'Approved',
-  on_shipping: 'On Shipping',
-  shipped: 'Shipped',
+  processing: 'Processing',
+  on_shipping: 'On Shipping', // Legacy
+  sent_to_steadfast: 'Sent to SteadFast',
+  shipped: 'In Review', // Legacy
+  in_review: 'In Review',
+  in_transit: 'In Transit',
   delivered: 'Delivered',
   completed: 'Completed',
   cancelled: 'Cancelled',
-  returned: 'Returned',
-  refunded: 'Refunded',
+  delivered_payment_review: 'Delivered – Payment Review',
+  partial_delivered: 'Partial Delivered',
+  delivery_failed_return: 'Delivery Failed & Return',
+  return_received: 'Return Received',
+  refunded_completed: 'Refunded & Completed',
 }
 
 export const paymentStatusColors: Record<PaymentStatus, string> = {
@@ -447,5 +510,90 @@ export const deleteSlider = async (id: number) => {
 export const reorderSliders = async (items: Array<{ id: number; sortOrder: number }>) => {
   const snakeItems = items.map((item) => ({ id: item.id, sort_order: item.sortOrder }))
   const response = await api.post('website-admin/sliders/reorder', { items: snakeItems })
+  return response.data
+}
+
+// ============================================
+// REVIEWS TYPES & API
+// ============================================
+
+export type Review = {
+  id: number
+  screenshotId: number | null
+  reviewText: string
+  rating: number
+  isFeatured: boolean
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+  screenshot: { id: number; fullUrl: string; formattedSize?: string } | null
+  products: Array<{ id: number; name: string; slug: string }>
+}
+
+export type ReviewFormData = {
+  screenshotId?: number | null
+  reviewText: string
+  rating: number
+  isFeatured?: boolean
+  sortOrder?: number
+  productIds?: number[]
+}
+
+export type ReviewFilters = {
+  search?: string
+  rating?: number
+  product_id?: number
+  page?: number
+  per_page?: number
+}
+
+export const getReviews = async (filters?: ReviewFilters) => {
+  const params = new URLSearchParams()
+  if (filters?.search) params.append('search', filters.search)
+  if (filters?.rating) params.append('rating', String(filters.rating))
+  if (filters?.product_id) params.append('product_id', String(filters.product_id))
+  if (filters?.page) params.append('page', String(filters.page))
+  if (filters?.per_page) params.append('per_page', String(filters.per_page))
+
+  const response = await api.get(`website-admin/reviews?${params}`)
+  return response.data
+}
+
+export const getReview = async (id: number) => {
+  const response = await api.get(`website-admin/reviews/${id}`)
+  return response.data
+}
+
+export const createReview = async (data: ReviewFormData) => {
+  const response = await api.post('website-admin/reviews', toSnakeCase(data))
+  return response.data
+}
+
+export const updateReview = async (id: number, data: Partial<ReviewFormData>) => {
+  const response = await api.put(`website-admin/reviews/${id}`, toSnakeCase(data))
+  return response.data
+}
+
+export const deleteReview = async (id: number) => {
+  const response = await api.delete(`website-admin/reviews/${id}`)
+  return response.data
+}
+
+export const toggleReviewFeatured = async (id: number) => {
+  const response = await api.put(`website-admin/reviews/${id}/toggle-featured`)
+  return response.data
+}
+
+export const updateReviewsSortOrder = async (items: Array<{ id: number; sort_order: number }>) => {
+  const response = await api.post('website-admin/reviews/sort-order', { reviews: items })
+  return response.data
+}
+
+export const getProducts = async (params?: { search?: string; per_page?: number }) => {
+  const queryParams = new URLSearchParams()
+  if (params?.search) queryParams.append('search', params.search)
+  if (params?.per_page) queryParams.append('per_page', String(params.per_page))
+
+  const response = await api.get(`store/products?${queryParams}`)
   return response.data
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
@@ -26,6 +26,7 @@ import {
   Menu,
   Switch,
   Anchor,
+  Pagination,
 } from '@mantine/core'
 import {
   IconSearch,
@@ -108,9 +109,20 @@ export default function ProductsPage() {
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [brandFilter, setBrandFilter] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<SortByType>('all')
-  const [pagination, setPagination] = useState({ page: 1, total: 0, perPage: 100 })
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [perPage, setPerPage] = useState(100)
   const [duplicatedProductId, setDuplicatedProductId] = useState<number | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+
+  // Refs to avoid useCallback recreation on pagination changes
+  const pageRef = useRef(page)
+  const perPageRef = useRef(perPage)
+
+  // Update refs when state changes
+  useEffect(() => { pageRef.current = page }, [page])
+  useEffect(() => { perPageRef.current = perPage }, [perPage])
 
   // DnD Kit sensors
   const sensors = useSensors(
@@ -121,17 +133,17 @@ export default function ProductsPage() {
   )
 
   // Fetch products
-  const fetchProducts = useCallback(async () => {
+  const fetchProducts = useCallback(async (showLoading = true) => {
     try {
-      setLoading(true)
+      if (showLoading) setLoading(true)
       const filters: ProductFilters = {
         search: debouncedSearch || undefined,
         category_id: categoryFilter ? parseInt(categoryFilter) : undefined,
         brand_id: brandFilter ? parseInt(brandFilter) : undefined,
         status: statusFilter === 'all' ? undefined : statusFilter,
         sort_by: sortBy === 'all' ? undefined : sortBy,
-        per_page: pagination.perPage,
-        page: pagination.page,
+        per_page: perPageRef.current,
+        page: pageRef.current,
       }
 
       const response = await getProducts(filters)
@@ -140,7 +152,8 @@ export default function ProductsPage() {
       if (response.data) {
         setProducts(response.data.data || response.data)
         if (response.data.total) {
-          setPagination((prev) => ({ ...prev, total: response.data.total }))
+          setTotal(response.data.total)
+          setTotalPages(response.data.last_page || Math.ceil(response.data.total / perPageRef.current))
         }
       } else {
         setProducts(response.data || [])
@@ -152,9 +165,9 @@ export default function ProductsPage() {
         color: 'red',
       })
     } finally {
-      setLoading(false)
+      if (showLoading) setLoading(false)
     }
-  }, [debouncedSearch, categoryFilter, brandFilter, statusFilter, sortBy, pagination.page])
+  }, [debouncedSearch, categoryFilter, brandFilter, statusFilter, sortBy])
 
   // Fetch dropdown data
   const fetchDropdownData = async () => {
@@ -179,6 +192,11 @@ export default function ProductsPage() {
   useEffect(() => {
     fetchProducts()
   }, [fetchProducts])
+
+  // Fetch without loading when page/perPage changes (pagination)
+  useEffect(() => {
+    fetchProducts(false)
+  }, [page, perPage])
 
   useEffect(() => {
     fetchDropdownData()
@@ -889,29 +907,23 @@ export default function ProductsPage() {
           </SimpleGrid>
         </div>
 
-        {/* Pagination (if needed) */}
-        {pagination.total > pagination.perPage && (
-          <Group justify="center" mt="md">
-            <Button
-              variant="light"
-              disabled={pagination.page === 1}
-              onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))}
-            >
-              {t('common.previous') || 'Previous'}
-            </Button>
-            <Text className="text-sm md:text-base">
-              {t('catalog.productsPage.pagination.page', {
-                current: pagination.page,
-                total: Math.ceil(pagination.total / pagination.perPage)
-              }) || `Page ${pagination.page} of ${Math.ceil(pagination.total / pagination.perPage)}`}
+        {/* Pagination */}
+        {totalPages > 0 && (
+          <Group justify="space-between" align="center" mt="md">
+            <Text size="sm" c="dimmed">
+              Showing {products.length > 0 ? (page - 1) * perPage + 1 : 0}-{Math.min(page * perPage, total)} of {total} products
             </Text>
-            <Button
-              variant="light"
-              disabled={pagination.page >= Math.ceil(pagination.total / pagination.perPage)}
-              onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
-            >
-              {t('common.next') || 'Next'}
-            </Button>
+            <Group gap="sm">
+              <Text size="sm" c="dimmed">Per page:</Text>
+              <Select
+                data={[20, 50, 100, 500].map(n => ({ value: String(n), label: String(n) }))}
+                value={String(perPage)}
+                onChange={(v) => { setPerPage(Number(v)); setPage(1) }}
+                w={80}
+                size="sm"
+              />
+              <Pagination total={totalPages} value={page} onChange={setPage} />
+            </Group>
           </Group>
         )}
       </Stack>
