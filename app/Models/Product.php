@@ -56,6 +56,7 @@ class Product extends Model
         'attributes' => 'array',
         'attributes_bn' => 'array',
         'includes_in_box' => 'array',
+        'includes_in_box_bn' => 'array',
         'warranty_enabled' => 'boolean',
         'thank_you' => 'boolean',
     ];

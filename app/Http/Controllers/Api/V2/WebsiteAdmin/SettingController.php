@@ -20,14 +20,14 @@ class SettingController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'facebook_pixel_id' => $settings['facebook_pixel_id'] ?? null,
-                'facebook_pixel_code' => $settings['facebook_pixel_code'] ?? null,
-                'google_analytics_id' => $settings['google_analytics_id'] ?? null,
-                'google_analytics_code' => $settings['google_analytics_code'] ?? null,
-                'google_tag_manager_id' => $settings['google_tag_manager_id'] ?? null,
-                'google_tag_manager_code' => $settings['google_tag_manager_code'] ?? null,
-                'service_charge_enabled' => filter_var($settings['service_charge_enabled'] ?? 'false', FILTER_VALIDATE_BOOLEAN),
-                'service_charge_amount' => (float) ($settings['service_charge_amount'] ?? 0),
+                'facebookPixelId' => $settings['facebook_pixel_id'] ?? null,
+                'facebookPixelCode' => $settings['facebook_pixel_code'] ?? null,
+                'googleAnalyticsId' => $settings['google_analytics_id'] ?? null,
+                'googleAnalyticsCode' => $settings['google_analytics_code'] ?? null,
+                'googleTagManagerId' => $settings['google_tag_manager_id'] ?? null,
+                'googleTagManagerCode' => $settings['google_tag_manager_code'] ?? null,
+                'serviceChargeEnabled' => filter_var($settings['service_charge_enabled'] ?? 'false', FILTER_VALIDATE_BOOLEAN),
+                'serviceChargeAmount' => (float) ($settings['service_charge_amount'] ?? 0),
             ],
         ]);
     }
@@ -39,6 +39,7 @@ class SettingController extends Controller
     public function update(Request $request): JsonResponse
     {
         $validated = $request->validate([
+            // snake_case (legacy support)
             'facebook_pixel_id' => 'nullable|string|max:255',
             'facebook_pixel_code' => 'nullable|string',
             'google_analytics_id' => 'nullable|string|max:255',
@@ -47,38 +48,53 @@ class SettingController extends Controller
             'google_tag_manager_code' => 'nullable|string',
             'service_charge_enabled' => 'nullable|boolean',
             'service_charge_amount' => 'nullable|numeric|min:0',
-            // Also accept camelCase from frontend
+            // camelCase (from frontend)
+            'facebookPixelId' => 'nullable|string|max:255',
+            'facebookPixelCode' => 'nullable|string',
+            'googleAnalyticsId' => 'nullable|string|max:255',
+            'googleAnalyticsCode' => 'nullable|string',
+            'googleTagManagerId' => 'nullable|string|max:255',
+            'googleTagManagerCode' => 'nullable|string',
             'serviceChargeEnabled' => 'nullable|boolean',
             'serviceChargeAmount' => 'nullable|numeric|min:0',
         ]);
 
         // Convert camelCase to snake_case for storage
-        if (isset($validated['serviceChargeEnabled'])) {
-            $validated['service_charge_enabled'] = $validated['serviceChargeEnabled'] ? 'true' : 'false';
-            unset($validated['serviceChargeEnabled']);
-        }
-        if (isset($validated['serviceChargeAmount'])) {
-            $validated['service_charge_amount'] = (string) $validated['serviceChargeAmount'];
-            unset($validated['serviceChargeAmount']);
+        $camelToSnake = [
+            'facebookPixelId' => 'facebook_pixel_id',
+            'facebookPixelCode' => 'facebook_pixel_code',
+            'googleAnalyticsId' => 'google_analytics_id',
+            'googleAnalyticsCode' => 'google_analytics_code',
+            'googleTagManagerId' => 'google_tag_manager_id',
+            'googleTagManagerCode' => 'google_tag_manager_code',
+            'serviceChargeEnabled' => 'service_charge_enabled',
+            'serviceChargeAmount' => 'service_charge_amount',
+        ];
+
+        $storageData = [];
+        foreach ($validated as $key => $value) {
+            // Convert camelCase to snake_case
+            $snakeKey = $camelToSnake[$key] ?? $key;
+
+            // Convert boolean to string for storage
+            if ($snakeKey === 'service_charge_enabled' && is_bool($value)) {
+                $value = $value ? 'true' : 'false';
+            }
+
+            // Convert numeric to string for storage
+            if ($snakeKey === 'service_charge_amount' && is_numeric($value)) {
+                $value = (string) $value;
+            }
+
+            $storageData[$snakeKey] = $value;
         }
 
-        // Convert boolean to string for storage (if still in snake_case format)
-        if (isset($validated['service_charge_enabled']) && is_bool($validated['service_charge_enabled'])) {
-            $validated['service_charge_enabled'] = $validated['service_charge_enabled'] ? 'true' : 'false';
-        }
-
-        Setting::updateWebsiteSettings($validated);
-
-        // Convert back for response
-        $responseData = $validated;
-        if (isset($responseData['service_charge_enabled'])) {
-            $responseData['service_charge_enabled'] = filter_var($responseData['service_charge_enabled'], FILTER_VALIDATE_BOOLEAN);
-        }
+        Setting::updateWebsiteSettings($storageData);
 
         return response()->json([
             'success' => true,
             'message' => 'Settings updated successfully',
-            'data' => $responseData,
+            'data' => $validated,
         ]);
     }
 }

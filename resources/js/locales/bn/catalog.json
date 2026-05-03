@@ -302,7 +302,8 @@
       "brand": "ব্র্যান্ড",
       "urlSlug": "ইউআরএল স্লাগ",
       "videoUrl": "ভিডিও ইউআরএল",
-      "description": "বর্ণনা"
+      "description": "বর্ণনা",
+      "attributes": "পণ্যের বৈশিষ্ট্য"
     },
     "seo": {
       "title": "এসইও তথ্য",
@@ -314,10 +315,12 @@
       "title": "গ্যালারি ছবি"
     },
     "highlights": {
-      "title": "পণ্যের হাইলাইটস",
-      "highlightsEnglish": "হাইলাইটস (ইংরেজি)",
-      "highlightsBangla": "হাইলাইটস (বাংলা)"
+      "title": "পণ্যের হাইলাইটস"
     },
+    "highlightsEnglish": "হাইলাইটস (ইংরেজি)",
+    "highlightsBangla": "হাইলাইটস (বাংলা)",
+    "attributesEnglish": "বৈশিষ্ট্য (ইংরেজি)",
+    "attributesBangla": "বৈশিষ্ট্য (বাংলা)",
     "descriptionEnglish": "বিবরণ (ইংরেজি)",
     "descriptionBangla": "বিবরণ (বাংলা)",
     "crossSale": {

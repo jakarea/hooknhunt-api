@@ -3823,6 +3823,7 @@ export type Product = {
   id: number
   name: string
   slug: string
+  productCode?: string | null
   categoryId: number
   brandId?: number | null
   thumbnailId?: number | null

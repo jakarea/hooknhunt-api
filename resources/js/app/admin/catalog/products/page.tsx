@@ -511,11 +511,18 @@ export default function ProductsPage() {
                   ? product.name.substring(0, 66) + '...'
                   : product.name}
               </Anchor>
-              {product.variants && product.variants.length > 0 && (
-                <Text className="text-xs md:text-sm" c="dimmed">
-                  {product.variants.length} {t('catalog.productsPage.table.variants') || 'variant(s)'}
-                </Text>
-              )}
+              <Group gap="xs" mt={2}>
+                {product.productCode && (
+                  <Badge size="xs" color="blue" variant="light">
+                    {product.productCode}
+                  </Badge>
+                )}
+                {product.variants && product.variants.length > 0 && (
+                  <Text className="text-xs md:text-sm" c="dimmed">
+                    {product.variants.length} {t('catalog.productsPage.table.variants') || 'variant(s)'}
+                  </Text>
+                )}
+              </Group>
             </Box>
           </Group>
         </Table.Td>
@@ -532,6 +539,11 @@ export default function ProductsPage() {
           ) : (
             <Text className="text-sm md:text-base" c="dimmed">-</Text>
           )}
+        </Table.Td>
+        <Table.Td>
+          <Text className="text-sm md:text-base" fw={500} c="blue">
+            {product.productCode || '-'}
+          </Text>
         </Table.Td>
         <Table.Td>{getStockBadge(product)}</Table.Td>
         <Table.Td>
@@ -646,16 +658,23 @@ export default function ProductsPage() {
                     ? product.name.substring(0, 66) + '...'
                     : product.name}
                 </Anchor>
-                {product.category && (
-                  <Text className="text-xs md:text-sm" c="dimmed">
-                    {product.category.name}
-                  </Text>
-                )}
-                {product.brand && (
-                  <Text className="text-xs md:text-sm" c="dimmed">
-                    {product.brand.name}
-                  </Text>
-                )}
+                <Group gap="xs" mt={2}>
+                  {product.productCode && (
+                    <Badge size="xs" color="blue" variant="light">
+                      {product.productCode}
+                    </Badge>
+                  )}
+                  {product.category && (
+                    <Text className="text-xs md:text-sm" c="dimmed">
+                      {product.category.name}
+                    </Text>
+                  )}
+                  {product.brand && (
+                    <Text className="text-xs md:text-sm" c="dimmed">
+                      {product.brand.name}
+                    </Text>
+                  )}
+                </Group>
               </Box>
             </Group>
             <Switch
@@ -667,14 +686,24 @@ export default function ProductsPage() {
             />
           </Group>
 
-          {/* Stock Info */}
+          {/* Product Code & Variants Info */}
           <Group justify="space-between">
-            <Text className="text-xs md:text-sm" c="dimmed">
-              {t('catalog.productsPage.table.variants') || 'Variants'}:
-            </Text>
-            <Text className="text-xs md:text-sm" fw={500}>
-              {product.variants?.length || 0}
-            </Text>
+            <Group gap="xs">
+              <Text className="text-xs md:text-sm" c="dimmed">
+                {t('catalog.productsPage.table.productCode') || 'Code'}:
+              </Text>
+              <Text className="text-xs md:text-sm" fw={500} c="blue">
+                {product.productCode || '-'}
+              </Text>
+            </Group>
+            <Group gap="xs">
+              <Text className="text-xs md:text-sm" c="dimmed">
+                {t('catalog.productsPage.table.variants') || 'Variants'}:
+              </Text>
+              <Text className="text-xs md:text-sm" fw={500}>
+                {product.variants?.length || 0}
+              </Text>
+            </Group>
           </Group>
 
           {/* Stock Badge */}
@@ -850,6 +879,7 @@ export default function ProductsPage() {
                   <Table.Th>{t('catalog.productsPage.table.product') || 'Product'}</Table.Th>
                   <Table.Th>{t('catalog.productsPage.table.category') || 'Category'}</Table.Th>
                   <Table.Th>{t('catalog.productsPage.table.brand') || 'Brand'}</Table.Th>
+                  <Table.Th>{t('catalog.productsPage.table.productCode') || 'Product Code'}</Table.Th>
                   <Table.Th>{t('catalog.productsPage.table.stock') || 'Stock'}</Table.Th>
                   <Table.Th>{t('catalog.productsPage.table.publish') || 'Publish'}</Table.Th>
                   <Table.Th ta="center">{t('catalog.productsPage.table.actions') || 'Actions'}</Table.Th>
@@ -863,7 +893,7 @@ export default function ProductsPage() {
                 <Table.Tbody>
                   {products.length === 0 ? (
                     <Table.Tr>
-                      <Table.Td colSpan={7} ta="center">
+                      <Table.Td colSpan={8} ta="center">
                         <Stack py="xl" align="center" gap="sm">
                           <IconPackages size={48} className="text-gray-300" />
                           <Text c="dimmed" className="text-sm md:text-base">

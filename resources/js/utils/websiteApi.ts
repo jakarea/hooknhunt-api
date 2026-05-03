@@ -342,12 +342,12 @@ export const getWebsiteSettings = async () => {
 }
 
 export const updateWebsiteSettings = async (settings: {
-  facebook_pixel_id?: string | null
-  facebook_pixel_code?: string | null
-  google_analytics_id?: string | null
-  google_analytics_code?: string | null
-  google_tag_manager_id?: string | null
-  google_tag_manager_code?: string | null
+  facebookPixelId?: string | null
+  facebookPixelCode?: string | null
+  googleAnalyticsId?: string | null
+  googleAnalyticsCode?: string | null
+  googleTagManagerId?: string | null
+  googleTagManagerCode?: string | null
   serviceChargeEnabled?: boolean
   serviceChargeAmount?: number
 }) => {
@@ -356,12 +356,12 @@ export const updateWebsiteSettings = async (settings: {
 }
 
 export type WebsiteSettings = {
-  facebook_pixel_id: string | null
-  facebook_pixel_code: string | null
-  google_analytics_id: string | null
-  google_analytics_code: string | null
-  google_tag_manager_id: string | null
-  google_tag_manager_code: string | null
+  facebookPixelId: string | null
+  facebookPixelCode: string | null
+  googleAnalyticsId: string | null
+  googleAnalyticsCode: string | null
+  googleTagManagerId: string | null
+  googleTagManagerCode: string | null
   serviceChargeEnabled?: boolean
   serviceChargeAmount?: number
 }

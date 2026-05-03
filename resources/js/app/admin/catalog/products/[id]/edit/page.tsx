@@ -51,7 +51,6 @@ import { notifications } from '@mantine/notifications'
 import { getCategories, getBrands, getProduct, type Category, type Brand, type MediaFile } from '@/utils/api'
 import { useMediaSelector } from '@/hooks/useMediaSelector'
 import { useUIStore } from '@/stores/uiStore'
-import { CategorySelectSplit } from '@/components/category-select-split'
 
 // Utility function to decode HTML entities (handles multiple levels of encoding)
 const decodeHTMLEntities = (text: string): string => {
@@ -1631,7 +1630,7 @@ export default function EditProductPage() {
 
     // Small delay to ensure DOM is ready
     setTimeout(initializeQuillEditors, 100)
-  }, [isLoading])
+  }, [isLoading, highlightsList, attributesList, highlightsBn, attributesBn, description, descriptionBn])
 
   // Cleanup Quill editors on unmount
   useEffect(() => {
@@ -1785,15 +1784,13 @@ export default function EditProductPage() {
         setEnableWarranty(!!productData.warrantyEnabled)
         setWarrantyDetails(productData.warrantyDetails || '')
 
-        // Preorder settings are stored in variants, check first variant
-        const firstRetailVariant = productData.variants?.find((v: any) => {
-          const channel = v.channel || ''
-          return channel.toLowerCase() === 'retail'
-        })
+        // Preorder settings are stored in variants
+        // The API returns paired variants (retail + wholesale combined), so use first variant
+        const firstVariant = productData.variants && productData.variants.length > 0 ? productData.variants[0] : null
 
-        if (firstRetailVariant) {
-          setEnablePreorder(!!firstRetailVariant.allowPreorder)
-          setExpectedDeliveryDate(firstRetailVariant.expectedDelivery || null)
+        if (firstVariant) {
+          setEnablePreorder(!!firstVariant.allowPreorder)
+          setExpectedDeliveryDate(firstVariant.expectedDelivery || null)
         } else {
           setEnablePreorder(false)
           setExpectedDeliveryDate(null)
@@ -1811,9 +1808,21 @@ export default function EditProductPage() {
         const decodedAttributes = (productData.attributes || []).map((attr: string) => decodeHTMLEntities(attr))
         setAttributesList(decodedAttributes)
 
-        setIncludesInTheBox(Array.isArray(productData.inTheBox || productData.includes_in_the_box)
-          ? (productData.inTheBox || productData.includes_in_the_box).join(', ')
-          : (productData.inTheBox || productData.includes_in_the_box || ''))
+        // Handle includes_in_box - can be array, JSON string, or regular string
+        const includesTheBoxRaw = productData.inTheBox || productData.includes_in_the_box || productData.includesInBox || ''
+        if (Array.isArray(includesTheBoxRaw)) {
+          setIncludesInTheBox(includesTheBoxRaw.join(', '))
+        } else if (typeof includesTheBoxRaw === 'string' && includesTheBoxRaw.startsWith('[')) {
+          // Parse JSON string for backward compatibility
+          try {
+            const parsed = JSON.parse(includesTheBoxRaw)
+            setIncludesInTheBox(Array.isArray(parsed) ? parsed.join(', ') : includesTheBoxRaw)
+          } catch {
+            setIncludesInTheBox(includesTheBoxRaw)
+          }
+        } else {
+          setIncludesInTheBox(includesTheBoxRaw)
+        }
 
         // Bangla fields
         setRetailNameBn(productData.retailNameBn || productData.retail_name_bn || '')
@@ -1831,7 +1840,21 @@ export default function EditProductPage() {
         const decodedAttributesBn = (productData.attributesBn || productData.attributes_bn || []).map((attr: string) => decodeHTMLEntities(attr))
         setAttributesBn(decodedAttributesBn)
 
-        setIncludesInTheBoxBn(productData.includesInTheBoxBn || productData.includes_in_box_bn || '')
+        // Handle includes_in_box_bn - can be array, JSON string, or regular string
+        const includesTheBoxBnRaw = productData.includesInTheBoxBn || productData.includes_in_box_bn || ''
+        if (Array.isArray(includesTheBoxBnRaw)) {
+          setIncludesInTheBoxBn(includesTheBoxBnRaw.join(', '))
+        } else if (typeof includesTheBoxBnRaw === 'string' && includesTheBoxBnRaw.startsWith('[')) {
+          // Parse JSON string for backward compatibility
+          try {
+            const parsed = JSON.parse(includesTheBoxBnRaw)
+            setIncludesInTheBoxBn(Array.isArray(parsed) ? parsed.join(', ') : includesTheBoxBnRaw)
+          } catch {
+            setIncludesInTheBoxBn(includesTheBoxBnRaw)
+          }
+        } else {
+          setIncludesInTheBoxBn(includesTheBoxBnRaw)
+        }
 
         // SEO
         setSeoTitle(productData.seoTitle || productData.metaTitle || '')
@@ -2268,6 +2291,12 @@ export default function EditProductPage() {
     setIsSubmitting(true)
 
     try {
+      // Extract content from Quill editors to get the latest data
+      const currentHighlights = getHighlightsFromQuill()
+      const currentHighlightsBn = getHighlightsBnFromQuill()
+      const currentAttributes = getAttributesFromQuill()
+      const currentAttributesBn = getAttributesBnFromQuill()
+
       // Prepare data for API
       const payload = {
         productName,
@@ -2286,10 +2315,10 @@ export default function EditProductPage() {
         expectedDeliveryDate,
         description,
         descriptionBn: descriptionBn || undefined,
-        highlights: highlightsList.filter(h => h.trim()).length > 0 ? highlightsList : null,
-        highlightsBn: highlightsBn.filter(h => h.trim()).length > 0 ? highlightsBn : null,
-        attributes: attributesList.filter(a => a.trim()).length > 0 ? attributesList : null,
-        attributesBn: attributesBn.filter(a => a.trim()).length > 0 ? attributesBn : null,
+        highlights: currentHighlights.filter(h => h.trim()).length > 0 ? currentHighlights : null,
+        highlightsBn: currentHighlightsBn.filter(h => h.trim()).length > 0 ? currentHighlightsBn : null,
+        attributes: currentAttributes.filter(a => a.trim()).length > 0 ? currentAttributes : null,
+        attributesBn: currentAttributesBn.filter(a => a.trim()).length > 0 ? currentAttributesBn : null,
         includesInTheBox: includesInTheBox.trim() ? includesInTheBox.trim() : null,
         includesInTheBoxBn: includesInTheBoxBn.trim() ? includesInTheBoxBn.trim() : null,
         seoTitle,
@@ -2314,8 +2343,13 @@ export default function EditProductPage() {
         }))
       }
 
-      console.log('📦 Update payload prepared:', payload)
-      console.log('🖼️ Variant thumbnails:', payload.variants.map(v => ({ name: v.name, thumbnail: v.thumbnail })))
+      // Debug log to verify data being sent
+      console.log('📤 Submitting product update with:', {
+        highlights: currentHighlights,
+        highlightsBn: currentHighlightsBn,
+        attributes: currentAttributes,
+        attributesBn: currentAttributesBn
+      })
 
       // Call API - PUT for update
       const response = await apiMethods.put(`/catalog/products/${id}`, payload)
@@ -2385,8 +2419,6 @@ export default function EditProductPage() {
     expectedDeliveryDate,
     description,
     descriptionBn,
-    highlightsList,
-    highlightsBn,
     includesInTheBox,
     includesInTheBoxBn,
     seoTitle,
@@ -2458,6 +2490,12 @@ export default function EditProductPage() {
     setIsSubmitting(true)
 
     try {
+      // Extract content from Quill editors to get the latest data
+      const currentHighlights = getHighlightsFromQuill()
+      const currentHighlightsBn = getHighlightsBnFromQuill()
+      const currentAttributes = getAttributesFromQuill()
+      const currentAttributesBn = getAttributesBnFromQuill()
+
       // Prepare data for API with override status
       const payload = {
         productName,
@@ -2476,10 +2514,10 @@ export default function EditProductPage() {
         expectedDeliveryDate,
         description,
         descriptionBn: descriptionBn || undefined,
-        highlights: highlightsList.filter(h => h.trim()).length > 0 ? highlightsList : null,
-        highlightsBn: highlightsBn.filter(h => h.trim()).length > 0 ? highlightsBn : null,
-        attributes: attributesList.filter(a => a.trim()).length > 0 ? attributesList : null,
-        attributesBn: attributesBn.filter(a => a.trim()).length > 0 ? attributesBn : null,
+        highlights: currentHighlights.filter(h => h.trim()).length > 0 ? currentHighlights : null,
+        highlightsBn: currentHighlightsBn.filter(h => h.trim()).length > 0 ? currentHighlightsBn : null,
+        attributes: currentAttributes.filter(a => a.trim()).length > 0 ? currentAttributes : null,
+        attributesBn: currentAttributesBn.filter(a => a.trim()).length > 0 ? currentAttributesBn : null,
         includesInTheBox: includesInTheBox.trim() ? includesInTheBox.trim() : null,
         includesInTheBoxBn: includesInTheBoxBn.trim() ? includesInTheBoxBn.trim() : null,
         seoTitle,
@@ -2503,6 +2541,14 @@ export default function EditProductPage() {
           thumbnail: v.thumbnail || null
         }))
       }
+
+      // Debug log to verify data being sent
+      console.log('📤 Submitting product update with:', {
+        highlights: currentHighlights,
+        highlightsBn: currentHighlightsBn,
+        attributes: currentAttributes,
+        attributesBn: currentAttributesBn
+      })
 
       // Call API - PUT for update
       const response = await apiMethods.put(`/catalog/products/${id}`, payload)
@@ -2570,8 +2616,6 @@ export default function EditProductPage() {
     expectedDeliveryDate,
     description,
     descriptionBn,
-    highlightsList,
-    highlightsBn,
     includesInTheBox,
     includesInTheBoxBn,
     seoTitle,
@@ -2585,6 +2629,43 @@ export default function EditProductPage() {
     navigate,
     setStatus
   ])
+
+  // Helper functions to extract content from Quill editors
+  const parseListItemsFromHTML = (html: string): string[] => {
+    if (!html) return []
+    const temp = document.createElement('div')
+    temp.innerHTML = html
+    const items: string[] = []
+    temp.querySelectorAll('li').forEach((li) => {
+      const text = li.textContent?.trim() || ''
+      if (text) items.push(text)
+    })
+    return items
+  }
+
+  const getHighlightsFromQuill = (): string[] => {
+    if (!highlightsQuillRef.current) return highlightsList || []
+    const html = highlightsQuillRef.current.root.innerHTML
+    return parseListItemsFromHTML(html)
+  }
+
+  const getHighlightsBnFromQuill = (): string[] => {
+    if (!highlightsBnQuillRef.current) return highlightsBn || []
+    const html = highlightsBnQuillRef.current.root.innerHTML
+    return parseListItemsFromHTML(html)
+  }
+
+  const getAttributesFromQuill = (): string[] => {
+    if (!attributesQuillRef.current) return attributesList || []
+    const html = attributesQuillRef.current.root.innerHTML
+    return parseListItemsFromHTML(html)
+  }
+
+  const getAttributesBnFromQuill = (): string[] => {
+    if (!attributesBnQuillRef.current) return attributesBn || []
+    const html = attributesBnQuillRef.current.root.innerHTML
+    return parseListItemsFromHTML(html)
+  }
 
   // Save as draft handler
   const handleSaveAsDraft = useCallback(async (event: React.MouseEvent) => {
@@ -2602,11 +2683,21 @@ export default function EditProductPage() {
   // RENDER HELPERS
   // ============================================================================
 
+  // Flatten categories tree into flat list with path indicators
+  const flattenCategories = (cats: Category[], prefix = ''): Array<{ value: string; label: string }> => {
+    const result: Array<{ value: string; label: string }> = []
+    cats.forEach(cat => {
+      const label = prefix ? `${prefix} > ${cat.name}` : cat.name
+      result.push({ value: cat.id.toString(), label })
+      if (cat.children && cat.children.length > 0) {
+        result.push(...flattenCategories(cat.children, label))
+      }
+    })
+    return result
+  }
+
   const categoryOptions = Array.isArray(categories)
-    ? categories.map(cat => ({
-        value: cat.id.toString(),
-        label: cat.name
-      }))
+    ? flattenCategories(categories)
     : []
 
   const brandOptions = Array.isArray(brands)
@@ -2748,16 +2839,23 @@ export default function EditProductPage() {
                     </SimpleGrid>
 
                     <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                      <CategorySelectSplit
+                      <Select
                         id="category"
                         label={t('catalog.productsCreate.category') || 'Category'}
+                        placeholder={t('catalog.productsCreate.selectCategory') || 'Select category'}
+                        data={categoryOptions}
                         value={category}
                         onChange={(value) => {
                           clearError('category')
                           setCategory(value)
                         }}
-                        disabled={categoriesLoading}
+                        onFocus={collapseSidebarIfNeeded}
                         required
+                        searchable
+                        disabled={categoriesLoading}
+                        nothingFoundMessage={t('catalog.categoriesPage.noCategoriesFound') || 'No categories found'}
+                        clearable
+                        error={errors.category}
                       />
                       <NumberInput
                         id="productCode"

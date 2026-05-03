@@ -247,8 +247,8 @@ class ProductController extends Controller
                 'highlights_bn' => $validated['highlightsBn'] ?? null,
                 'attributes' => $validated['attributes'],
                 'attributes_bn' => $validated['attributesBn'] ?? null,
-                'includes_in_box' => !empty($validated['includesInTheBox']) ? json_encode(array_map('trim', explode(',', $validated['includesInTheBox']))) : null,
-                'includes_in_box_bn' => !empty($validated['includesInTheBoxBn']) ? json_encode(array_map('trim', explode(',', $validated['includesInTheBoxBn']))) : null,
+                'includes_in_box' => !empty($validated['includesInTheBox']) ? array_map('trim', explode(',', $validated['includesInTheBox'])) : null,
+                'includes_in_box_bn' => !empty($validated['includesInTheBoxBn']) ? array_map('trim', explode(',', $validated['includesInTheBoxBn'])) : null,
                 'seo_title' => $validated['seoTitle'],
                 'seo_description' => $validated['seoDescription'],
                 'seo_tags' => $validated['seoTags'] ? explode(',', $validated['seoTags']) : null,
@@ -482,7 +482,7 @@ class ProductController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $request->validate([
+        $validated = $request->validate([
             'productName' => 'sometimes|required|string',
             'retailName' => 'nullable|string',
             'wholesaleName' => 'nullable|string',
@@ -507,92 +507,125 @@ class ProductController extends Controller
             'crossSale' => 'nullable|string',
             'upSale' => 'nullable|string',
             'thankYou' => 'nullable|boolean',
+            'enablePreorder' => 'nullable|boolean',
+            'expectedDeliveryDate' => 'nullable|date',
+            'variants' => 'nullable|array',
+            'variants.*.name' => 'nullable|string',
+            'variants.*.sellerSku' => 'nullable|string',
+            'variants.*.purchaseCost' => 'nullable|numeric',
+            'variants.*.retailPrice' => 'nullable|numeric',
+            'variants.*.wholesalePrice' => 'nullable|numeric',
+            'variants.*.retailOfferPrice' => 'nullable|numeric',
+            'variants.*.wholesaleOfferPrice' => 'nullable|numeric',
+            'variants.*.wholesaleMoq' => 'nullable|integer',
+            'variants.*.weight' => 'nullable|numeric',
+            'variants.*.stock' => 'nullable|integer',
+            'variants.*.thumbnail' => 'nullable|string',
+            'variants.*.retail_id' => 'nullable|integer',
+            'variants.*.wholesale_id' => 'nullable|integer',
         ]);
 
         $product = Product::findOrFail($id);
+
+        // Debug logging
+        \Log::info('Product update request data', [
+            'highlights' => $validated['highlights'] ?? null,
+            'highlightsBn' => $validated['highlightsBn'] ?? null,
+            'attributes' => $validated['attributes'] ?? null,
+            'attributesBn' => $validated['attributesBn'] ?? null,
+            'includesInTheBox' => $validated['includesInTheBox'] ?? null,
+            'includesInTheBoxBn' => $validated['includesInTheBoxBn'] ?? null,
+        ]);
 
         DB::beginTransaction();
         try {
             // Generate new slug if product name changed
             $newSlug = $product->slug;
-            if ($request->productName && $request->productName !== $product->name) {
-                $newSlug = SlugHelper::generateUniqueSlug($request->productName, 'products', 'slug');
+            if (isset($validated['productName']) && $validated['productName'] !== $product->name) {
+                $newSlug = SlugHelper::generateUniqueSlug($validated['productName'], 'products', 'slug');
             }
 
-            // Prepare includes_in_box: frontend may send comma-separated string or array
+            // Prepare includes_in_box: frontend may send comma-separated string
+            // Laravel's cast will automatically JSON encode it
             $includesInTheBox = $product->includes_in_box;
-            if ($request->has('includesInTheBox')) {
-                $val = $request->includesInTheBox;
-                if (is_string($val) && $val !== '') {
-                    $includesInTheBox = json_encode(array_map('trim', explode(',', $val)));
-                } elseif (is_array($val)) {
-                    $includesInTheBox = json_encode($val);
-                } elseif ($val === '' || $val === null) {
+            if (array_key_exists('includesInTheBox', $validated)) {
+                $val = $validated['includesInTheBox'];
+                if (!empty($val)) {
+                    $includesInTheBox = array_map('trim', explode(',', $val));
+                } else {
                     $includesInTheBox = null;
                 }
             }
 
             // Prepare seo_tags: frontend sends comma-separated string
             $seoTags = $product->seo_tags;
-            if ($request->has('seoTags')) {
-                $val = $request->seoTags;
-                if (is_string($val) && $val !== '') {
+            if (array_key_exists('seoTags', $validated)) {
+                $val = $validated['seoTags'];
+                if (!empty($val)) {
                     $seoTags = array_map('trim', explode(',', $val));
-                } elseif ($val === '' || $val === null) {
+                } else {
                     $seoTags = null;
                 }
             }
 
-            // Prepare warranty_details: column is JSON, must store valid JSON or null
+            // Prepare warranty_details
             $warrantyDetails = $product->warranty_details;
-            if ($request->has('warrantyDetails')) {
-                $val = $request->warrantyDetails;
+            if (array_key_exists('warrantyDetails', $validated)) {
+                $val = $validated['warrantyDetails'];
                 $warrantyDetails = ($val !== '' && $val !== null) ? $val : null;
             }
 
-            // Prepare includes_in_box_bn: column is NOT NULL, use empty array as fallback
+            // Prepare includes_in_box_bn
+            // Laravel's cast will automatically JSON encode it
             $includesInTheBoxBn = $product->includes_in_box_bn ?? [];
-            if ($request->has('includesInTheBoxBn')) {
-                $val = $request->includesInTheBoxBn;
-                if (is_string($val) && $val !== '') {
-                    $includesInTheBoxBn = json_encode(array_map('trim', explode(',', $val)));
-                } elseif (is_array($val)) {
-                    $includesInTheBoxBn = json_encode($val);
-                } elseif ($val === '' || $val === null) {
-                    $includesInTheBoxBn = json_encode([]);
+            if (array_key_exists('includesInTheBoxBn', $validated)) {
+                $val = $validated['includesInTheBoxBn'];
+                if (!empty($val)) {
+                    $includesInTheBoxBn = array_map('trim', explode(',', $val));
+                } else {
+                    $includesInTheBoxBn = [];
                 }
             }
 
             // Update product fields - map camelCase to snake_case
             $product->update([
-                'name' => $request->productName ?? $product->name,
-                'retail_name' => $request->retailName ?? ($request->productName ?? $product->retail_name),
-                'wholesale_name' => $request->wholesaleName ?? $product->wholesale_name,
-                'retail_name_bn' => $request->has('retailNameBn') ? $request->retailNameBn : $product->retail_name_bn,
-                'wholesale_name_bn' => $request->has('wholesaleNameBn') ? $request->wholesaleNameBn : $product->wholesale_name_bn,
+                'name' => $validated['productName'] ?? $product->name,
+                'retail_name' => $validated['retailName'] ?? ($validated['productName'] ?? $product->retail_name),
+                'wholesale_name' => $validated['wholesaleName'] ?? $product->wholesale_name,
+                'retail_name_bn' => array_key_exists('retailNameBn', $validated) ? $validated['retailNameBn'] : $product->retail_name_bn,
+                'wholesale_name_bn' => array_key_exists('wholesaleNameBn', $validated) ? $validated['wholesaleNameBn'] : $product->wholesale_name_bn,
                 'slug' => $newSlug,
-                'category_id' => $request->category ?? $product->category_id,
-                'brand_id' => $request->brand ?? $product->brand_id,
-                'thumbnail_id' => $request->has('featuredImage') ? $request->featuredImage : $product->thumbnail_id,
-                'gallery_images' => $request->has('galleryImages') ? $request->galleryImages : $product->gallery_images,
-                'description' => $request->description ?? $product->description,
-                'description_bn' => $request->has('descriptionBn') ? $request->descriptionBn : $product->description_bn,
-                'video_url' => $request->videoUrl ?? $product->video_url,
-                'seo_title' => $request->seoTitle ?? $product->seo_title,
-                'seo_description' => $request->seoDescription ?? $product->seo_description,
+                'category_id' => $validated['category'] ?? $product->category_id,
+                'brand_id' => $validated['brand'] ?? $product->brand_id,
+                'thumbnail_id' => array_key_exists('featuredImage', $validated) ? $validated['featuredImage'] : $product->thumbnail_id,
+                'gallery_images' => array_key_exists('galleryImages', $validated) ? $validated['galleryImages'] : $product->gallery_images,
+                'description' => $validated['description'] ?? $product->description,
+                'description_bn' => array_key_exists('descriptionBn', $validated) ? $validated['descriptionBn'] : $product->description_bn,
+                'video_url' => $validated['videoUrl'] ?? $product->video_url,
+                'seo_title' => $validated['seoTitle'] ?? $product->seo_title,
+                'seo_description' => $validated['seoDescription'] ?? $product->seo_description,
                 'seo_tags' => $seoTags,
-                'status' => $request->status ?? $product->status,
-                'warranty_enabled' => $request->has('enableWarranty') ? $request->boolean('enableWarranty') : $product->warranty_enabled,
+                'status' => $validated['status'] ?? $product->status,
+                'warranty_enabled' => array_key_exists('enableWarranty', $validated) ? filter_var($validated['enableWarranty'], FILTER_VALIDATE_BOOLEAN) : $product->warranty_enabled,
                 'warranty_details' => $warrantyDetails,
-                'highlights' => $request->highlights ?? $product->highlights,
-                'highlights_bn' => $request->has('highlightsBn') ? $request->highlightsBn : $product->highlights_bn,
-                'attributes' => $request->attributes ?? $product->attributes,
-                'attributes_bn' => $request->has('attributesBn') ? $request->attributesBn : $product->attributes_bn,
+                'highlights' => $validated['highlights'] ?? $product->highlights,
+                'highlights_bn' => $validated['highlightsBn'] ?? $product->highlights_bn,
+                'attributes' => $validated['attributes'] ?? $product->attributes,
+                'attributes_bn' => $validated['attributesBn'] ?? $product->attributes_bn,
                 'includes_in_box' => $includesInTheBox,
                 'includes_in_box_bn' => $includesInTheBoxBn,
-                'cross_sale' => $request->has('crossSale') ? $request->crossSale : $product->cross_sale,
-                'up_sale' => $request->has('upSale') ? $request->upSale : $product->up_sale,
-                'thank_you' => $request->has('thankYou') ? $request->thankYou : $product->thank_you,
+                'cross_sale' => array_key_exists('crossSale', $validated) ? $validated['crossSale'] : $product->cross_sale,
+                'up_sale' => array_key_exists('upSale', $validated) ? $validated['upSale'] : $product->up_sale,
+                'thank_you' => array_key_exists('thankYou', $validated) ? $validated['thankYou'] : $product->thank_you,
+            ]);
+
+            \Log::info('Product updated successfully', [
+                'highlights' => $product->highlights,
+                'highlights_bn' => $product->highlights_bn,
+                'attributes' => $product->attributes,
+                'attributes_bn' => $product->attributes_bn,
+                'includes_in_box' => $product->includes_in_box,
+                'includes_in_box_bn' => $product->includes_in_box_bn,
             ]);
 
             // Auto-generate product_code if null and category has code
@@ -605,14 +638,14 @@ class ProductController extends Controller
             }
 
             // Handle variants update (create, update, delete)
-            if ($request->has('variants') && is_array($request->variants)) {
+            if (isset($validated['variants']) && is_array($validated['variants'])) {
                 // Get all existing variant IDs for this product
                 $existingRetailIds = $product->variants()->where('channel', 'retail')->pluck('id')->toArray();
                 $existingWholesaleIds = $product->variants()->where('channel', 'wholesale')->pluck('id')->toArray();
                 $submittedRetailIds = [];
                 $submittedWholesaleIds = [];
 
-                foreach ($request->variants as $variantData) {
+                foreach ($validated['variants'] as $variantData) {
                     \Log::info('Updating variant', [
                         'name' => $variantData['name'],
                         'thumbnail' => $variantData['thumbnail'] ?? null,
@@ -626,8 +659,8 @@ class ProductController extends Controller
                         'purchase_cost' => $variantData['purchaseCost'] ?? 0,
                         'weight' => $variantData['weight'] ?? 0,
                         'stock' => $variantData['stock'] ?? 0,
-                        'allow_preorder' => $request->enablePreorder ?? false,
-                        'expected_delivery' => $request->expectedDeliveryDate ?? null,
+                        'allow_preorder' => $validated['enablePreorder'] ?? false,
+                        'expected_delivery' => $validated['expectedDeliveryDate'] ?? null,
                     ];
 
                     // Check if this is a new variant (no IDs yet) or existing variant

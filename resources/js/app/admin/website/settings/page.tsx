@@ -50,23 +50,23 @@ export default function WebsiteSettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState<WebsiteSettings>({
-    facebook_pixel_id: null,
-    facebook_pixel_code: null,
-    google_analytics_id: null,
-    google_analytics_code: null,
-    google_tag_manager_id: null,
-    google_tag_manager_code: null,
+    facebookPixelId: null,
+    facebookPixelCode: null,
+    googleAnalyticsId: null,
+    googleAnalyticsCode: null,
+    googleTagManagerId: null,
+    googleTagManagerCode: null,
     serviceChargeEnabled: undefined,
     serviceChargeAmount: undefined,
   })
   const [hasChanges, setHasChanges] = useState(false)
   const [originalSettings, setOriginalSettings] = useState<WebsiteSettings>({
-    facebook_pixel_id: null,
-    facebook_pixel_code: null,
-    google_analytics_id: null,
-    google_analytics_code: null,
-    google_tag_manager_id: null,
-    google_tag_manager_code: null,
+    facebookPixelId: null,
+    facebookPixelCode: null,
+    googleAnalyticsId: null,
+    googleAnalyticsCode: null,
+    googleTagManagerId: null,
+    googleTagManagerCode: null,
     serviceChargeEnabled: undefined,
     serviceChargeAmount: undefined,
   })
@@ -281,9 +281,9 @@ export default function WebsiteSettingsPage() {
     return baseCharge + (additionalKg * perKgCharge)
   }
 
-  const isFacebookConfigured = !!(settings.facebook_pixel_id || settings.facebook_pixel_code)
-  const isGAConfigured = !!(settings.google_analytics_id || settings.google_analytics_code)
-  const isGTMConfigured = !!(settings.google_tag_manager_id || settings.google_tag_manager_code)
+  const isFacebookConfigured = !!(settings.facebookPixelId || settings.facebookPixelCode)
+  const isGAConfigured = !!(settings.googleAnalyticsId || settings.googleAnalyticsCode)
+  const isGTMConfigured = !!(settings.googleTagManagerId || settings.googleTagManagerCode)
 
   if (loading) {
     return (
@@ -358,8 +358,8 @@ export default function WebsiteSettingsPage() {
                     label="Facebook Pixel ID"
                     placeholder="e.g., 1234567890123456"
                     description="Your Facebook Pixel ID (15-16 digit number)"
-                    value={settings.facebook_pixel_id || ''}
-                    onChange={(e) => updateSetting('facebook_pixel_id', e.currentTarget.value || null)}
+                    value={settings.facebookPixelId || ''}
+                    onChange={(e) => updateSetting('facebookPixelId', e.currentTarget.value || null)}
                   />
 
                   <Textarea
@@ -367,8 +367,8 @@ export default function WebsiteSettingsPage() {
                     placeholder="<script>...your complete pixel script...</script>"
                     description="Or paste the complete tracking script if you prefer"
                     minRows={4}
-                    value={settings.facebook_pixel_code || ''}
-                    onChange={(e) => updateSetting('facebook_pixel_code', e.currentTarget.value || null)}
+                    value={settings.facebookPixelCode || ''}
+                    onChange={(e) => updateSetting('facebookPixelCode', e.currentTarget.value || null)}
                   />
                 </Stack>
               </Stack>
@@ -391,17 +391,17 @@ export default function WebsiteSettingsPage() {
                     label="Google Analytics ID (GA4)"
                     placeholder="e.g., G-XXXXXXXXXX"
                     description="Your Google Analytics 4 Measurement ID"
-                    value={settings.google_analytics_id || ''}
-                    onChange={(e) => updateSetting('google_analytics_id', e.currentTarget.value || null)}
+                    value={settings.googleAnalyticsId || ''}
+                    onChange={(e) => updateSetting('googleAnalyticsId', e.currentTarget.value || null)}
                   />
 
                   <Textarea
                     label="Google Analytics Code (Optional)"
-                    placeholder="<script async src="https://www.googletagmanager.com/gtag/js?..."></script>"
+                    placeholder='<script async src="https://www.googletagmanager.com/gtag/js?..."></script>'
                     description="Or paste the complete tracking script"
                     minRows={4}
-                    value={settings.google_analytics_code || ''}
-                    onChange={(e) => updateSetting('google_analytics_code', e.currentTarget.value || null)}
+                    value={settings.googleAnalyticsCode || ''}
+                    onChange={(e) => updateSetting('googleAnalyticsCode', e.currentTarget.value || null)}
                   />
                 </Stack>
               </Stack>
@@ -424,8 +424,8 @@ export default function WebsiteSettingsPage() {
                     label="GTM Container ID"
                     placeholder="e.g., GTM-XXXXXXX"
                     description="Your Google Tag Manager Container ID"
-                    value={settings.google_tag_manager_id || ''}
-                    onChange={(e) => updateSetting('google_tag_manager_id', e.currentTarget.value || null)}
+                    value={settings.googleTagManagerId || ''}
+                    onChange={(e) => updateSetting('googleTagManagerId', e.currentTarget.value || null)}
                   />
 
                   <Textarea
@@ -433,8 +433,8 @@ export default function WebsiteSettingsPage() {
                     placeholder="<script>(function(w,d,s,l,i){...})(window,document,'script','dataLayer','GTM-XXXXXXX');</script>"
                     description="Or paste the complete GTM container snippet"
                     minRows={4}
-                    value={settings.google_tag_manager_code || ''}
-                    onChange={(e) => updateSetting('google_tag_manager_code', e.currentTarget.value || null)}
+                    value={settings.googleTagManagerCode || ''}
+                    onChange={(e) => updateSetting('googleTagManagerCode', e.currentTarget.value || null)}
                   />
                 </Stack>
               </Stack>

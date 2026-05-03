@@ -302,7 +302,8 @@
       "brand": "Brand",
       "urlSlug": "URL Slug",
       "videoUrl": "Video URL",
-      "description": "Description"
+      "description": "Description",
+      "attributes": "Product Attributes"
     },
     "seo": {
       "title": "SEO Information",
@@ -314,10 +315,12 @@
       "title": "Gallery Images"
     },
     "highlights": {
-      "title": "Product Highlights",
-      "highlightsEnglish": "Highlights (English)",
-      "highlightsBangla": "Highlights (বাংলা)"
+      "title": "Product Highlights"
     },
+    "highlightsEnglish": "Highlights (English)",
+    "highlightsBangla": "Highlights (বাংলা)",
+    "attributesEnglish": "Attributes (English)",
+    "attributesBangla": "Attributes (বাংলা)",
     "descriptionEnglish": "Description (English)",
     "descriptionBangla": "Description (বাংলা)",
     "crossSale": {

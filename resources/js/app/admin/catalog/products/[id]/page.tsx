@@ -168,6 +168,8 @@ interface ProductDetail {
   warrantyDetails?: string | null
   highlights?: string[] | null
   highlightsBn?: string[] | null
+  attributes?: string[] | null
+  attributesBn?: string[] | null
   includesInTheBox?: string[] | string | null
   includesInTheBoxBn?: string | null
   videoUrl?: string | null
@@ -854,17 +856,17 @@ export default function ProductDetailPage() {
   // MAIN RENDER (Product loaded successfully)
   // ============================================================================
   return (
-    <Box p={{ base: 'md', md: 'xl' }}>
-      <Stack gap="lg">
+    <Box p={{ base: 'sm', md: 'lg', xl: 'xl' }}>
+      <Stack gap="md">
         {/* Breadcrumbs */}
-        <Breadcrumbs separator={<IconChevronRight size={16} />}>{breadcrumbItems}</Breadcrumbs>
+        <Breadcrumbs separator=">" style={{ fontSize: '14px' }}>{breadcrumbItems}</Breadcrumbs>
 
         {/* Header */}
-        <Paper withBorder p="md" radius="md">
-          <Stack gap="md">
+        <Paper withBorder p="sm" radius="md">
+          <Stack gap="xs">
             {/* Title row with icon */}
             <Group gap="sm" align="center" wrap="nowrap">
-              <IconPackages size={28} className="text-blue-600" />
+              <IconPackages size={24} className="text-blue-600" />
               <Title order={2} className="text-lg md:text-xl lg:text-2xl">
                 {decodeHTMLEntities(product.retailName || product.name)}
               </Title>
@@ -900,66 +902,55 @@ export default function ProductDetailPage() {
 
             {/* Metadata row */}
             <Group gap="sm" align="center">
-              <Text className="text-sm md:text-base" c="dimmed">
-                {t('catalog.productsDetail.header.productId')}: {product.id}
+              <Text size="sm" c="dimmed">
+                ID: {product.id}
               </Text>
               {product.productCode && (
                 <>
                   <Text size="xs" c="gray.4">
                     •
                   </Text>
-                  <Text className="text-sm md:text-base" c="dimmed">
-                    {t('catalog.productsDetail.header.productCode') || 'Product Code'}: {product.productCode}
+                  <Text size="sm" c="dimmed">
+                    Code: {product.productCode}
                   </Text>
                   <Text size="xs" c="gray.4">
                     •
                   </Text>
                 </>
               )}
-              <Text className="text-sm md:text-base" c="dimmed">
-                {t('catalog.productsDetail.header.created')}: {new Date(product.createdAt).toLocaleDateString()}
+              <Text size="sm" c="dimmed">
+                {new Date(product.createdAt).toLocaleDateString()}
               </Text>
             </Group>
             {/* Status badge and actions row */}
-            <Group justify="space-between" align="center" wrap={{ base: 'wrap', sm: 'nowrap' }}>
+            <Group justify="space-between" align="center">
               {getStatusBadge(product.status)}
-              <Group gap="sm">
-                <Button
-                  variant="light"
-                  size="sm"
-                  leftSection={<IconArrowLeft size={16} />}
-                  onClick={() => window.history.back()}
-                >
-                  {t('catalog.productsDetail.header.back') || 'Back'}
-                </Button>
-                <Button
-                  size="sm"
-                  leftSection={<IconEdit size={16} />}
-                  onClick={() => navigate(`/catalog/products/${product.id}/edit`)}
-                >
-                  {t('catalog.productsDetail.header.editProduct') || 'Edit Product'}
-                </Button>
-              </Group>
+              <Button
+                size="xs"
+                variant="default"
+                leftSection={<IconEdit size={14} />}
+                onClick={() => navigate(`/catalog/products/${product.id}/edit`)}
+              >
+                Edit
+              </Button>
             </Group>
           </Stack>
         </Paper>
 
         {/* Warranty & Package Information */}
         {(product.warrantyEnabled && product.warrantyDetails) || (product.includesInTheBox && (Array.isArray(product.includesInTheBox) ? product.includesInTheBox.length > 0 : product.includesInTheBox.trim())) ? (
-          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
             {/* Warranty Card */}
             {product.warrantyEnabled && product.warrantyDetails && (
-              <Paper withBorder p="md" radius="md">
-                <Group gap="md" align="flex-start">
-                  <Box className="bg-green-50 p-2 rounded-md">
-                    <IconShield size={24} className="text-green-600" />
-                  </Box>
-                  <Stack gap={0} className="flex-1">
-                    <Text className="text-sm md:text-base" fw={500} c="dimmed">
+              <Paper withBorder p="sm" radius="sm">
+                <Group gap="sm" align="flex-start">
+                  <IconShield size={20} style={{ color: '#16a34a' }} />
+                  <Stack gap={4} className="flex-1">
+                    <Text size="xs" fw={500} c="dimmed">
                       {t('catalog.productsDetail.warranty.label') || 'Warranty'}
                     </Text>
                     <div
-                      className="text-base md:text-lg html-content"
+                      className="text-sm html-content"
                       dangerouslySetInnerHTML={{ __html: decodeHTMLEntities(product.warrantyDetails) }}
                     />
                   </Stack>
@@ -969,37 +960,36 @@ export default function ProductDetailPage() {
 
             {/* What's in the Box Card */}
             {(product.includesInTheBox && (Array.isArray(product.includesInTheBox) ? product.includesInTheBox.length > 0 : product.includesInTheBox.trim())) && (
-              <Paper withBorder p="md" radius="md">
-                <Group gap="md" align="flex-start">
-                  <Box className="bg-blue-50 p-2 rounded-md">
-                    <IconBox size={24} className="text-blue-600" />
-                  </Box>
+              <Paper withBorder p="sm" radius="sm">
+                <Group gap="sm" align="flex-start">
+                  <IconBox size={20} style={{ color: '#2563eb' }} />
                   <Stack gap="xs" className="flex-1">
-                    <Text className="text-sm md:text-base" fw={500} c="dimmed">
+                    <Text size="xs" fw={500} c="dimmed">
                       {t('catalog.productsDetail.package.label') || "What's in the Box"}
                     </Text>
-                    <Stack gap="xs">
+                    <Stack gap={4}>
                       {Array.isArray(product.includesInTheBox)
                         ? product.includesInTheBox.map((item, index) => (
-                            <Group key={index} gap="xs" align="center">
-                              <IconCheck size={14} className="text-blue-600" />
-                              <Text className="text-sm md:text-base">{item}</Text>
+                            <Group key={index} gap={6} align="center">
+                              <IconCheck size={12} style={{ color: '#2563eb' }} />
+                              <Text size="sm">{item}</Text>
                             </Group>
                           ))
                         : product.includesInTheBox.split(',').map((item, index) => (
-                            <Group key={index} gap="xs" align="center">
-                              <IconCheck size={14} className="text-blue-600" />
-                              <Text className="text-sm md:text-base">{item.trim()}</Text>
+                            <Group key={index} gap={6} align="center">
+                              <IconCheck size={12} style={{ color: '#2563eb' }} />
+                              <Text size="sm">{item.trim()}</Text>
                             </Group>
                           ))
                       }
                     </Stack>
                     {product.includesInTheBoxBn && (
                       <>
-                        <Text className="text-sm md:text-base" fw={500} c="dimmed" mt="xs">
+                        <Divider my={4} />
+                        <Text size="xs" fw={500} c="dimmed">
                           What's in the Box (Bangla)
                         </Text>
-                        <Text className="text-sm md:text-base">{product.includesInTheBoxBn}</Text>
+                        <Text size="sm">{product.includesInTheBoxBn}</Text>
                       </>
                     )}
                   </Stack>
@@ -1010,24 +1000,24 @@ export default function ProductDetailPage() {
         ) : null}
 
         {/* Product Information Card */}
-        <Paper withBorder p="md" radius="md">
-          <Text fw={600} className="text-base md:text-lg mb-4">
+        <Paper withBorder p="sm" radius="sm">
+          <Text fw={600} size="sm" mb="xs">
             {t('catalog.productsDetail.productInformation.title')}
           </Text>
 
-          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
             {/* Thumbnail Image */}
-            <Group gap="md" align="flex-start">
-              <IconPhoto size={24} className="text-gray-500 mt-1" />
+            <Group gap="sm" align="flex-start">
+              <IconPhoto size={18} className="text-gray-500 mt-0.5" />
               <Stack gap="xs" className="flex-1">
-                <Text className="text-sm md:text-base" fw={500} c="dimmed">
+                <Text size="xs" c="dimmed">
                   {t('catalog.productsDetail.productInformation.thumbnail')}
                 </Text>
                 {product.thumbnail && (
                   <Box
-                    w={{ base: 100, sm: 120 }}
-                    h={{ base: 100, sm: 120 }}
-                    className="bg-gray-100 rounded-md overflow-hidden"
+                    w={80}
+                    h={80}
+                    style={{ backgroundColor: '#f3f4f6', borderRadius: '6px', overflow: 'hidden' }}
                   >
                     <Image
                       src={product.thumbnail.fullUrl}
@@ -1035,7 +1025,7 @@ export default function ProductDetailPage() {
                       w="100%"
                       h="100%"
                       fit="cover"
-                      radius="md"
+                      radius="sm"
                     />
                   </Box>
                 )}
@@ -1044,16 +1034,13 @@ export default function ProductDetailPage() {
 
             {/* Category */}
             {product.category && (
-              <Group gap="md" align="flex-start">
-                <IconTag size={24} className="text-gray-500 mt-1" />
+              <Group gap="sm" align="flex-start">
+                <IconTag size={18} className="text-gray-500 mt-0.5" />
                 <Stack gap={0} className="flex-1">
-                  <Text className="text-sm md:text-base" c="dimmed">
+                  <Text size="xs" c="dimmed">
                     {t('catalog.productsDetail.productInformation.category')}
                   </Text>
-                  <Anchor
-                    href={`/catalog/categories/${product.category.id}`}
-                    className="text-base md:text-lg"
-                  >
+                  <Anchor href={`/catalog/categories/${product.category.id}`} size="sm">
                     {product.category.name}
                   </Anchor>
                 </Stack>
@@ -1062,16 +1049,13 @@ export default function ProductDetailPage() {
 
             {/* Brand */}
             {product.brand && (
-              <Group gap="md" align="flex-start">
-                <IconBuilding size={24} className="text-gray-500 mt-1" />
+              <Group gap="sm" align="flex-start">
+                <IconBuilding size={18} className="text-gray-500 mt-0.5" />
                 <Stack gap={0} className="flex-1">
-                  <Text className="text-sm md:text-base" c="dimmed">
+                  <Text size="xs" c="dimmed">
                     {t('catalog.productsDetail.productInformation.brand')}
                   </Text>
-                  <Anchor
-                    href={`/catalog/brands/${product.brand.id}`}
-                    className="text-base md:text-lg"
-                  >
+                  <Anchor href={`/catalog/brands/${product.brand.id}`} size="sm">
                     {product.brand.name}
                   </Anchor>
                 </Stack>
@@ -1080,13 +1064,13 @@ export default function ProductDetailPage() {
 
             {/* Slug */}
             {product.slug && (
-              <Group gap="md" align="flex-start">
-                <IconWorld size={24} className="text-gray-500 mt-1" />
+              <Group gap="sm" align="flex-start">
+                <IconWorld size={18} className="text-gray-500 mt-0.5" />
                 <Stack gap={0} className="flex-1">
-                  <Text className="text-sm md:text-base" c="dimmed">
+                  <Text size="xs" c="dimmed">
                     {t('catalog.productsDetail.productInformation.urlSlug')}
                   </Text>
-                  <Text className="text-sm md:text-base break-all" fw={500}>
+                  <Text size="sm" fw={500} className="break-all">
                     {product.slug}
                   </Text>
                 </Stack>
@@ -1096,18 +1080,13 @@ export default function ProductDetailPage() {
 
           {/* Video URL */}
           {product.videoUrl && (
-            <Group gap="md" align="flex-start" mt="md">
-              <IconWorld size={24} className="text-gray-500 mt-1" />
+            <Group gap="sm" align="flex-start" mt="xs">
+              <IconWorld size={18} className="text-gray-500 mt-0.5" />
               <Stack gap={0} className="flex-1">
-                <Text className="text-sm md:text-base" fw={500} c="dimmed">
+                <Text size="xs" fw={500} c="dimmed">
                   {t('catalog.productsDetail.productInformation.videoUrl')}
                 </Text>
-                <Anchor
-                  href={product.videoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm md:text-base break-all"
-                >
+                <Anchor href={product.videoUrl} target="_blank" rel="noopener noreferrer" size="sm" className="break-all">
                   {product.videoUrl}
                 </Anchor>
               </Stack>
@@ -1117,38 +1096,38 @@ export default function ProductDetailPage() {
 
         {/* SEO Information */}
         {(product.seoTitle || product.seoDescription || (product.seoTags && product.seoTags.length > 0)) && (
-          <Paper withBorder p="md" radius="md">
-            <Group gap="md" align="center" mb="md">
-              <IconSearch size={24} className="text-gray-500" />
-              <Text fw={600} className="text-base md:text-lg">
+          <Paper withBorder p="sm" radius="sm">
+            <Group gap="sm" align="center" mb="xs">
+              <IconSearch size={18} className="text-gray-500" />
+              <Text fw={600} size="sm">
                 {t('catalog.productsDetail.seo.title') || 'SEO Information'}
               </Text>
             </Group>
-            <Stack gap="md" ml={46}>
+            <Stack gap="xs" ml={34}>
               {product.seoTitle && (
                 <Stack gap="xs">
-                  <Text className="text-sm" fw={500} c="dimmed">
+                  <Text size="xs" fw={500} c="dimmed">
                     {t('catalog.productsDetail.seo.title') || 'SEO Title'}
                   </Text>
-                  <Text className="text-sm md:text-base">{product.seoTitle}</Text>
+                  <Text size="sm">{product.seoTitle}</Text>
                 </Stack>
               )}
               {product.seoDescription && (
                 <Stack gap="xs">
-                  <Text className="text-sm" fw={500} c="dimmed">
+                  <Text size="xs" fw={500} c="dimmed">
                     {t('catalog.productsDetail.seo.description') || 'SEO Description'}
                   </Text>
-                  <Text className="text-sm md:text-base">{product.seoDescription}</Text>
+                  <Text size="sm">{product.seoDescription}</Text>
                 </Stack>
               )}
               {product.seoTags && product.seoTags.length > 0 && (
                 <Stack gap="xs">
-                  <Text className="text-sm" fw={500} c="dimmed">
+                  <Text size="xs" fw={500} c="dimmed">
                     {t('catalog.productsDetail.seo.tags') || 'SEO Tags'}
                   </Text>
                   <Group gap="xs" wrap="wrap">
                     {product.seoTags.map((tag, index) => (
-                      <Badge key={index} variant="light" size="sm" leftSection={<IconTag size={12} />}>
+                      <Badge key={index} variant="light" size="xs" leftSection={<IconTag size={10} />}>
                         {tag}
                       </Badge>
                     ))}
@@ -1161,12 +1140,10 @@ export default function ProductDetailPage() {
 
         {/* Product Variants Section */}
         {product.variants && product.variants.length > 0 && (
-          <Paper withBorder p="md" radius="md">
-            <Group justify="space-between" align="center" mb="md">
-              <Text fw={600} className="text-base md:text-lg">
-                {t('catalog.productsDetail.variants.title') || 'Product Variants'} ({product.variants.length})
-              </Text>
-            </Group>
+          <Paper withBorder p="sm" radius="sm">
+            <Text fw={600} size="sm" mb="xs">
+              {t('catalog.productsDetail.variants.title') || 'Product Variants'} ({product.variants.length})
+            </Text>
 
             {/* Desktop Table View */}
             <div className="hidden md:block">
@@ -1200,14 +1177,12 @@ export default function ProductDetailPage() {
 
         {/* Gallery Images Section */}
         {product.galleryImagesUrls && product.galleryImagesUrls.length > 0 && (
-          <Paper withBorder p="md" radius="md">
-            <Group justify="space-between" align="center" mb="md">
-              <Text fw={600} className="text-base md:text-lg">
-                {t('catalog.productsDetail.gallery.title')} ({product.galleryImagesUrls.length})
-              </Text>
-            </Group>
+          <Paper withBorder p="sm" radius="sm">
+            <Text fw={600} size="sm" mb="xs">
+              {t('catalog.productsDetail.gallery.title')} ({product.galleryImagesUrls.length})
+            </Text>
 
-            <SimpleGrid cols={{ base: 2, sm: 3, md: 4, lg: 6 }} spacing="sm">
+            <SimpleGrid cols={{ base: 2, sm: 3, md: 4, lg: 6 }} spacing="xs">
               {galleryImages}
             </SimpleGrid>
           </Paper>
@@ -1215,12 +1190,10 @@ export default function ProductDetailPage() {
 
         {/* Product Highlights */}
         {((product.highlights && product.highlights.length > 0) || (product.highlightsBn && product.highlightsBn.length > 0)) && (
-          <Paper withBorder p="md" radius="md">
-            <Group gap="md" align="center" mb="md">
-              <Box className="bg-yellow-50 p-2 rounded-md">
-                <IconBulb size={24} className="text-yellow-600" />
-              </Box>
-              <Text fw={600} className="text-base md:text-lg">
+          <Paper withBorder p="sm" radius="sm">
+            <Group gap="sm" align="center" mb="xs">
+              <IconBulb size={18} style={{ color: '#ca8a04' }} />
+              <Text fw={600} size="sm">
                 {t('catalog.productsDetail.highlights.title') || 'Product Highlights'}
               </Text>
             </Group>
@@ -1229,11 +1202,11 @@ export default function ProductDetailPage() {
               {product.highlights && product.highlights.length > 0 && (
                 <Grid.Col span={{ base: 12, md: 6 }}>
                   <Stack gap="xs">
-                    <Text size="sm" fw={500} c="dimmed">{t('catalog.productsDetail.highlightsEnglish') || 'Highlights (English)'}</Text>
+                    <Text size="xs" fw={500} c="dimmed">{t('catalog.productsDetail.highlightsEnglish') || 'Highlights (English)'}</Text>
                     {product.highlights.map((highlight, index) => (
-                      <Group key={`en-${index}`} gap="xs" align="flex-start">
-                        <IconCheck size={14} className="text-green-600 mt-1" />
-                        <Text className="text-sm md:text-base">{highlight}</Text>
+                      <Group key={`en-${index}`} gap={6} align="flex-start">
+                        <IconCheck size={12} style={{ color: '#16a34a' }} />
+                        <Text size="sm">{highlight}</Text>
                       </Group>
                     ))}
                   </Stack>
@@ -1243,11 +1216,53 @@ export default function ProductDetailPage() {
               {product.highlightsBn && product.highlightsBn.length > 0 && (
                 <Grid.Col span={{ base: 12, md: 6 }}>
                   <Stack gap="xs">
-                    <Text size="sm" fw={500} c="dimmed">{t('catalog.productsDetail.highlightsBangla') || 'Highlights (বাংলা)'}</Text>
+                    <Text size="xs" fw={500} c="dimmed">{t('catalog.productsDetail.highlightsBangla') || 'Highlights (বাংলা)'}</Text>
                     {product.highlightsBn.map((highlight, index) => (
-                      <Group key={`bn-${index}`} gap="xs" align="flex-start">
-                        <IconCheck size={14} className="text-green-600 mt-1" />
-                        <Text className="text-sm md:text-base">{highlight}</Text>
+                      <Group key={`bn-${index}`} gap={6} align="flex-start">
+                        <IconCheck size={12} style={{ color: '#16a34a' }} />
+                        <Text size="sm">{highlight}</Text>
+                      </Group>
+                    ))}
+                  </Stack>
+                </Grid.Col>
+              )}
+            </Grid>
+          </Paper>
+        )}
+
+        {/* Product Attributes */}
+        {((product.attributes && product.attributes.length > 0) || (product.attributesBn && product.attributesBn.length > 0)) && (
+          <Paper withBorder p="sm" radius="sm">
+            <Group gap="sm" align="center" mb="xs">
+              <IconBulb size={18} style={{ color: '#2563eb' }} />
+              <Text fw={600} size="sm">
+                {t('catalog.productsDetail.productInformation.attributes') || 'Product Attributes'}
+              </Text>
+            </Group>
+            <Grid>
+              {/* English Attributes */}
+              {product.attributes && product.attributes.length > 0 && (
+                <Grid.Col span={{ base: 12, md: 6 }}>
+                  <Stack gap="xs">
+                    <Text size="xs" fw={500} c="dimmed">{t('catalog.productsDetail.attributesEnglish') || 'Attributes (English)'}</Text>
+                    {product.attributes.map((attribute, index) => (
+                      <Group key={`en-${index}`} gap={6} align="flex-start">
+                        <IconCheck size={12} style={{ color: '#2563eb' }} />
+                        <Text size="sm">{attribute}</Text>
+                      </Group>
+                    ))}
+                  </Stack>
+                </Grid.Col>
+              )}
+              {/* Bangla Attributes */}
+              {product.attributesBn && product.attributesBn.length > 0 && (
+                <Grid.Col span={{ base: 12, md: 6 }}>
+                  <Stack gap="xs">
+                    <Text size="xs" fw={500} c="dimmed">{t('catalog.productsDetail.attributesBangla') || 'Attributes (বাংলা)'}</Text>
+                    {product.attributesBn.map((attribute, index) => (
+                      <Group key={`bn-${index}`} gap={6} align="flex-start">
+                        <IconCheck size={12} style={{ color: '#2563eb' }} />
+                        <Text size="sm">{attribute}</Text>
                       </Group>
                     ))}
                   </Stack>
@@ -1259,8 +1274,8 @@ export default function ProductDetailPage() {
 
         {/* Description */}
         {(product.description || product.descriptionBn) && (
-          <Paper withBorder p="md" radius="md">
-            <Text fw={600} className="text-base md:text-lg mb-md">
+          <Paper withBorder p="sm" radius="sm">
+            <Text fw={600} size="sm" mb="xs">
               {t('catalog.productsDetail.productInformation.description')}
             </Text>
             <Grid>
@@ -1268,9 +1283,9 @@ export default function ProductDetailPage() {
               {product.description && (
                 <Grid.Col span={{ base: 12, md: 6 }}>
                   <Stack gap="xs">
-                    <Text size="sm" fw={500} c="dimmed">{t('catalog.productsDetail.descriptionEnglish') || 'Description (English)'}</Text>
+                    <Text size="xs" fw={500} c="dimmed">{t('catalog.productsDetail.descriptionEnglish') || 'Description (English)'}</Text>
                     <Box
-                      className="text-sm md:text-base html-content wrap-break-word overflow-hidden product-description"
+                      className="text-sm html-content wrap-break-word overflow-hidden product-description"
                       dangerouslySetInnerHTML={{ __html: decodeHTMLEntities(product.description) }}
                     />
                   </Stack>
@@ -1280,9 +1295,9 @@ export default function ProductDetailPage() {
               {product.descriptionBn && (
                 <Grid.Col span={{ base: 12, md: 6 }}>
                   <Stack gap="xs">
-                    <Text size="sm" fw={500} c="dimmed">{t('catalog.productsDetail.descriptionBangla') || 'Description (বাংলা)'}</Text>
+                    <Text size="xs" fw={500} c="dimmed">{t('catalog.productsDetail.descriptionBangla') || 'Description (বাংলা)'}</Text>
                     <Box
-                      className="text-sm md:text-base html-content wrap-break-word overflow-hidden product-description"
+                      className="text-sm html-content wrap-break-word overflow-hidden product-description"
                       dangerouslySetInnerHTML={{ __html: decodeHTMLEntities(product.descriptionBn) }}
                     />
                   </Stack>
@@ -1293,35 +1308,35 @@ export default function ProductDetailPage() {
         )}
 
         {/* Cross Sale Products Section */}
-        <Paper withBorder p="md" radius="md">
-          <Group justify="space-between" align="center" mb="md">
-            <Group gap="sm" align="center">
-              <IconShoppingBag size={22} className="text-violet-600" />
-              <Text fw={600} className="text-base md:text-lg">
+        <Paper withBorder p="sm" radius="sm">
+          <Group justify="space-between" align="center" mb="xs">
+            <Group gap="xs" align="center">
+              <IconShoppingBag size={18} style={{ color: '#7c3aed' }} />
+              <Text fw={600} size="sm">
                 {t('catalog.productsDetail.crossSale.title')} ({crossSaleCount}/3)
               </Text>
             </Group>
           </Group>
 
-          <Text c="dimmed" className="text-sm mb-4">
+          <Text c="dimmed" size="xs" mb="xs">
             {t('catalog.productsDetail.crossSale.description')} {t('catalog.productsDetail.crossSale.maxProducts', { count: 3 })}
           </Text>
 
-          <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="sm">
+          <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="xs">
             {/* Render existing cross-sale products */}
             {product.crossSaleProducts?.map((cs) => (
               <Paper
                 key={cs.id}
                 withBorder
-                p="sm"
-                radius="md"
+                p="xs"
+                radius="sm"
                 className="hover:border-violet-300 transition-colors"
               >
-                <Group gap="sm" align="flex-start" wrap="nowrap">
+                <Group gap="xs" align="flex-start" wrap="nowrap">
                   <Box
-                    w={56}
-                    h={56}
-                    className="bg-gray-100 rounded-md overflow-hidden shrink-0"
+                    w={48}
+                    h={48}
+                    style={{ backgroundColor: '#f3f4f6', borderRadius: '6px', overflow: 'hidden', flexShrink: 0 }}
                   >
                     {cs.thumbnailUrl ? (
                       <Image
@@ -1330,20 +1345,20 @@ export default function ProductDetailPage() {
                         w="100%"
                         h="100%"
                         fit="cover"
-                        radius="sm"
+                        radius="xs"
                       />
                     ) : (
                       <Stack align="center" justify="center" h="100%">
-                        <IconPhoto size={20} className="text-gray-400" />
+                        <IconPhoto size={16} className="text-gray-400" />
                       </Stack>
                     )}
                   </Box>
-                  <Stack gap={2} className="flex-1 min-w-0">
-                    <Text className="text-sm" fw={500} lineClamp={1}>
+                  <Stack gap={0} className="flex-1 min-w-0">
+                    <Text size="sm" fw={500} lineClamp={1}>
                       {cs.name}
                     </Text>
                     <Anchor
-                      className="text-xs"
+                      size="xs"
                       c="dimmed"
                       href={`/catalog/products/${cs.id}`}
                       onClick={(e) => {
@@ -1356,15 +1371,15 @@ export default function ProductDetailPage() {
                   </Stack>
                   <ActionIcon
                     variant="subtle"
-                    color="red"
-                    size="sm"
+                    color="red.6"
+                    size="xs"
                     className="shrink-0"
                     onClick={(e) => {
                       e.stopPropagation()
                       handleRemoveCrossSale(cs.id)
                     }}
                   >
-                    <IconX size={14} />
+                    <IconX size={12} />
                   </ActionIcon>
                 </Group>
               </Paper>
@@ -1374,16 +1389,16 @@ export default function ProductDetailPage() {
             {crossSaleCount < 3 && (
               <Paper
                 withBorder
-                p="md"
-                radius="md"
-                className="border-dashed border-2 border-gray-300 hover:border-violet-400 hover:bg-violet-50/30 transition-colors cursor-pointer"
+                p="sm"
+                radius="sm"
+                className="border-dashed border-2 border-gray-200 hover:border-violet-400 hover:bg-violet-50/30 transition-colors cursor-pointer"
                 onClick={() => openModal(product.id, product.crossSaleProducts?.map((p) => p.id) ?? [])}
               >
-                <Stack align="center" justify="center" h="100%" py="sm">
-                  <Box className="bg-gray-100 rounded-full p-2">
-                    <IconPlus size={20} className="text-gray-500" />
+                <Stack align="center" justify="center" h="100%" py="xs">
+                  <Box style={{ backgroundColor: '#f3f4f6', borderRadius: '50%', padding: '6px' }}>
+                    <IconPlus size={16} className="text-gray-500" />
                   </Box>
-                  <Text className="text-xs md:text-sm" c="dimmed" fw={500}>
+                  <Text size="xs" c="dimmed" fw={500}>
                     {t('catalog.productsDetail.crossSale.addProduct')}
                   </Text>
                 </Stack>
@@ -1453,7 +1468,7 @@ export default function ProductDetailPage() {
                           <Box
                             w={52}
                             h={52}
-                            className="bg-gray-100 rounded-md overflow-hidden shrink-0"
+                            style={{ backgroundColor: '#f3f4f6', borderRadius: '6px', overflow: 'hidden', flexShrink: 0 }}
                           >
                             {p.thumbnail?.fullUrl ? (
                               <Image
@@ -1521,35 +1536,35 @@ export default function ProductDetailPage() {
         </Modal>
 
         {/* Up Sale Products Section */}
-        <Paper withBorder p="md" radius="md">
-          <Group justify="space-between" align="center" mb="md">
-            <Group gap="sm" align="center">
-              <IconTrendingUp size={22} className="text-teal-600" />
-              <Text fw={600} className="text-base md:text-lg">
+        <Paper withBorder p="sm" radius="sm">
+          <Group justify="space-between" align="center" mb="xs">
+            <Group gap="xs" align="center">
+              <IconTrendingUp size={18} style={{ color: '#0d9488' }} />
+              <Text fw={600} size="sm">
                 {t('catalog.productsDetail.upSale.title')} ({upSaleCount}/3)
               </Text>
             </Group>
           </Group>
 
-          <Text c="dimmed" className="text-sm mb-4">
+          <Text c="dimmed" size="xs" mb="xs">
             {t('catalog.productsDetail.upSale.description')} {t('catalog.productsDetail.upSale.maxProducts', { count: 3 })}
           </Text>
 
-          <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="sm">
+          <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="xs">
             {/* Render existing up-sale products */}
             {product.upSaleProducts?.map((us) => (
               <Paper
                 key={us.id}
                 withBorder
-                p="sm"
-                radius="md"
+                p="xs"
+                radius="sm"
                 className="hover:border-teal-300 transition-colors"
               >
-                <Group gap="sm" align="flex-start" wrap="nowrap">
+                <Group gap="xs" align="flex-start" wrap="nowrap">
                   <Box
-                    w={56}
-                    h={56}
-                    className="bg-gray-100 rounded-md overflow-hidden shrink-0"
+                    w={48}
+                    h={48}
+                    style={{ backgroundColor: '#f3f4f6', borderRadius: '6px', overflow: 'hidden', flexShrink: 0 }}
                   >
                     {us.thumbnailUrl ? (
                       <Image
@@ -1558,20 +1573,20 @@ export default function ProductDetailPage() {
                         w="100%"
                         h="100%"
                         fit="cover"
-                        radius="sm"
+                        radius="xs"
                       />
                     ) : (
                       <Stack align="center" justify="center" h="100%">
-                        <IconPhoto size={20} className="text-gray-400" />
+                        <IconPhoto size={16} className="text-gray-400" />
                       </Stack>
                     )}
                   </Box>
-                  <Stack gap={2} className="flex-1 min-w-0">
-                    <Text className="text-sm" fw={500} lineClamp={1}>
+                  <Stack gap={0} className="flex-1 min-w-0">
+                    <Text size="sm" fw={500} lineClamp={1}>
                       {us.name}
                     </Text>
                     <Anchor
-                      className="text-xs"
+                      size="xs"
                       c="dimmed"
                       href={`/catalog/products/${us.id}`}
                       onClick={(e) => {
@@ -1584,15 +1599,15 @@ export default function ProductDetailPage() {
                   </Stack>
                   <ActionIcon
                     variant="subtle"
-                    color="red"
-                    size="sm"
+                    color="red.6"
+                    size="xs"
                     className="shrink-0"
                     onClick={(e) => {
                       e.stopPropagation()
                       handleRemoveUpSale(us.id)
                     }}
                   >
-                    <IconX size={14} />
+                    <IconX size={12} />
                   </ActionIcon>
                 </Group>
               </Paper>
@@ -1602,16 +1617,16 @@ export default function ProductDetailPage() {
             {upSaleCount < 3 && (
               <Paper
                 withBorder
-                p="md"
-                radius="md"
-                className="border-dashed border-2 border-gray-300 hover:border-teal-400 hover:bg-teal-50/30 transition-colors cursor-pointer"
+                p="sm"
+                radius="sm"
+                className="border-dashed border-2 border-gray-200 hover:border-teal-400 hover:bg-teal-50/30 transition-colors cursor-pointer"
                 onClick={() => openUpSaleModal(product.id, product.upSaleProducts?.map((p) => p.id) ?? [])}
               >
-                <Stack align="center" justify="center" h="100%" py="sm">
-                  <Box className="bg-gray-100 rounded-full p-2">
-                    <IconPlus size={20} className="text-gray-500" />
+                <Stack align="center" justify="center" h="100%" py="xs">
+                  <Box style={{ backgroundColor: '#f3f4f6', borderRadius: '50%', padding: '6px' }}>
+                    <IconPlus size={16} className="text-gray-500" />
                   </Box>
-                  <Text className="text-xs md:text-sm" c="dimmed" fw={500}>
+                  <Text size="xs" c="dimmed" fw={500}>
                     {t('catalog.productsDetail.upSale.addProduct')}
                   </Text>
                 </Stack>
@@ -1681,7 +1696,7 @@ export default function ProductDetailPage() {
                           <Box
                             w={52}
                             h={52}
-                            className="bg-gray-100 rounded-md overflow-hidden shrink-0"
+                            style={{ backgroundColor: '#f3f4f6', borderRadius: '6px', overflow: 'hidden', flexShrink: 0 }}
                           >
                             {p.thumbnail?.fullUrl ? (
                               <Image
@@ -1749,17 +1764,15 @@ export default function ProductDetailPage() {
         </Modal>
 
         {/* Thank You Product Toggle */}
-        <Paper withBorder p="md" radius="md">
+        <Paper withBorder p="sm" radius="sm">
           <Group justify="space-between" align="center">
-            <Group gap="sm" align="center">
-              <Box className="bg-pink-50 p-2 rounded-md">
-                <IconHeart size={22} className="text-pink-600" />
-              </Box>
+            <Group gap="xs" align="center">
+              <IconHeart size={18} style={{ color: '#db2777' }} />
               <div>
-                <Text fw={600} className="text-base md:text-lg">
+                <Text fw={600} size="sm">
                   {t('catalog.productsDetail.thankYou.title')}
                 </Text>
-                <Text c="dimmed" className="text-xs">
+                <Text c="dimmed" size="xs">
                   {t('catalog.productsDetail.thankYou.description')}
                 </Text>
               </div>
@@ -1767,9 +1780,7 @@ export default function ProductDetailPage() {
             <Switch
               checked={product.thankYou ?? false}
               onChange={(event) => handleToggleThankYou(event.currentTarget.checked)}
-              size="md"
-              onLabel="Yes"
-              offLabel="No"
+              size="sm"
             />
           </Group>
         </Paper>
