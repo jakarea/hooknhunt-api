@@ -81,8 +81,8 @@ class LazychatService
         // Get first variant for product-level SKU
         $firstVariant = $retailVariants->first();
 
-        // Build product URL
-        $productUrl = url('/products/' . $product->slug);
+        // Build product URL (use frontend domain for product pages)
+        $productUrl = URL::frontend('/products/' . $product->slug);
 
         // Build images array (thumbnail + gallery)
         $images = [];

@@ -208,10 +208,10 @@ export default function EditProductPage() {
     enabled: true,
     sessionDurationMinutes: 60, // 60 minute session
     onWarning: (minutesRemaining) => {
-      console.log(`Session expiring in ${minutesRemaining} minutes`)
+      // Session warning handled by hook
     },
     onExpired: () => {
-      console.log('Session expired - user should save work')
+      // Session expiry handled by hook
     },
   })
   const { id } = useParams()
@@ -701,10 +701,8 @@ export default function EditProductPage() {
 
       // Helper function to make images resizable and selectable
       const setupImageInteractions = (quillInstance: any) => {
-        console.log('🔧 setupImageInteractions called for:', quillInstance)
         const editor = quillInstance.root
         const editorContainer = editor.parentElement
-        console.log('📝 Editor root:', editor, 'Container:', editorContainer)
 
         // Store current selected image and its UI elements
         let selectedImage: HTMLImageElement | null = null
@@ -720,7 +718,6 @@ export default function EditProductPage() {
 
         // Remove all existing UI elements
         const cleanupImageUI = () => {
-          console.log('🧹 Cleaning up UI')
           uiElements.handles.forEach(handle => handle.remove())
           if (uiElements.deleteBtn) uiElements.deleteBtn.remove()
           if (uiElements.sizeDisplay) uiElements.sizeDisplay.remove()
@@ -775,13 +772,11 @@ export default function EditProductPage() {
 
         // Add resize handles and delete button to selected image
         const addImageUI = (img: HTMLImageElement) => {
-          console.log('➕ Adding UI to image:', img)
           cleanupImageUI()
 
           selectedImage = img
 
           if (!editorContainer) {
-            console.log('❌ No editor container found')
             return
           }
 
@@ -798,7 +793,6 @@ export default function EditProductPage() {
             handle.dataset.position = pos
             editorContainer.appendChild(handle)
             uiElements.handles.push(handle)
-            console.log(`✅ Added resize handle: ${pos}`)
           })
 
           // Add delete button
@@ -808,7 +802,6 @@ export default function EditProductPage() {
           deleteBtn.title = 'Delete image'
           editorContainer.appendChild(deleteBtn)
           uiElements.deleteBtn = deleteBtn
-          console.log('✅ Added delete button')
 
           // Add size display
           const sizeDisplay = document.createElement('div')
@@ -816,17 +809,9 @@ export default function EditProductPage() {
           sizeDisplay.textContent = `${img.offsetWidth} × ${img.offsetHeight}`
           editorContainer.appendChild(sizeDisplay)
           uiElements.sizeDisplay = sizeDisplay
-          console.log('✅ Added size display:', sizeDisplay.textContent)
 
           // Update positions
           setTimeout(() => updateUIPosition(), 0)
-
-          // Verify all elements were added
-          setTimeout(() => {
-            console.log('🔍 Verification - Handles in container:', editorContainer.querySelectorAll('.richtext-image-resize-handle').length,
-              'Delete btn:', !!editorContainer.querySelector('.richtext-image-delete-btn'),
-              'Size display:', !!editorContainer.querySelector('.richtext-image-size-display'))
-          }, 100)
         }
 
         // Handle image click for selection
@@ -835,18 +820,15 @@ export default function EditProductPage() {
 
           // Check if clicking on image
           if (target && target.tagName === 'IMG' && target.classList.contains('richtext_image')) {
-            console.log('🖼️ Clicked on richtext_image')
             e.preventDefault()
             e.stopPropagation()
             const img = target as HTMLImageElement
 
             // Toggle selection
             if (selectedImage === img) {
-              console.log('❌ Deselecting image')
               img.classList.remove('selected')
               cleanupImageUI()
             } else {
-              console.log('✅ Selecting image')
               // Remove selected class from previous image
               if (selectedImage) {
                 selectedImage.classList.remove('selected')
@@ -855,7 +837,6 @@ export default function EditProductPage() {
               addImageUI(img)
             }
           } else {
-            console.log('🌫️ Clicked elsewhere, deselecting all images')
             // Deselect image when clicking elsewhere
             if (selectedImage) {
               selectedImage.classList.remove('selected')
@@ -868,11 +849,9 @@ export default function EditProductPage() {
         if (editorContainer) {
           editorContainer.addEventListener('click', (e: any) => {
             const target = e.target
-            console.log('🖱️ Container click on:', target, 'classes:', target?.className)
 
             // Check if clicking on resize handle
             if (target.classList.contains('richtext-image-resize-handle')) {
-              console.log('✋ Clicked on resize handle:', target.dataset.position)
               e.preventDefault()
               e.stopPropagation()
               return // Let the mousedown handler deal with it
@@ -880,7 +859,6 @@ export default function EditProductPage() {
 
             // Check if clicking on delete button
             if (target.classList.contains('richtext-image-delete-btn')) {
-              console.log('🗑️ Clicked on delete button')
               e.preventDefault()
               e.stopPropagation()
               if (selectedImage) {
@@ -899,7 +877,6 @@ export default function EditProductPage() {
         if (editorContainer) {
           editorContainer.addEventListener('mousedown', (e: any) => {
             if (e.target.classList.contains('richtext-image-resize-handle')) {
-              console.log('🎯 Started resizing with handle:', e.target.dataset.position)
               e.preventDefault()
               e.stopPropagation()
               const handle = e.target
@@ -963,7 +940,6 @@ export default function EditProductPage() {
               const onMouseUp = () => {
                 document.removeEventListener('mousemove', onMouseMove)
                 document.removeEventListener('mouseup', onMouseUp)
-                console.log('✅ Finished resizing')
               }
 
               document.addEventListener('mousemove', onMouseMove)
@@ -1075,7 +1051,6 @@ export default function EditProductPage() {
         descriptionQuillRef.current = quill1
 
         // Setup image interactions
-        console.log('🚀 Calling setupImageInteractions for description editor')
         setupImageInteractions(quill1)
       } else if (descriptionQuillRef.current && description) {
         descriptionQuillRef.current.root.innerHTML = description
@@ -1083,11 +1058,6 @@ export default function EditProductPage() {
 
       // Highlights Editor
       const highlightsContainer = document.getElementById('highlights-editor')
-      console.log('🔍 Highlights Editor Container:', {
-        container: highlightsContainer,
-        highlightsList: highlightsList,
-        editorRef: highlightsQuillRef.current
-      })
       if (highlightsContainer && !highlightsQuillRef.current) {
         let isProgrammaticUpdate = false
         const quill2 = new Quill('#highlights-editor', {
@@ -1151,7 +1121,6 @@ export default function EditProductPage() {
         if (highlightsList.length > 0) {
           isProgrammaticUpdate = true
           const html = arrayToListHtml(highlightsList)
-          console.log('📌 Setting initial highlights HTML:', html)
           // Use Quill's clipboard API for better HTML parsing
           quill2.clipboard.dangerouslyPasteHTML(html)
           setTimeout(() => { isProgrammaticUpdate = false }, 0)
@@ -1185,21 +1154,13 @@ export default function EditProductPage() {
         highlightsQuillRef.current = quill2
 
         // Setup image interactions
-        console.log('🚀 Calling setupImageInteractions for highlights editor')
         setupImageInteractions(quill2)
       } else if (highlightsQuillRef.current) {
         // Update existing editor with loaded highlights
-        console.log('🔄 Updating existing highlights editor:', {
-          highlightsList: highlightsList,
-          currentHTML: highlightsQuillRef.current.root.innerHTML
-        })
         const nonEmpty = highlightsList.filter(item => item.trim() !== '')
-        console.log('📝 Non-empty highlights:', nonEmpty)
         if (nonEmpty.length > 0) {
           const html = `<ul>${nonEmpty.map(item => `<li>${item}</li>`).join('')}</ul>`
-          console.log('📄 Setting HTML via clipboard:', html)
           highlightsQuillRef.current.clipboard.dangerouslyPasteHTML(html)
-          console.log('✅ HTML set via clipboard, current content:', highlightsQuillRef.current.root.innerHTML)
         } else {
           setTimeout(() => {
             if (highlightsQuillRef.current) {
@@ -1388,7 +1349,6 @@ export default function EditProductPage() {
         descriptionBnQuillRef.current = quillBn1
 
         // Setup image interactions
-        console.log('🚀 Calling setupImageInteractions for Bangla description editor')
         setupImageInteractions(quillBn1)
       } else if (descriptionBnQuillRef.current && descriptionBn) {
         descriptionBnQuillRef.current.root.innerHTML = descriptionBn
@@ -1453,7 +1413,6 @@ export default function EditProductPage() {
         if (highlightsBn.length > 0) {
           isProgrammaticUpdateBn = true
           const html = `<ul>${highlightsBn.map(item => `<li>${item}</li>`).join('')}</ul>`
-          console.log('📌 Setting initial Bangla highlights HTML:', html)
           quillBn2.clipboard.dangerouslyPasteHTML(html)
           setTimeout(() => { isProgrammaticUpdateBn = false }, 0)
         } else {
@@ -1486,21 +1445,13 @@ export default function EditProductPage() {
         highlightsBnQuillRef.current = quillBn2
 
         // Setup image interactions
-        console.log('🚀 Calling setupImageInteractions for Bangla highlights editor')
         setupImageInteractions(quillBn2)
       } else if (highlightsBnQuillRef.current) {
         // Update existing Bangla editor with loaded highlights
-        console.log('🔄 Updating existing Bangla highlights editor:', {
-          highlightsBn: highlightsBn,
-          currentHTML: highlightsBnQuillRef.current.root.innerHTML
-        })
         const nonEmpty = highlightsBn.filter(item => item.trim() !== '')
-        console.log('📝 Non-empty Bangla highlights:', nonEmpty)
         if (nonEmpty.length > 0) {
           const html = `<ul>${nonEmpty.map(item => `<li>${item}</li>`).join('')}</ul>`
-          console.log('📄 Setting Bangla HTML via clipboard:', html)
           highlightsBnQuillRef.current.clipboard.dangerouslyPasteHTML(html)
-          console.log('✅ Bangla HTML set, current content:', highlightsBnQuillRef.current.root.innerHTML)
         } else {
           setTimeout(() => {
             if (highlightsBnQuillRef.current) {
@@ -1630,7 +1581,7 @@ export default function EditProductPage() {
 
     // Small delay to ensure DOM is ready
     setTimeout(initializeQuillEditors, 100)
-  }, [isLoading, highlightsList, attributesList, highlightsBn, attributesBn, description, descriptionBn])
+  }, [isLoading])
 
   // Cleanup Quill editors on unmount
   useEffect(() => {
@@ -2343,14 +2294,6 @@ export default function EditProductPage() {
         }))
       }
 
-      // Debug log to verify data being sent
-      console.log('📤 Submitting product update with:', {
-        highlights: currentHighlights,
-        highlightsBn: currentHighlightsBn,
-        attributes: currentAttributes,
-        attributesBn: currentAttributesBn
-      })
-
       // Call API - PUT for update
       const response = await apiMethods.put(`/catalog/products/${id}`, payload)
 
@@ -2541,14 +2484,6 @@ export default function EditProductPage() {
           thumbnail: v.thumbnail || null
         }))
       }
-
-      // Debug log to verify data being sent
-      console.log('📤 Submitting product update with:', {
-        highlights: currentHighlights,
-        highlightsBn: currentHighlightsBn,
-        attributes: currentAttributes,
-        attributesBn: currentAttributesBn
-      })
 
       // Call API - PUT for update
       const response = await apiMethods.put(`/catalog/products/${id}`, payload)

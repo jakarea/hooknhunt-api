@@ -40,14 +40,15 @@ Route::group([
 
 // ====================================================
 // EPS TEST ENDPOINTS (For Debugging - Remove in Production)
+// DEPRECATED: EpsTestController renamed to _deleted.php (non-existent EPSService dependency)
 // ====================================================
-Route::group([
-    'prefix' => 'v2/test/eps',
-    'namespace' => 'App\Http\Controllers\Api\V2'
-], function () {
-    Route::get('connectivity', 'EpsTestController@connectivity');
-    Route::get('config', 'EpsTestController@config');
-});
+// Route::group([
+//     'prefix' => 'v2/test/eps',
+//     'namespace' => 'App\Http\Controllers\Api\V2'
+// ], function () {
+//     Route::get('connectivity', 'EpsTestController@connectivity');
+//     Route::get('config', 'EpsTestController@config');
+// });
 
 // ====================================================
 // LAZYCHAT INTEGRATION (Public - External Webhooks)

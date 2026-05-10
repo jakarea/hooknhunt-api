@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\URL;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -24,5 +25,12 @@ class AppServiceProvider extends ServiceProvider
             $epsConfig = require base_path('config/epsPayment.php');
             config(['eps' => $epsConfig]);
         }
+
+        // Macro for frontend URLs (website product pages, etc.)
+        URL::macro('frontend', function (string $path = ''): string {
+            $frontendUrl = rtrim(config('app.frontend_url') ?? env('FRONTEND_URL', 'https://www.hooknhunt.com'), '/');
+            $path = ltrim($path, '/');
+            return $frontendUrl . '/' . $path;
+        });
     }
 }

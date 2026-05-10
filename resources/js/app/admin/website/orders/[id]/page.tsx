@@ -138,7 +138,7 @@ export default function WebsiteOrderDetailPage() {
       let tempCancellationReason: CancellationReason | null = null
       let tempNote = changeNote
 
-      modals.open({
+      modals.openConfirmModal({
         title: `Cancel Order #${order.invoiceNo}`,
         children: (
           <Stack gap="md">
@@ -207,7 +207,7 @@ export default function WebsiteOrderDetailPage() {
       // Show modal with mandatory note for on_hold
       let tempNote = changeNote
 
-      modals.open({
+      modals.openConfirmModal({
         title: `Change status to ${statusLabels[selectedStatus as WebsiteOrderStatus] || selectedStatus}?`,
         children: (
           <Stack gap="md">

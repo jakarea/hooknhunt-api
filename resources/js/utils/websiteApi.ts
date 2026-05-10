@@ -164,6 +164,9 @@ export type WebsiteOrderStats = {
   onHold: number
   approved: number
   onShipping: number
+  sentToSteadfast: number
+  inTransit: number
+  delivered: number
   shipped: number
   completed: number
   cancelled: number

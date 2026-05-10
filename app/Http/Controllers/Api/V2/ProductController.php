@@ -136,6 +136,9 @@ class ProductController extends Controller
             'productName' => 'required|string|max:255',
             'retailName' => 'nullable|string|max:255',
             'wholesaleName' => 'nullable|string|max:255',
+            'retailNameBn' => 'nullable|string|max:255',
+            'wholesaleNameBn' => 'nullable|string|max:255',
+            'productCode' => 'nullable|string|max:50',
             'category' => 'required|integer|exists:categories,id',
             'brand' => 'required|integer|exists:brands,id',
             'status' => 'required|in:draft,published,archived',
@@ -234,6 +237,7 @@ class ProductController extends Controller
                 'wholesale_name' => $validated['wholesaleName'] ?? null,
                 'retail_name_bn' => $validated['retailNameBn'] ?? null,
                 'wholesale_name_bn' => $validated['wholesaleNameBn'] ?? null,
+                'product_code' => $validated['productCode'] ?? null,
                 'slug' => SlugHelper::generateUniqueSlug($validated['productName'], 'products', 'slug'),
                 'category_id' => $validated['category'],
                 'brand_id' => $validated['brand'],
@@ -256,8 +260,8 @@ class ProductController extends Controller
                 'gallery_images' => $validated['galleryImages'],
             ]);
 
-            // Auto-generate product_code based on category
-            if ($product->category_id) {
+            // Auto-generate product_code based on category (only if not provided by user)
+            if ($product->category_id && $product->product_code === null) {
                 $generatedCode = ProductCodeService::generateProductCode($product->category_id);
                 if ($generatedCode !== null) {
                     $product->product_code = $generatedCode;
@@ -486,6 +490,9 @@ class ProductController extends Controller
             'productName' => 'sometimes|required|string',
             'retailName' => 'nullable|string',
             'wholesaleName' => 'nullable|string',
+            'retailNameBn' => 'nullable|string',
+            'wholesaleNameBn' => 'nullable|string',
+            'productCode' => 'nullable|string',
             'category' => 'sometimes|required|exists:categories,id',
             'brand' => 'nullable|exists:brands,id',
             'status' => 'in:draft,published,archived',
@@ -594,6 +601,7 @@ class ProductController extends Controller
                 'wholesale_name' => $validated['wholesaleName'] ?? $product->wholesale_name,
                 'retail_name_bn' => array_key_exists('retailNameBn', $validated) ? $validated['retailNameBn'] : $product->retail_name_bn,
                 'wholesale_name_bn' => array_key_exists('wholesaleNameBn', $validated) ? $validated['wholesaleNameBn'] : $product->wholesale_name_bn,
+                'product_code' => array_key_exists('productCode', $validated) ? $validated['productCode'] : $product->product_code,
                 'slug' => $newSlug,
                 'category_id' => $validated['category'] ?? $product->category_id,
                 'brand_id' => $validated['brand'] ?? $product->brand_id,

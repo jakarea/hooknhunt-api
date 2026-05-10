@@ -48,6 +48,15 @@ api.interceptors.response.use(
   (error: AxiosError) => {
     const { showErrorToast } = errorHandlers
 
+    // Timeout error - preserve original error info
+    if (error.code === 'ECONNABORTED' && error.message.includes('timeout')) {
+      return Promise.reject({
+        ...error,
+        code: 'ECONNABORTED',
+        message: `Request timeout after ${error.config?.timeout || 30000}ms`,
+      })
+    }
+
     // Network error (no internet connection)
     if (!error.response) {
       showErrorToast('network_error')
@@ -117,6 +126,44 @@ const errorHandlers = {
     useUIStore.getState().showToast(messages[key] || messages.something_went_wrong, 'error')
   },
 }
+
+// Upload API with longer timeout for large files
+export const uploadApi = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'multipart/form-data',
+    Accept: 'application/json',
+  },
+  timeout: 300000, // 5 minutes for uploads
+})
+
+// Add auth interceptor to upload API
+uploadApi.interceptors.request.use(
+  (config) => {
+    const token = useAuthStore.getState().token
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  (error) => Promise.reject(error)
+)
+
+// Add response interceptor to upload API (same as main API)
+uploadApi.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    // Timeout error - preserve original error info
+    if (error.code === 'ECONNABORTED' && error.message.includes('timeout')) {
+      return Promise.reject({
+        ...error,
+        code: 'ECONNABORTED',
+        message: `Upload timeout after ${error.config?.timeout || 300000}ms`,
+      })
+    }
+    return Promise.reject(error)
+  }
+)
 
 // Type-safe API methods
 export const apiMethods = {

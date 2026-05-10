@@ -3357,9 +3357,9 @@ export const uploadMediaFiles = async (files: FileList | File[], folderId?: numb
     formData.append('folder_id', folderId.toString())
   }
 
-  const response = await api.post('media/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
+  // Use uploadApi with 5-minute timeout for large file uploads
+  const { uploadApi } = await import('@/lib/api')
+  const response = await uploadApi.post('media/upload', formData)
   return response.data
 }
 

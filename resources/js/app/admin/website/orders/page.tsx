@@ -225,9 +225,12 @@ export default function WebsiteOrdersPage() {
               <Tabs.Tab value="all">All ({stats?.total || 0})</Tabs.Tab>
               <Tabs.Tab value="pending">Pending ({stats?.pending || 0})</Tabs.Tab>
               <Tabs.Tab value="processing">Processing ({stats?.processing || 0})</Tabs.Tab>
-              <Tabs.Tab value="shipped">Shipped ({stats?.shipped || 0})</Tabs.Tab>
-              <Tabs.Tab value="cancelled">Cancelled ({stats?.cancelled || 0})</Tabs.Tab>
+              <Tabs.Tab value="approved">Approved ({stats?.approved || 0})</Tabs.Tab>
+              <Tabs.Tab value="sent_to_steadfast">Sent to SteadFast ({stats?.sentToSteadfast || stats?.onShipping || 0})</Tabs.Tab>
+              <Tabs.Tab value="in_transit">In Transit ({stats?.inTransit || 0})</Tabs.Tab>
+              <Tabs.Tab value="delivered">Delivered ({stats?.delivered || 0})</Tabs.Tab>
               <Tabs.Tab value="completed">Completed ({stats?.completed || 0})</Tabs.Tab>
+              <Tabs.Tab value="cancelled">Cancelled ({stats?.cancelled || 0})</Tabs.Tab>
             </Tabs.List>
           </Tabs>
         </Card>

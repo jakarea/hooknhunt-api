@@ -253,8 +253,21 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
       // Invalidate cache and reload
       get().invalidateCache(folderId)
       await get().loadFiles()
-    } catch {
-      notifications.show({ title: 'Error', message: 'Upload failed', color: 'red' })
+    } catch (error: any) {
+      // Show detailed error message
+      let errorMessage = 'Upload failed'
+
+      if (error?.code === 'ECONNABORTED' || error?.message?.includes('timeout')) {
+        errorMessage = 'Upload timed out. The file(s) may be too large or the connection is slow. Try uploading fewer files at once.'
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message
+      } else if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error
+      } else if (error?.message) {
+        errorMessage = error.message
+      }
+
+      notifications.show({ title: 'Upload Error', message: errorMessage, color: 'red' })
     } finally {
       set({ uploading: false })
     }
