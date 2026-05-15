@@ -144,6 +144,9 @@ class ProductController extends Controller
             'status' => 'required|in:draft,published,archived',
             'videoUrl' => 'nullable|url|max:500',
 
+            // Affiliate Commission
+            'affiliateCommission' => 'nullable|numeric|min:0|max:100',
+
             // Product Settings
             'enableWarranty' => 'boolean',
             'warrantyDetails' => 'nullable|string|max:1000',
@@ -269,7 +272,16 @@ class ProductController extends Controller
                 }
             }
 
-            // 2. Create Variants - TWO ROWS PER VARIANT (Retail + Wholesale)
+            // 3. Create default affiliate commission (uses provided rate or defaults to 5% for all affiliates)
+            $commissionRate = isset($validated['affiliateCommission']) ? (float) $validated['affiliateCommission'] : 5.00;
+            \App\Models\ProductAffiliateCommission::create([
+                'product_id' => $product->id,
+                'affiliate_id' => null, // null = all affiliates (global)
+                'commission_rate' => $commissionRate,
+                'is_active' => true,
+            ]);
+
+            // 4. Create Variants - TWO ROWS PER VARIANT (Retail + Wholesale)
             $createdVariants = [];
 
             foreach ($validated['variants'] as $index => $variant) {
@@ -407,46 +419,71 @@ class ProductController extends Controller
 
             return [
                 'id'                    => $base->id,
+                'retail_id'             => $retail?->id,
+                'wholesale_id'          => $wholesale?->id,
                 'retailId'              => $retail?->id,
                 'wholesaleId'           => $wholesale?->id,
                 'productId'             => $base->product_id,
                 'variantName'           => $base->variant_name,
+                'variant_name'          => $base->variant_name,
                 'variantSlug'           => $base->variant_slug,
+                'variant_slug'          => $base->variant_slug,
                 'customSku'             => $base->custom_sku,
+                'sellerSku'             => $base->custom_sku,
                 'sku'                   => $base->sku,
                 'thumbnail'             => $base->thumbnail ? (str_starts_with($base->thumbnail, 'http') ? $base->thumbnail : url($base->thumbnail)) : null,
                 'color'                 => $base->color,
                 'size'                  => $base->size,
                 'material'              => $base->material,
-                'weight'                => $base->weight,
+                'weight'                => (float)($base->weight ?? 0),
                 'pattern'               => $base->pattern,
                 'unitId'                => $base->unit_id,
                 'unitValue'             => $base->unit_value,
-                'purchaseCost'          => $base->purchase_cost ? (float) $base->purchase_cost : 0,
+                'purchaseCost'          => (float)($base->purchase_cost ?? 0),
+                'purchase_cost'         => (float)($base->purchase_cost ?? 0),
                 'stock'                 => $base->stock ?? 0,
                 'currentStock'          => $base->current_stock ?? 0,
+                'current_stock'         => $base->current_stock ?? 0,
                 'stockAlertLevel'       => $base->stock_alert_level ?? 5,
-                'moq'                   => $base->moq ?? 1,
+                'moq'                   => $base->moq ?? $wholesale?->moq ?? 1,
+                'wholesaleMoq'          => $wholesale?->moq ?? 6,
                 'isActive'              => $base->is_active ?? true,
                 'allowPreorder'         => $base->allow_preorder ?? false,
                 'expectedDelivery'      => $base->expected_delivery,
-                // Retail channel fields
-                'retailPrice'           => $retail ? (float) $retail->price : 0,
-                'retailOfferPrice'      => $retail && $retail->offer_price ? (float) $retail->offer_price : null,
+                'expected_delivery'     => $base->expected_delivery,
+                // Retail channel fields - provide both naming conventions
+                'retailPrice'           => (float)($retail?->price ?? 0),
+                'retail_price'          => (float)($retail?->price ?? 0),
+                'price'                 => (float)($retail?->price ?? 0),
+                'retailOfferPrice'      => $retail && $retail->offer_price ? (float)$retail->offer_price : null,
+                'retail_offer_price'    => $retail && $retail->offer_price ? (float)$retail->offer_price : null,
                 'retailOfferStarts'     => $retail?->offer_starts,
                 'retailOfferEnds'       => $retail?->offer_ends,
+                'offer_price'           => $retail && $retail->offer_price ? (float)$retail->offer_price : 0,
+                'offer_price'           => $retail && $retail->offer_price ? (float)$retail->offer_price : null,
                 'retailSku'             => $retail?->sku,
-                // Wholesale channel fields
-                'wholesalePrice'        => $wholesale ? (float) $wholesale->price : 0,
-                'wholesaleOfferPrice'   => $wholesale && $wholesale->offer_price ? (float) $wholesale->offer_price : null,
+                'specialPrice'          => $retail && $retail->offer_price ? (float)$retail->offer_price : 0,
+                // Wholesale channel fields - provide both naming conventions
+                'wholesalePrice'        => (float)($wholesale?->price ?? 0),
+                'wholesale_price'       => (float)($wholesale?->price ?? 0),
+                'wholesaleOfferPrice'   => $wholesale && $wholesale->offer_price ? (float)$wholesale->offer_price : null,
+                'wholesale_offer_price' => $wholesale && $wholesale->offer_price ? (float)$wholesale->offer_price : null,
                 'wholesaleOfferStarts'  => $wholesale?->offer_starts,
                 'wholesaleOfferEnds'    => $wholesale?->offer_ends,
                 'wholesaleSku'          => $wholesale?->sku,
+                'channel'               => null, // Indicate this is a merged variant
             ];
         })->values();
 
         // Replace the variants relation with paired data
         $product->setRelation('variants', $variants);
+
+        // Get affiliate commission (global rate for this product)
+        $globalCommission = \App\Models\ProductAffiliateCommission::where('product_id', $product->id)
+            ->whereNull('affiliate_id')
+            ->first();
+
+        $product->affiliate_commission = $globalCommission ? (float) $globalCommission->commission_rate : 5.00;
 
         return $this->sendSuccess($product);
     }
@@ -516,6 +553,7 @@ class ProductController extends Controller
             'thankYou' => 'nullable|boolean',
             'enablePreorder' => 'nullable|boolean',
             'expectedDeliveryDate' => 'nullable|date',
+            'affiliateCommission' => 'nullable|numeric|min:0|max:100',
             'variants' => 'nullable|array',
             'variants.*.name' => 'nullable|string',
             'variants.*.sellerSku' => 'nullable|string',
@@ -642,6 +680,30 @@ class ProductController extends Controller
                 if ($generatedCode !== null) {
                     $product->product_code = $generatedCode;
                     $product->save();
+                }
+            }
+
+            // Update affiliate commission (global commission for all affiliates)
+            if (array_key_exists('affiliateCommission', $validated)) {
+                $commissionRate = (float) $validated['affiliateCommission'];
+
+                // Find or create the global commission entry for this product
+                $globalCommission = \App\Models\ProductAffiliateCommission::where('product_id', $product->id)
+                    ->whereNull('affiliate_id')
+                    ->first();
+
+                if ($globalCommission) {
+                    // Update existing global commission
+                    $globalCommission->commission_rate = $commissionRate;
+                    $globalCommission->save();
+                } else {
+                    // Create new global commission entry
+                    \App\Models\ProductAffiliateCommission::create([
+                        'product_id' => $product->id,
+                        'affiliate_id' => null,
+                        'commission_rate' => $commissionRate,
+                        'is_active' => true,
+                    ]);
                 }
             }
 

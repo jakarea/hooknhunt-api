@@ -271,6 +271,9 @@ export default function CreateProductPage() {
   const [seoDescription, setSeoDescription] = useState('')
   const [seoTags, setSeoTags] = useState<string[]>([])
 
+  // Affiliate state
+  const [affiliateCommission, setAffiliateCommission] = useState(5)
+
   // Track which fields have been manually edited by the user
   const [manuallyEdited, setManuallyEdited] = useState({
     seoTitle: false,
@@ -2059,6 +2062,7 @@ export default function CreateProductPage() {
         seoTitle,
         seoDescription,
         seoTags: seoTags.length > 0 ? seoTags.join(', ') : null,
+        affiliateCommission,
         featuredImage: featuredImage?.mediaId ?? null,
         galleryImages: galleryImages.map(img => img.mediaId),
         variants: variants.map(v => ({
@@ -3184,6 +3188,23 @@ export default function CreateProductPage() {
                           error={errors.expectedDeliveryDate}
                         />
                       )}
+                    </SimpleGrid>
+
+                    <Divider />
+
+                    {/* Affiliate Commission */}
+                    <SimpleGrid cols={{ base: 1, md: 2 }}>
+                      <NumberInput
+                        label="Affiliate Commission (%)"
+                        placeholder="5"
+                        value={affiliateCommission}
+                        onChange={(value) => setAffiliateCommission(typeof value === 'number' ? value : 5)}
+                        min={0}
+                        max={100}
+                        step={0.01}
+                        decimalScale={2}
+                        description="Commission rate for affiliates on this product (global default)"
+                      />
                     </SimpleGrid>
                   </Stack>
                 </Card>

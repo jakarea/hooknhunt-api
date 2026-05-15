@@ -269,11 +269,13 @@ class ProductController extends Controller
             'description'      => $product->description,
             'shortDescription' => $product->short_description,
             'highlights'       => $product->highlights,
+            'attributes'       => $product->attributes,
             'includesInBox'    => $product->includes_in_box,
             // Bangla fields
             'nameBn'           => $product->retail_name_bn ?? $product->name_bn,
             'descriptionBn'    => $product->description_bn,
             'highlightsBn'     => $product->highlights_bn,
+            'attributesBn'     => $product->attributes_bn,
             'includesInBoxBn'  => $product->includes_in_box_bn,
             // Common fields
             'videoUrl'         => $product->video_url,
@@ -462,6 +464,10 @@ class ProductController extends Controller
                   // Search by SKU
                   ->orWhereHas('variants', fn($vq) => $vq->where('sku', 'like', "%{$search}%"));
             });
+        }
+
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->input('category_id'));
         }
 
         if ($request->filled('brand_id')) {

@@ -2,6 +2,10 @@
   "title": "CRM",
   "customersMenu": "Customers",
   "leadsMenu": "Leads",
+  "affiliatesMenu": "Affiliates",
+  "productCommissionsMenu": "Product Commissions",
+  "categoryCommissionsMenu": "Category Commissions",
+  "payoutsMenu": "Payouts",
   "walletMenu": "Wallet",
   "loyaltyMenu": "Loyalty",
   "dashboard": {

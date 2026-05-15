@@ -94,6 +94,12 @@ class Product extends Model
         return $this->hasMany(ProductVariant::class);
     }
 
+    // 3.1. Get active (first) variant for price display
+    public function activeVariant()
+    {
+        return $this->hasOne(ProductVariant::class)->oldestOfMany();
+    }
+
     // 3.5. Relation with Reviews
     public function reviews()
     {
@@ -114,7 +120,12 @@ class Product extends Model
     {
         if (empty($this->gallery_images)) return [];
 
-        $mediaFiles = MediaFile::whereIn('id', $this->gallery_images)->get();
+        // Preserve the order of gallery_images by using FIELD() in MySQL
+        $ids = $this->gallery_images;
+        $mediaFiles = MediaFile::whereIn('id', $ids)
+            ->orderByRaw('FIELD(id, ' . implode(',', $ids) . ')')
+            ->get();
+
         return $mediaFiles->map(function ($file) {
             return $file->full_url;
         })->toArray();
@@ -126,7 +137,12 @@ class Product extends Model
     public function getGalleryFilesAttribute()
     {
         if (empty($this->gallery_images)) return [];
-        return MediaFile::whereIn('id', $this->gallery_images)->get();
+
+        // Preserve the order of gallery_images by using FIELD() in MySQL
+        $ids = $this->gallery_images;
+        return MediaFile::whereIn('id', $ids)
+            ->orderByRaw('FIELD(id, ' . implode(',', $ids) . ')')
+            ->get();
     }
 
     // 7. Accessor for Cross Sale Products
@@ -182,6 +198,43 @@ class Product extends Model
     {
         return $this->attributes['wholesale_name'] ?? null;
     }
+
+    // 10. Accessor for camelCase compatibility (seoTags -> seo_tags)
+    public function getSeoTagsAttribute()
+    {
+        return $this->attributes['seo_tags'] ?? null;
+    }
+
+    public function getSeoTitleAttribute()
+    {
+        return $this->attributes['seo_title'] ?? null;
+    }
+
+    public function getSeoDescriptionAttribute()
+    {
+        return $this->attributes['seo_description'] ?? null;
+    }
+
+    public function getVideoUrlAttribute()
+    {
+        return $this->attributes['video_url'] ?? null;
+    }
+
+    public function getProductCodeAttribute()
+    {
+        return $this->attributes['product_code'] ?? null;
+    }
+
+    public function getWarrantyEnabledAttribute()
+    {
+        return $this->attributes['warranty_enabled'] ?? null;
+    }
+
+    public function getWarrantyDetailsAttribute()
+    {
+        return $this->attributes['warranty_details'] ?? null;
+    }
+
 
 
 

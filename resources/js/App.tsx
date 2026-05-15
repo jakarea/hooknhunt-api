@@ -77,6 +77,10 @@ import Wallet from "@/app/admin/crm/wallet/page"
 import WalletDetails from "@/app/admin/crm/wallet/[id]/page"
 import Campaigns from "@/app/admin/marketing/campaigns/page"
 import Affiliates from "@/app/admin/marketing/affiliates/page"
+import AffiliateDetail from "@/app/admin/marketing/affiliates/[id]/page"
+import ProductCommissions from "@/app/admin/marketing/product-commissions/page"
+import CategoryCommissions from "@/app/admin/marketing/category-commissions/page"
+import Payouts from "@/app/admin/marketing/payouts/page"
 import LoyaltyRules from "@/app/admin/crm/loyalty/page"
 import HRMDashboard from "@/app/admin/hrm/page"
 import Staff from "@/app/admin/hrm/staff/page"
@@ -257,6 +261,10 @@ function App() {
               <Route path="crm/wallet/:id" element={<WalletDetails />} />
               <Route path="marketing/campaigns" element={<Campaigns />} />
               <Route path="marketing/affiliates" element={<Affiliates />} />
+              <Route path="marketing/affiliates/:id" element={<AffiliateDetail />} />
+              <Route path="marketing/product-commissions" element={<ProductCommissions />} />
+              <Route path="marketing/category-commissions" element={<CategoryCommissions />} />
+              <Route path="marketing/payouts" element={<Payouts />} />
               <Route path="crm/loyalty" element={<LoyaltyRules />} />
               <Route path="hrm" element={<HRMDashboard />} />
               <Route path="hrm/staff" element={<Staff />} />

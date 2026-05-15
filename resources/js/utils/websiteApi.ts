@@ -161,20 +161,23 @@ export type WebsiteOrderStats = {
   total: number
   pending: number
   processing: number
-  onHold: number
+  on_hold: number
   approved: number
-  onShipping: number
-  sentToSteadfast: number
-  inTransit: number
+  sent_to_steadfast: number
+  in_review: number
+  in_transit: number
   delivered: number
-  shipped: number
+  partial_delivered: number
+  delivery_failed_return: number
+  return_received: number
+  refunded_completed: number
   completed: number
   cancelled: number
   returned: number
-  totalRevenue: number
-  totalPendingAmount: number
-  todayOrders: number
-  todayRevenue: number
+  total_revenue: number
+  total_pending_amount: number
+  today_orders: number
+  today_revenue: number
 }
 
 // ============================================
@@ -331,6 +334,18 @@ export const bulkSendToCourier = async (orderIds: number[], delaySeconds = 0.5) 
   const response = await api.post('website-admin/orders/bulk-send-to-courier', {
     order_ids: orderIds,
     delay_seconds: delaySeconds,
+  })
+  return response.data
+}
+
+export const deleteWebsiteOrder = async (id: number) => {
+  const response = await api.delete(`website-admin/orders/${id}`)
+  return response.data
+}
+
+export const bulkDeleteOrders = async (orderIds: number[]) => {
+  const response = await api.post('website-admin/orders/bulk-delete', {
+    order_ids: orderIds,
   })
   return response.data
 }

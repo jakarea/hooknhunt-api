@@ -679,12 +679,42 @@ Route::group([
 
     // --- Others ---
     Route::get('loyalty-rules', 'LoyaltyController@index')->middleware('permission:crm.loyalty.index');
+    Route::get('affiliate/check', 'AffiliateController@check');
     Route::apiResource('affiliates', 'AffiliateController')
         ->middleware([
             'store' => 'permission:crm.affiliates.create',
             'update' => 'permission:crm.affiliates.edit',
             'destroy' => 'permission:crm.affiliates.delete',
         ]);
+
+    // --- Module: AFFILIATE MANAGEMENT (Admin) ---
+    Route::group(['prefix' => 'admin', 'namespace' => 'Admin'], function () {
+        // Affiliates management
+        Route::get('affiliates/stats', 'AdminAffiliateController@getStats');
+        Route::get('affiliates/{id}/earnings', 'AdminAffiliateController@getEarnings');
+        Route::get('affiliates/{id}/payouts', 'AdminAffiliateController@getPayouts');
+        Route::get('affiliates/{id}/referrals', 'AdminAffiliateController@getReferrals');
+        Route::post('affiliates/{id}/approve', 'AdminAffiliateController@approve');
+        Route::post('affiliates/{id}/reject', 'AdminAffiliateController@reject');
+        Route::post('affiliates/create-from-user', 'AdminAffiliateController@createFromUser');
+        Route::get('users/not-affiliates', 'AdminAffiliateController@getNonAffiliateUsers');
+        Route::apiResource('affiliates', 'AdminAffiliateController');
+
+        // Product commissions
+        Route::get('products/{id}/commissions', 'ProductCommissionController@getProductCommissions');
+        Route::apiResource('product-commissions', 'ProductCommissionController');
+
+        // Category commissions
+        Route::get('categories/{id}/commissions', 'CategoryCommissionController@getCategoryCommissions');
+        Route::apiResource('category-commissions', 'CategoryCommissionController');
+
+        // Payout management
+        Route::post('affiliate-payouts/{id}/approve', 'PayoutController@approve');
+        Route::post('affiliate-payouts/{id}/reject', 'PayoutController@reject');
+        Route::post('affiliate-payouts/{id}/complete', 'PayoutController@markCompleted');
+        Route::post('affiliate-payouts/{id}/process', 'PayoutController@markAsProcessing');
+        Route::apiResource('affiliate-payouts', 'PayoutController');
+    });
 
 });
 
@@ -760,6 +790,11 @@ Route::group([
         Route::post('account/addresses', 'Website\AccountController@addAddress');
         Route::put('account/addresses/{id}', 'Website\AccountController@updateAddress');
         Route::delete('account/addresses/{id}', 'Website\AccountController@deleteAddress');
+
+        // Affiliate management
+        Route::post('affiliate/apply', 'Website\AffiliateController@apply');
+        Route::get('affiliate/dashboard', 'Website\AffiliateController@dashboard');
+        Route::post('affiliate/payout-request', 'Website\AffiliateController@requestPayout');
     });
 
     // --- Coupons (Public) ---
@@ -770,6 +805,9 @@ Route::group([
     Route::get('reviews', 'Website\ReviewController@index');
     Route::get('reviews/featured', 'Website\ReviewController@featured');
     Route::get('reviews/product/{slug}', 'Website\ReviewController@getByProductSlug');
+
+    // --- Steadfast Webhook (Public - Courier Service) ---
+    Route::post('webhook/steadfast', 'Website\SteadfastWebhookController@handle');
 });
 
 // ====================================================
@@ -798,6 +836,7 @@ Route::group([
     Route::get('orders', 'OrderController@index');
     Route::get('orders/{id}', 'OrderController@show');
     Route::put('orders/{id}', 'OrderController@update')->middleware('permission:website.orders.edit');
+    Route::delete('orders/{id}', 'OrderController@destroy')->middleware('permission:website.orders.delete');
 
     // Order Status
     Route::put('orders/{id}/status', 'OrderController@updateStatus')->middleware('permission:website.orders.status');
@@ -806,6 +845,7 @@ Route::group([
     // Bulk Operations
     Route::post('orders/bulk-update-status', 'OrderController@bulkUpdateStatus')->middleware('permission:website.orders.status');
     Route::post('orders/bulk-send-to-courier', 'OrderController@bulkSendToCourier')->middleware('permission:website.orders.courier.send');
+    Route::post('orders/bulk-delete', 'OrderController@bulkDestroy')->middleware('permission:website.orders.delete');
 
     // Payment
     Route::put('orders/{id}/payment', 'OrderController@updatePayment')->middleware('permission:website.orders.payment');

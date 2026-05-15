@@ -15,6 +15,39 @@ class AffiliateController extends Controller
     use ApiResponse;
 
     /**
+     * Check if authenticated user is an affiliate
+     * GET /api/v2/affiliate/check
+     */
+    public function check()
+    {
+        $user = auth()->user();
+
+        if (!$user) {
+            return $this->sendError('User not authenticated', [], 401);
+        }
+
+        $affiliate = Affiliate::where('user_id', $user->id)->first();
+
+        if (!$affiliate) {
+            return response()->json([
+                'success' => false,
+                'is_affiliate' => false,
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'is_affiliate' => true,
+            'data' => [
+                'id' => $affiliate->id,
+                'referral_code' => $affiliate->referral_code,
+                'commission_rate' => $affiliate->commission_rate,
+                'is_approved' => $affiliate->is_approved,
+            ],
+        ]);
+    }
+
+    /**
      * 1. Join Affiliate Program
      */
     public function joinProgram(Request $request)
@@ -28,7 +61,7 @@ class AffiliateController extends Controller
 
         $affiliate = Affiliate::create([
             'user_id' => $user->id,
-            'referral_code' => $this->generateUniqueCode($user->name),
+            'referral_code' => Affiliate::generateUniqueReferralCode(),
             'commission_rate' => 5.00, // Default 5%
             'is_approved' => true // Or false if manual approval needed
         ]);
@@ -57,17 +90,6 @@ class AffiliateController extends Controller
         ];
 
         return $this->sendSuccess($stats);
-    }
-
-    // --- Helper: Generate Unique Referral Code ---
-    private function generateUniqueCode($name)
-    {
-        $base = Str::slug($name);
-        $code = $base . rand(100, 999);
-        while (Affiliate::where('referral_code', $code)->exists()) {
-            $code = $base . rand(100, 999);
-        }
-        return strtoupper($code);
     }
 
     public function awardPoints(SalesOrder $order)

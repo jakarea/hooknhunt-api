@@ -577,6 +577,19 @@ export default function ProductsPage() {
                 <IconCopy size={18} />
               </ActionIcon>
             </Tooltip>
+            <Tooltip label={t('catalog.productsPage.menu.viewOnWebsite') || 'View on Website'}>
+              <ActionIcon
+                size="lg"
+                variant="light"
+                color="teal"
+                component="a"
+                href={`https://www.hooknhunt.com/products/${product.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <IconExternalLink size={18} />
+              </ActionIcon>
+            </Tooltip>
             <Menu shadow="md" width={160} position="bottom-end">
               <Menu.Target>
                 <ActionIcon size="lg" variant="light">
@@ -721,6 +734,17 @@ export default function ProductsPage() {
             >
               {t('common.edit') || 'Edit'}
             </Button>
+            <ActionIcon
+              variant="light"
+              color="teal"
+              size="lg"
+              component="a"
+              href={`https://www.hooknhunt.com/products/${product.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <IconExternalLink size={18} />
+            </ActionIcon>
             <Menu shadow="md" width={160} position="bottom-end">
               <Menu.Target>
                 <ActionIcon variant="light" size="lg">

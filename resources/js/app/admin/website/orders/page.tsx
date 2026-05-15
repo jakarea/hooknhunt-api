@@ -3,34 +3,47 @@
 import { useState, useCallback, useEffect } from 'react'
 import {
   Box, Stack, Group, Title, Text, TextInput, Select, Badge, Button,
-  ActionIcon, NumberFormatter, Skeleton, Card, SimpleGrid, Tabs, Pagination, Checkbox, Textarea,
+  ActionIcon, Skeleton, Card, SimpleGrid, Tabs, Pagination, Checkbox,
 } from '@mantine/core'
-import { IconSearch, IconRefresh, IconEye, IconShoppingCart } from '@tabler/icons-react'
+import { IconSearch, IconRefresh, IconEye, IconShoppingCart, IconTrash } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { modals } from '@mantine/modals'
 import { useDebouncedValue } from '@mantine/hooks'
 import { DateInput } from '@mantine/dates'
 import { Link, useNavigate } from 'react-router-dom'
 import {
-  getWebsiteOrders, getWebsiteOrderStats, formatCurrency,
-  statusColors, statusLabels, paymentStatusColors, channelLabels,
+  formatCurrency, statusColors, statusLabels, paymentStatusColors, channelLabels,
   bulkUpdateOrderStatus, bulkSendToCourier,
-  type WebsiteOrder, type WebsiteOrderFilters, type WebsiteOrderStats,
+  type WebsiteOrderFilters,
   type WebsiteOrderStatus, type PaymentStatus, type OrderChannel,
 } from '@/utils/websiteApi'
+import { useWebsiteOrdersStore } from '@/stores/websiteOrdersStore'
 
 export default function WebsiteOrdersPage() {
   const navigate = useNavigate()
-  const [loading, setLoading] = useState(true)
-  const [orders, setOrders] = useState<WebsiteOrder[]>([])
-  const [stats, setStats] = useState<WebsiteOrderStats | null>(null)
-  const [totalPages, setTotalPages] = useState(1)
-  const [total, setTotal] = useState(0)
+
+  // Zustand store
+  const {
+    orders,
+    stats,
+    loading,
+    totalPages,
+    total,
+    selectedOrders,
+    deletingOrderId,
+    bulkDeleting,
+    fetchOrders,
+    fetchStats,
+    setSelectedOrders,
+    clearSelection,
+    selectAll,
+    deleteOrder,
+    bulkDeleteOrders,
+  } = useWebsiteOrdersStore()
+
+  // Local filter state
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(100)
-  const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set())
-
-  // Filters
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<WebsiteOrderStatus | 'all'>('pending')
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | ''>('')
@@ -38,45 +51,31 @@ export default function WebsiteOrdersPage() {
   const [fromDate, setFromDate] = useState<Date | null>(null)
   const [toDate, setToDate] = useState<Date | null>(null)
 
-  const fetchOrders = useCallback(async () => {
-    try {
-      setLoading(true)
-      const filters: WebsiteOrderFilters = {
-        search: search || undefined,
-        status: (status && status !== 'all') ? status as WebsiteOrderStatus : undefined,
-        paymentStatus: paymentStatus || undefined,
-        channel: channel || undefined,
-        fromDate: fromDate ? fromDate.toISOString().split('T')[0] : undefined,
-        toDate: toDate ? toDate.toISOString().split('T')[0] : undefined,
-        page,
-        perPage,
-      }
-      const res = await getWebsiteOrders(filters)
-      setOrders(res.data.data || [])
-      setTotalPages(res.data.lastPage || 1)
-      setTotal(res.data.total || 0)
-    } catch {
-      notifications.show({ title: 'Error', message: 'Failed to load orders', color: 'red' })
-    } finally {
-      setLoading(false)
-    }
-  }, [search, status, paymentStatus, channel, fromDate, toDate, page, perPage])
+  const [debouncedSearch] = useDebouncedValue(search, 500)
 
-  const fetchStats = useCallback(async () => {
-    try {
-      const res = await getWebsiteOrderStats()
-      setStats(res.data)
-    } catch {
-      // silent
+  const fetchOrdersData = useCallback(async () => {
+    const filters: WebsiteOrderFilters = {
+      search: debouncedSearch || undefined,
+      status: (status && status !== 'all') ? status as WebsiteOrderStatus : undefined,
+      paymentStatus: paymentStatus || undefined,
+      channel: channel || undefined,
+      fromDate: fromDate ? fromDate.toISOString().split('T')[0] : undefined,
+      toDate: toDate ? toDate.toISOString().split('T')[0] : undefined,
+      page,
+      perPage,
     }
-  }, [])
+    await fetchOrders(filters)
+  }, [debouncedSearch, status, paymentStatus, channel, fromDate, toDate, page, perPage, fetchOrders])
 
   useEffect(() => {
-    fetchOrders()
-    fetchStats()
-  }, [fetchOrders, fetchStats])
+    fetchOrdersData()
+  }, [fetchOrdersData])
 
-  // Bulk action handlers
+  useEffect(() => {
+    fetchStats()
+  }, [fetchStats])
+
+  // Handlers
   const handleBulkStatusChange = () => {
     if (selectedOrders.size === 0) return
 
@@ -91,10 +90,6 @@ export default function WebsiteOrdersPage() {
             data={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))}
             defaultValue="processing"
           />
-          <Textarea
-            label="Comment (optional)"
-            placeholder="Add a comment for this status change"
-          />
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={() => modals.closeAll()}>Cancel</Button>
             <Button
@@ -106,8 +101,8 @@ export default function WebsiteOrdersPage() {
                     status: 'processing',
                   })
                   notifications.show({ title: 'Success', message: 'Statuses updated successfully', color: 'green' })
-                  setSelectedOrders(new Set())
-                  fetchOrders()
+                  clearSelection()
+                  fetchOrdersData()
                   fetchStats()
                 } catch {
                   notifications.show({ title: 'Error', message: 'Failed to update statuses', color: 'red' })
@@ -149,8 +144,8 @@ export default function WebsiteOrdersPage() {
                     color: successCount === total ? 'green' : 'yellow',
                   })
                   if (successCount > 0) {
-                    setSelectedOrders(new Set())
-                    fetchOrders()
+                    clearSelection()
+                    fetchOrdersData()
                     fetchStats()
                   }
                 } catch {
@@ -171,8 +166,68 @@ export default function WebsiteOrdersPage() {
     if (selectedOrders.size === 0) return
 
     const orderIds = Array.from(selectedOrders)
-    // Navigate to print page with order IDs
     navigate(`/website/orders/print?ids=${orderIds.join(',')}`)
+  }
+
+  const handleSingleDelete = (orderId: number, invoiceNo: string) => {
+    modals.openConfirmModal({
+      title: 'Delete Order',
+      children: (
+        <Stack gap="sm">
+          <Text>Are you sure you want to delete <b>order #{invoiceNo}</b>?</Text>
+          <Text size="sm" c="dimmed">This action will soft delete the order. It can be recovered from the database if needed.</Text>
+          <Text size="sm" c="orange">Note: Completed and cancelled orders cannot be deleted.</Text>
+        </Stack>
+      ),
+      labels: { confirm: 'Delete Order', cancel: 'Cancel' },
+      confirmProps: { color: 'red' },
+      onConfirm: async () => {
+        try {
+          await deleteOrder(orderId, invoiceNo)
+          notifications.show({ title: 'Success', message: `Order #${invoiceNo} deleted successfully`, color: 'green' })
+        } catch (err: any) {
+          const message = err?.response?.data?.message || 'Failed to delete order'
+          notifications.show({ title: 'Error', message, color: 'red' })
+        }
+      },
+    })
+  }
+
+  const handleBulkDelete = () => {
+    if (selectedOrders.size === 0) return
+
+    const orderIds = Array.from(selectedOrders)
+    const total = orderIds.length
+
+    modals.openConfirmModal({
+      title: 'Delete Multiple Orders',
+      children: (
+        <Stack gap="sm">
+          <Text>Are you sure you want to delete <b>{total} order(s)</b>?</Text>
+          <Text size="sm" c="dimmed">This action will soft delete the selected orders.</Text>
+          <Text size="sm" c="orange">Note: Completed and cancelled orders will be skipped and cannot be deleted.</Text>
+        </Stack>
+      ),
+      labels: { confirm: 'Delete Orders', cancel: 'Cancel' },
+      confirmProps: { color: 'red' },
+      onConfirm: async () => {
+        try {
+          notifications.show({ title: 'Processing...', message: `Deleting ${total} order(s)...`, color: 'blue' })
+          const result = await bulkDeleteOrders(orderIds)
+          const successCount = result.data?.success_count || 0
+          const skippedCount = result.data?.skipped_count || 0
+
+          notifications.show({
+            title: 'Complete',
+            message: result.data?.message || `Deleted ${successCount} of ${total} orders${skippedCount > 0 ? ` (${skippedCount} skipped)` : ''}.`,
+            color: successCount > 0 ? 'green' : 'yellow',
+          })
+        } catch (err: any) {
+          const message = err?.response?.data?.message || 'Failed to delete orders'
+          notifications.show({ title: 'Error', message, color: 'red' })
+        }
+      },
+    })
   }
 
   return (
@@ -187,7 +242,7 @@ export default function WebsiteOrdersPage() {
               <Text c="dimmed" size="sm">Manage storefront orders</Text>
             </div>
           </Group>
-          <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => { fetchOrders(); fetchStats() }}>
+          <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => { fetchOrdersData(); fetchStats() }}>
             Refresh
           </Button>
         </Group>
@@ -208,12 +263,12 @@ export default function WebsiteOrdersPage() {
               <Text fw={700} size="lg" c="blue">{stats.processing}</Text>
             </Card>
             <Card withBorder p="sm">
-              <Text size="xs" c="dimmed">Shipped</Text>
-              <Text fw={700} size="lg" c="cyan">{stats.shipped}</Text>
+              <Text size="xs" c="dimmed">In Transit</Text>
+              <Text fw={700} size="lg" c="cyan">{stats.in_transit}</Text>
             </Card>
             <Card withBorder p="sm">
               <Text size="xs" c="dimmed">Revenue</Text>
-              <Text fw={700} size="lg" c="green">{formatCurrency(stats.totalRevenue)}</Text>
+              <Text fw={700} size="lg" c="green">{formatCurrency(stats.total_revenue)}</Text>
             </Card>
           </SimpleGrid>
         )}
@@ -226,9 +281,14 @@ export default function WebsiteOrdersPage() {
               <Tabs.Tab value="pending">Pending ({stats?.pending || 0})</Tabs.Tab>
               <Tabs.Tab value="processing">Processing ({stats?.processing || 0})</Tabs.Tab>
               <Tabs.Tab value="approved">Approved ({stats?.approved || 0})</Tabs.Tab>
-              <Tabs.Tab value="sent_to_steadfast">Sent to SteadFast ({stats?.sentToSteadfast || stats?.onShipping || 0})</Tabs.Tab>
-              <Tabs.Tab value="in_transit">In Transit ({stats?.inTransit || 0})</Tabs.Tab>
+              <Tabs.Tab value="sent_to_steadfast">Sent to SteadFast ({stats?.sent_to_steadfast || 0})</Tabs.Tab>
+              <Tabs.Tab value="in_review">In Review ({stats?.in_review || 0})</Tabs.Tab>
+              <Tabs.Tab value="in_transit">In Transit ({stats?.in_transit || 0})</Tabs.Tab>
               <Tabs.Tab value="delivered">Delivered ({stats?.delivered || 0})</Tabs.Tab>
+              <Tabs.Tab value="partial_delivered">Partial Delivered ({stats?.partial_delivered || 0})</Tabs.Tab>
+              <Tabs.Tab value="delivery_failed_return">Delivery Failed & Return ({stats?.delivery_failed_return || 0})</Tabs.Tab>
+              <Tabs.Tab value="return_received">Return Received ({stats?.return_received || 0})</Tabs.Tab>
+              <Tabs.Tab value="refunded_completed">Refunded & Completed ({stats?.refunded_completed || 0})</Tabs.Tab>
               <Tabs.Tab value="completed">Completed ({stats?.completed || 0})</Tabs.Tab>
               <Tabs.Tab value="cancelled">Cancelled ({stats?.cancelled || 0})</Tabs.Tab>
             </Tabs.List>
@@ -268,14 +328,14 @@ export default function WebsiteOrdersPage() {
               <DateInput
                 placeholder="From date"
                 value={fromDate}
-                onChange={(v) => { setFromDate(v); setPage(1) }}
+                onChange={(v) => { setFromDate(v as Date | null); setPage(1) }}
                 clearable
                 valueFormat="DD MMM YYYY"
               />
               <DateInput
                 placeholder="To date"
                 value={toDate}
-                onChange={(v) => { setToDate(v); setPage(1) }}
+                onChange={(v) => { setToDate(v as Date | null); setPage(1) }}
                 clearable
                 valueFormat="DD MMM YYYY"
               />
@@ -283,7 +343,7 @@ export default function WebsiteOrdersPage() {
           </Stack>
         </Card>
 
-        {/* Order List */}
+        {/* Bulk Actions */}
         {selectedOrders.size > 0 && (
           <Card withBorder p="sm" bg="blue.0">
             <Group justify="space-between">
@@ -298,7 +358,17 @@ export default function WebsiteOrdersPage() {
                 <Button size="sm" variant="light" onClick={handleBulkPrint}>
                   Print Invoices
                 </Button>
-                <Button size="sm" variant="outline" color="gray" onClick={() => setSelectedOrders(new Set())}>
+                <Button
+                  size="sm"
+                  variant="light"
+                  color="red"
+                  leftSection={<IconTrash size={14} />}
+                  onClick={handleBulkDelete}
+                  loading={bulkDeleting}
+                >
+                  Delete
+                </Button>
+                <Button size="sm" variant="outline" color="gray" onClick={clearSelection}>
                   Clear
                 </Button>
               </Group>
@@ -306,6 +376,7 @@ export default function WebsiteOrdersPage() {
           </Card>
         )}
 
+        {/* Order List */}
         {loading ? (
           <Stack gap="sm">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -326,9 +397,9 @@ export default function WebsiteOrdersPage() {
                     checked={orders.length > 0 && orders.every(o => selectedOrders.has(o.id))}
                     onChange={(e) => {
                       if (e.currentTarget.checked) {
-                        setSelectedOrders(new Set(orders.map(o => o.id)))
+                        selectAll(orders.map(o => o.id))
                       } else {
-                        setSelectedOrders(new Set())
+                        clearSelection()
                       }
                     }}
                     label="Select All (current page)"
@@ -344,12 +415,12 @@ export default function WebsiteOrdersPage() {
                 <Group justify="space-between" wrap="nowrap" gap="sm">
                   <Checkbox
                     checked={selectedOrders.has(order.id)}
-                    onChange={(e) => {
+                    onChange={() => {
                       const newSet = new Set(selectedOrders)
-                      if (e.currentTarget.checked) {
-                        newSet.add(order.id)
-                      } else {
+                      if (newSet.has(order.id)) {
                         newSet.delete(order.id)
+                      } else {
+                        newSet.add(order.id)
                       }
                       setSelectedOrders(newSet)
                     }}
@@ -387,16 +458,35 @@ export default function WebsiteOrdersPage() {
                       <Group gap="md" wrap="nowrap">
                         <div style={{ textAlign: 'right' }}>
                           <Text fw={700} size="sm">{formatCurrency(order.totalAmount)}</Text>
-                          {!order.isPaid && (
+                          {order.dueAmount > 0 && (
                             <Text size="xs" c="red">Due: {formatCurrency(order.dueAmount)}</Text>
                           )}
                         </div>
-                        <ActionIcon variant="subtle" color="blue">
-                          <IconEye size={18} />
-                        </ActionIcon>
                       </Group>
                     </Group>
                   </Card>
+                  <Group gap="xs" wrap="nowrap">
+                    <ActionIcon
+                      variant="subtle"
+                      color="blue"
+                      component={Link}
+                      to={`/website/orders/${order.id}`}
+                    >
+                      <IconEye size={18} />
+                    </ActionIcon>
+                    <ActionIcon
+                      variant="subtle"
+                      color="red"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleSingleDelete(order.id, order.invoiceNo)
+                      }}
+                      loading={deletingOrderId === order.id}
+                      disabled={order.status === 'completed' || order.status === 'cancelled'}
+                    >
+                      <IconTrash size={18} />
+                    </ActionIcon>
+                  </Group>
                 </Group>
               </Card>
             ))}

@@ -18,6 +18,10 @@ class CouponController extends Controller
         $validated = $request->validate([
             'code' => 'required|string|max:255',
             'cart_total' => 'required|numeric|min:0',
+            'product_ids' => 'array',
+            'product_ids.*' => 'integer',
+            'category_ids' => 'array',
+            'category_ids.*' => 'integer',
         ]);
 
         try {
@@ -35,12 +39,16 @@ class CouponController extends Controller
             // Get authenticated user ID if available
             $userId = $request->user()?->id;
 
+            // Extract product IDs and category IDs from cart
+            $productIds = $validated['product_ids'] ?? [];
+            $categoryIds = $validated['category_ids'] ?? [];
+
             // Validate the discount
             $validation = $discount->validateForOrder(
                 $validated['cart_total'],
                 $userId,
-                [],
-                []
+                $productIds,
+                $categoryIds
             );
 
             if (!$validation['valid']) {
@@ -88,11 +96,17 @@ class CouponController extends Controller
     {
         $validated = $request->validate([
             'cart_total' => 'required|numeric|min:0',
+            'product_ids' => 'array',
+            'product_ids.*' => 'integer',
+            'category_ids' => 'array',
+            'category_ids.*' => 'integer',
         ]);
 
         try {
             $cartTotal = $validated['cart_total'];
             $userId = $request->user()?->id;
+            $productIds = $validated['product_ids'] ?? [];
+            $categoryIds = $validated['category_ids'] ?? [];
 
             $discounts = Discount::where('is_active', true)
                 ->where('is_auto_apply', true)
@@ -110,8 +124,8 @@ class CouponController extends Controller
                 })
                 ->get();
 
-            $applicableDiscounts = $discounts->map(function ($discount) use ($cartTotal, $userId) {
-                $validation = $discount->validateForOrder($cartTotal, $userId, [], []);
+            $applicableDiscounts = $discounts->map(function ($discount) use ($cartTotal, $userId, $productIds, $categoryIds) {
+                $validation = $discount->validateForOrder($cartTotal, $userId, $productIds, $categoryIds);
 
                 if (!$validation['valid']) {
                     return null;

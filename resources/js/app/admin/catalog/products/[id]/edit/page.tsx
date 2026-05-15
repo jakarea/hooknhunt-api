@@ -283,6 +283,9 @@ export default function EditProductPage() {
   const [seoDescription, setSeoDescription] = useState('')
   const [seoTags, setSeoTags] = useState<string[]>([])
 
+  // Affiliate state
+  const [affiliateCommission, setAffiliateCommission] = useState(5)
+
   // Quill editor refs
   const descriptionQuillRef = useRef<any>(null)
   const highlightsQuillRef = useRef<any>(null)
@@ -1812,7 +1815,13 @@ export default function EditProductPage() {
         setSeoDescription(productData.seoDescription || productData.metaDescription || '')
         // Handle seoTags: can be array or string from API
         const tagsValue = productData.seoTags || productData.seo_tags || []
-        setSeoTags(Array.isArray(tagsValue) ? tagsValue : (typeof tagsValue === 'string' && tagsValue ? tagsValue.split(',').map(t => t.trim()).filter(t => t) : []))
+        console.log('Product tags from API:', tagsValue, 'Type:', typeof tagsValue, 'Is Array:', Array.isArray(tagsValue))
+        const parsedTags = Array.isArray(tagsValue) ? tagsValue : (typeof tagsValue === 'string' && tagsValue ? tagsValue.split(',').map(t => t.trim()).filter(t => t) : [])
+        console.log('Parsed tags:', parsedTags)
+        setSeoTags(parsedTags)
+
+        // Affiliate Commission - from API response (added to show() method)
+        setAffiliateCommission(productData.affiliate_commission || productData.affiliateCommission || 5)
 
         // Featured image
         if (productData.thumbnail || productData.featuredImage) {
@@ -1850,8 +1859,16 @@ export default function EditProductPage() {
           const isAlreadyMerged = productData.variants.some((v: any) => (v.retailId || v.retail_id) && (v.wholesaleId || v.wholesale_id) && !v.channel)
           const hasChannelField = productData.variants.some((v: any) => v.channel)
 
+          console.log('📦 Variants analysis:', {
+            total: productData.variants.length,
+            isAlreadyMerged,
+            hasChannelField,
+            sampleVariant: productData.variants[0]
+          })
+
           if (isAlreadyMerged) {
             // Variants are already merged by the backend - map them directly
+            console.log('✅ Using pre-merged variants from backend')
             const mappedVariants = productData.variants.map((variant: any, index: number) => {
               const sku = variant.sku || variant.custom_sku || variant.sellerSku || ''
               return {
@@ -1864,7 +1881,7 @@ export default function EditProductPage() {
                 sellerSkuManuallyEdited: !!sku,
                 purchaseCost: variant.purchaseCost || variant.purchase_cost || 0,
                 price: variant.price || variant.retail_price || variant.retailPrice || 0,
-                specialPrice: variant.offerPrice || variant.offer_price || variant.retail_offer_price || variant.retailOfferPrice || 0,
+                specialPrice: variant.specialPrice || variant.retailOfferPrice || variant.retail_offer_price || variant.offer_price || 0,
                 wholesalePrice: variant.wholesalePrice || variant.wholesale_price || 0,
                 wholesaleOfferPrice: variant.wholesaleOfferPrice || variant.wholesale_offer_price || 0,
                 wholesaleMoq: variant.moq || variant.wholesaleMoq || variant.wholesale_moq || 6,
@@ -1873,6 +1890,7 @@ export default function EditProductPage() {
                 thumbnail: variant.thumbnail || null
               }
             })
+            console.log('🔄 Mapped variants:', mappedVariants)
             setVariants(mappedVariants)
           } else if (hasChannelField) {
             // Merge by channel (old API format)
@@ -1928,7 +1946,9 @@ export default function EditProductPage() {
           } else {
             // Direct mapping - variants don't have channels
             const mappedVariants = productData.variants.map((variant: any, index: number) => {
-              const sku = variant.sku || variant.custom_sku || variant.sellerSku || ''
+              // Use sellerSku/customSku field, fallback to sku
+              const sku = variant.sellerSku || variant.customSku || variant.sku || ''
+
               return {
                 id: `variant-${variant.id || index}`,
                 dbId: variant.id,
@@ -1937,14 +1957,14 @@ export default function EditProductPage() {
                 name: variant.variantName || variant.variant_name || variant.name || '',
                 sellerSku: sku,
                 sellerSkuManuallyEdited: !!sku,
-                purchaseCost: variant.purchase_cost || variant.purchaseCost || 0,
-                price: variant.retail_price || variant.retailPrice || variant.price || 0,
-                specialPrice: variant.retail_offer_price || variant.retailOfferPrice || variant.offer_price || variant.offerPrice || variant.specialPrice || 0,
-                wholesalePrice: variant.wholesale_price || variant.wholesalePrice || 0,
-                wholesaleOfferPrice: variant.wholesale_offer_price || variant.wholesaleOfferPrice || 0,
-                wholesaleMoq: variant.wholesale_moq || variant.wholesaleMoq || variant.moq || 6,
+                purchaseCost: variant.purchaseCost || variant.purchase_cost || 0,
+                price: variant.price || variant.retail_price || variant.retailPrice || 0,
+                specialPrice: variant.specialPrice || variant.retailOfferPrice || variant.retail_offer_price || variant.offer_price || 0,
+                wholesalePrice: variant.wholesalePrice || variant.wholesale_price || 0,
+                wholesaleOfferPrice: variant.wholesaleOfferPrice || variant.wholesale_offer_price || 0,
+                wholesaleMoq: variant.wholesaleMoq || variant.moq || variant.wholesale_moq || 6,
                 weight: variant.weight || 0,
-                stock: variant.current_stock || variant.stock || 0,
+                stock: variant.stock || variant.current_stock || 0,
                 thumbnail: variant.thumbnail || null
               }
             })
@@ -2275,6 +2295,7 @@ export default function EditProductPage() {
         seoTitle,
         seoDescription,
         seoTags: seoTags.length > 0 ? seoTags.join(', ') : null,
+        affiliateCommission,
         featuredImage: featuredImage?.mediaId ?? null,
         galleryImages: galleryImages.map(img => img.mediaId),
         variants: variants.map(v => ({
@@ -2466,6 +2487,7 @@ export default function EditProductPage() {
         seoTitle,
         seoDescription,
         seoTags: seoTags.length > 0 ? seoTags.join(', ') : null,
+        affiliateCommission,
         featuredImage: featuredImage?.mediaId ?? null,
         galleryImages: galleryImages.map(img => img.mediaId),
         variants: variants.map(v => ({
@@ -3670,6 +3692,23 @@ export default function EditProductPage() {
                           error={errors.expectedDeliveryDate}
                         />
                       )}
+                    </SimpleGrid>
+
+                    <Divider />
+
+                    {/* Affiliate Commission */}
+                    <SimpleGrid cols={{ base: 1, md: 2 }}>
+                      <NumberInput
+                        label="Affiliate Commission (%)"
+                        placeholder="5"
+                        value={affiliateCommission}
+                        onChange={(value) => setAffiliateCommission(typeof value === 'number' ? value : 5)}
+                        min={0}
+                        max={100}
+                        step={0.01}
+                        decimalScale={2}
+                        description="Commission rate for affiliates on this product (global default)"
+                      />
                     </SimpleGrid>
                   </Stack>
                 </Card>

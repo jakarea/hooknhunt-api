@@ -141,6 +141,14 @@ class CategoryController extends Controller
             'category_code' => $request->category_code,
         ]);
 
+        // Create default affiliate commission (5% for all affiliates)
+        \App\Models\CategoryAffiliateCommission::create([
+            'category_id' => $category->id,
+            'affiliate_id' => null, // null = all affiliates (global)
+            'commission_rate' => 5.00,
+            'is_active' => true,
+        ]);
+
         return $this->sendSuccess($category, 'Category created successfully', 201);
     }
 

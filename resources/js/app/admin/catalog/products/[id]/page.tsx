@@ -270,6 +270,7 @@ export default function ProductDetailPage() {
       const response = await getProduct(Number(id))
 
       // Handle different response structures
+      // getProduct returns { status: true, message: "...", data: {...product...} }
       let productData: ProductDetail
       if (response?.data) {
         productData = response.data as ProductDetail

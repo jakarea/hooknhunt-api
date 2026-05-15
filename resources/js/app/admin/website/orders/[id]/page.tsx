@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { LoadingOverlay } from '@mantine/core'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   Box, Stack, Group, Title, Text, Badge, Button, Card, SimpleGrid, Grid,
   Select, NumberInput, Divider, Table, ActionIcon, Skeleton, TextInput,
-  Image, Drawer, LoadingOverlay, Textarea, Progress, Anchor,
+  Image, Drawer, Textarea, Progress, Anchor,
 } from '@mantine/core'
 import {
   IconArrowLeft, IconPackage, IconUser, IconCreditCard,
@@ -21,13 +22,14 @@ import {
   addWebsiteOrderItem, updateWebsiteOrderItem, removeWebsiteOrderItem,
   searchProductVariants, getProductVariants,
   searchProducts, getTopSellingProducts,
-  sendOrderSms,
+  sendOrderSms, deleteWebsiteOrder,
   formatCurrency, statusColors, statusLabels, paymentStatusColors, decodeHtmlEntities,
   type WebsiteOrderDetail, type WebsiteOrderStatus, type PaymentStatus, type CancellationReason,
   type ProductVariantSearchResult,
   type ProductSearchResult,
 } from '@/utils/websiteApi'
 import { useCourierStore } from '@/stores/courierStore'
+import { useWebsiteOrdersStore } from '@/stores/websiteOrdersStore'
 
 type OrderData = WebsiteOrderDetail & {
   channel?: string
@@ -84,6 +86,17 @@ export default function WebsiteOrderDetailPage() {
   const [smsMessage, setSmsMessage] = useState('')
   const [sendingSms, setSendingSms] = useState(false)
   const [printDialogOpen, setPrintDialogOpen] = useState(false)
+  const [deletingOrder, setDeletingOrder] = useState(false)
+
+  // Get fetchStats from store to update sidebar badge
+  const fetchStats = useWebsiteOrdersStore((s) => s.fetchStats)
+
+  // Loading overlay props for smooth transitions
+  const loadingOverlayProps = {
+    loaders: 1,
+    size: 'lg' as const,
+    className: 'transparent-bg',
+  }
 
   const fetchOrder = useCallback(async () => {
     if (!id) return
@@ -244,6 +257,7 @@ export default function WebsiteOrderDetailPage() {
             setOrder(res.data)
             setSelectedStatus(null)
             await appendChangeNote()
+            fetchStats() // Update sidebar badge
             notifications.show({ title: 'Success', message: `Status updated to ${statusLabels[selectedStatus as WebsiteOrderStatus] || selectedStatus}`, color: 'green' })
           } catch (err: any) {
             notifications.show({
@@ -276,6 +290,7 @@ export default function WebsiteOrderDetailPage() {
             setOrder(res.data)
             setSelectedStatus(null)
             await appendChangeNote()
+            fetchStats() // Update sidebar badge
             notifications.show({ title: 'Success', message: `Status updated to ${statusLabels[selectedStatus as WebsiteOrderStatus] || selectedStatus}`, color: 'green' })
           } catch (err: any) {
             notifications.show({
@@ -387,6 +402,37 @@ export default function WebsiteOrderDetailPage() {
     } finally {
       setSendingSms(false)
     }
+  }
+
+  const handleDeleteOrder = () => {
+    if (!order) return
+
+    modals.openConfirmModal({
+      title: 'Delete Order',
+      children: (
+        <Stack gap="sm">
+          <Text>Are you sure you want to delete <b>order #{order.invoiceNo}</b>?</Text>
+          <Text size="sm" c="dimmed">This action will soft delete the order. It can be recovered from the database if needed.</Text>
+          <Text size="sm" c="orange">Note: Completed and cancelled orders cannot be deleted.</Text>
+        </Stack>
+      ),
+      labels: { confirm: 'Delete Order', cancel: 'Cancel' },
+      confirmProps: { color: 'red' },
+      onConfirm: async () => {
+        try {
+          setDeletingOrder(true)
+          await deleteWebsiteOrder(Number(id))
+          fetchStats() // Update sidebar badge before navigating
+          notifications.show({ title: 'Success', message: `Order #${order.invoiceNo} deleted successfully`, color: 'green' })
+          navigate('/website/orders')
+        } catch (err: any) {
+          const message = err?.response?.data?.message || 'Failed to delete order'
+          notifications.show({ title: 'Error', message, color: 'red' })
+        } finally {
+          setDeletingOrder(false)
+        }
+      },
+    })
   }
 
   const handleStartEditDiscount = () => {
@@ -534,7 +580,11 @@ export default function WebsiteOrderDetailPage() {
         product_variant_id: variantId,
         quantity: qty,
       })
-      if (res.success !== false) {
+      if (res.success === false) {
+        // Backend returned success: false with error message
+        notifications.show({ title: 'Error', message: res.message || 'Failed to add item', color: 'red' })
+      } else {
+        // Success case
         setOrder(res.data || res)
         await appendChangeNote()
         notifications.show({ title: 'Added', message: 'Item added to order', color: 'green' })
@@ -607,10 +657,32 @@ export default function WebsiteOrderDetailPage() {
   if (!order) {
     return (
       <Box p={{ base: 'md', md: 'xl' }}>
-        <Card withBorder p="xl" ta="center">
-          <Text>Order not found</Text>
-          <Button mt="md" onClick={() => navigate('/website/orders')}>Back to Orders</Button>
-        </Card>
+        {loading ? (
+          <Card withBorder p="xl">
+            <Stack gap="md">
+              {/* Header Skeleton */}
+              <Group justify="space-between">
+                <Skeleton height={32} width={200} />
+                <Skeleton height={36} width={100} />
+              </Group>
+
+              {/* Order Info Skeleton */}
+              <Skeleton height={100} radius="md" />
+
+              {/* Items Skeleton */}
+              <Stack gap="sm">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} height={80} radius="md" />
+                ))}
+              </Stack>
+            </Stack>
+          </Card>
+        ) : (
+          <Card withBorder p="xl" ta="center">
+            <Text>Order not found</Text>
+            <Button mt="md" onClick={() => navigate('/website/orders')}>Back to Orders</Button>
+          </Card>
+        )}
       </Box>
     )
   }
@@ -659,28 +731,32 @@ export default function WebsiteOrderDetailPage() {
 
   return (
     <Box p={{ base: 'md', md: 'xl' }}>
-      <Stack gap="md">
-        {/* Header */}
-        <Group justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
-            <ActionIcon variant="subtle" onClick={() => navigate('/website/orders')}>
-              <IconArrowLeft size={20} />
-            </ActionIcon>
-            <div>
-              <Group gap="sm" wrap="nowrap">
-                <Title order={2} className="text-lg md:text-xl">#{order.invoiceNo}</Title>
-                <Badge color={statusColors[order.status] || 'gray'} variant="light" size="lg">
-                  {statusLabels[order.status] || order.status}
-                </Badge>
-                <Badge color={paymentStatusColors[order.paymentStatus]} variant="outline" size="lg">
-                  {order.paymentStatus}
-                </Badge>
-              </Group>
-              <Text size="sm" c="dimmed">
-                {(order as any).channel || ''} • {orderDate.toLocaleString()}
-              </Text>
-            </div>
-          </Group>
+      <Card withBorder p="md" mb="md">
+        {loading && (
+          <LoadingOverlay {...loadingOverlayProps} visible zIndex={10} />
+        )}
+        <Stack gap="md" style={{ opacity: loading ? 0.6 : 1, transition: 'opacity 0.2s' }}>
+          {/* Header */}
+          <Group justify="space-between" wrap="nowrap">
+            <Group gap="sm" wrap="nowrap">
+              <ActionIcon variant="subtle" onClick={() => navigate('/website/orders')}>
+                <IconArrowLeft size={20} />
+              </ActionIcon>
+              <div style={{ opacity: loading ? 0.5 : 1, transition: 'opacity 0.2s' }}>
+                <Group gap="sm" wrap="nowrap">
+                  <Title order={2} className="text-lg md:text-xl">#{order.invoiceNo}</Title>
+                  <Badge color={statusColors[order.status] || 'gray'} variant="light" size="lg">
+                    {statusLabels[order.status] || order.status}
+                  </Badge>
+                  <Badge color={paymentStatusColors[order.paymentStatus]} variant="outline" size="lg">
+                    {order.paymentStatus}
+                  </Badge>
+                </Group>
+                <Text size="sm" c="dimmed">
+                  {(order as any).channel || ''} • {orderDate.toLocaleString()}
+                </Text>
+              </div>
+            </Group>
           <Button
             size="sm"
             variant="light"
@@ -688,6 +764,17 @@ export default function WebsiteOrderDetailPage() {
             onClick={() => setPrintDialogOpen(true)}
           >
             Print Invoice
+          </Button>
+          <Button
+            size="sm"
+            variant="light"
+            color="red"
+            leftSection={<IconTrash size={16} />}
+            onClick={handleDeleteOrder}
+            loading={deletingOrder}
+            disabled={order.status === 'completed' || order.status === 'cancelled'}
+          >
+            Delete Order
           </Button>
         </Group>
 
@@ -1507,8 +1594,9 @@ export default function WebsiteOrderDetailPage() {
           />
         )}
       </Stack>
-    </Box>
-  )
+    </Card>
+  </Box>
+)
 }
 
 // Generate professional invoice HTML for printing (optimized for thermal/pad printing)

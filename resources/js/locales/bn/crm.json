@@ -2,6 +2,10 @@
   "title": "সিআরএম",
   "customersMenu": "কাস্টমার",
   "leadsMenu": "লিড",
+  "affiliatesMenu": "অ্যাফিলিয়েট",
+  "productCommissionsMenu": "প্রোডাক্ট কমিশন",
+  "categoryCommissionsMenu": "ক্যাটাগরি কমিশন",
+  "payoutsMenu": "পেআউট",
   "walletMenu": "ওয়ালেট",
   "loyaltyMenu": "লয়্যালটি",
   "dashboard": {

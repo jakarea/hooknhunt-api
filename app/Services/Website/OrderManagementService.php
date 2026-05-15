@@ -671,4 +671,151 @@ class OrderManagementService
             ],
         ];
     }
+
+    // -------------------------------------------------------
+    // DELETE OPERATIONS
+    // -------------------------------------------------------
+
+    /**
+     * Delete a single order (soft delete).
+     * Cannot delete completed or cancelled orders.
+     *
+     * @param int $orderId Order ID
+     * @return array Result with success status and message
+     */
+    public function deleteOrder(int $orderId): array
+    {
+        $order = WebsiteOrder::find($orderId);
+
+        if (!$order) {
+            return ['success' => false, 'message' => 'Order not found', 'code' => 404];
+        }
+
+        // Prevent deletion of completed or cancelled orders
+        if (in_array($order->status, ['completed', 'cancelled'])) {
+            return [
+                'success' => false,
+                'message' => "Cannot delete {$order->status} orders. They should be kept for records.",
+                'code' => 422,
+            ];
+        }
+
+        $userId = Auth::id();
+        $invoiceNo = $order->invoice_no;
+
+        // Soft delete the order
+        $order->delete();
+
+        // Log the deletion
+        WebsiteOrderActivityLog::log(
+            $orderId,
+            'order_deleted',
+            "Order #{$invoiceNo} was deleted (soft delete)",
+            ['status' => $order->status, 'invoice_no' => $invoiceNo],
+            null,
+            $userId
+        );
+
+        return [
+            'success' => true,
+            'message' => "Order #{$invoiceNo} deleted successfully",
+            'data' => ['order_id' => $orderId, 'invoice_no' => $invoiceNo],
+        ];
+    }
+
+    /**
+     * Bulk delete orders (soft delete).
+     * Cannot delete completed or cancelled orders.
+     *
+     * @param array $orderIds Array of order IDs
+     * @return array Result with success count and details
+     */
+    public function bulkDeleteOrders(array $orderIds): array
+    {
+        $results = [];
+        $successCount = 0;
+        $failCount = 0;
+        $skippedCount = 0;
+
+        foreach ($orderIds as $orderId) {
+            $order = WebsiteOrder::withTrashed()->find($orderId);
+
+            if (!$order) {
+                $results[] = [
+                    'order_id' => $orderId,
+                    'success' => false,
+                    'message' => 'Order not found',
+                ];
+                $failCount++;
+                continue;
+            }
+
+            // Skip already deleted orders
+            if ($order->trashed()) {
+                $results[] = [
+                    'order_id' => $orderId,
+                    'success' => false,
+                    'message' => 'Order already deleted',
+                    'skipped' => true,
+                ];
+                $skippedCount++;
+                continue;
+            }
+
+            // Prevent deletion of completed or cancelled orders
+            if (in_array($order->status, ['completed', 'cancelled'])) {
+                $results[] = [
+                    'order_id' => $orderId,
+                    'success' => false,
+                    'message' => "Cannot delete {$order->status} orders",
+                    'skipped' => true,
+                ];
+                $skippedCount++;
+                continue;
+            }
+
+            $invoiceNo = $order->invoice_no;
+
+            // Soft delete the order
+            $order->delete();
+
+            // Log the deletion
+            WebsiteOrderActivityLog::log(
+                $orderId,
+                'order_deleted',
+                "Order #{$invoiceNo} was deleted (bulk soft delete)",
+                ['status' => $order->status, 'invoice_no' => $invoiceNo],
+                null,
+                Auth::id()
+            );
+
+            $results[] = [
+                'order_id' => $orderId,
+                'success' => true,
+                'message' => "Order #{$invoiceNo} deleted",
+            ];
+
+            $successCount++;
+        }
+
+        $message = "Deleted {$successCount} of " . count($orderIds) . " orders successfully.";
+        if ($failCount > 0) {
+            $message .= " {$failCount} failed.";
+        }
+        if ($skippedCount > 0) {
+            $message .= " {$skippedCount} skipped (completed/cancelled/already deleted).";
+        }
+
+        return [
+            'success' => $successCount > 0,
+            'message' => $message,
+            'data' => [
+                'total' => count($orderIds),
+                'success_count' => $successCount,
+                'fail_count' => $failCount,
+                'skipped_count' => $skippedCount,
+                'results' => $results,
+            ],
+        ];
+    }
 }

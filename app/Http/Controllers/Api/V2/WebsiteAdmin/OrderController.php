@@ -338,8 +338,14 @@ class OrderController extends Controller
             'processing' => (clone $baseQuery)->byStatus('processing')->count(),
             'on_hold' => (clone $baseQuery)->byStatus('on_hold')->count(),
             'approved' => (clone $baseQuery)->byStatus('approved')->count(),
-            'on_shipping' => (clone $baseQuery)->byStatus('on_shipping')->count(),
-            'shipped' => (clone $baseQuery)->byStatus('shipped')->count(),
+            'sent_to_steadfast' => (clone $baseQuery)->byStatus('sent_to_steadfast')->count(),
+            'in_review' => (clone $baseQuery)->byStatus('in_review')->count(),
+            'in_transit' => (clone $baseQuery)->byStatus('in_transit')->count(),
+            'delivered' => (clone $baseQuery)->byStatus('delivered')->count(),
+            'partial_delivered' => (clone $baseQuery)->byStatus('partial_delivered')->count(),
+            'delivery_failed_return' => (clone $baseQuery)->byStatus('delivery_failed_return')->count(),
+            'return_received' => (clone $baseQuery)->byStatus('return_received')->count(),
+            'refunded_completed' => (clone $baseQuery)->byStatus('refunded_completed')->count(),
             'completed' => (clone $baseQuery)->byStatus('completed')->count(),
             'cancelled' => (clone $baseQuery)->byStatus('cancelled')->count(),
             'returned' => (clone $baseQuery)->byStatus('returned')->count(),
@@ -635,6 +641,33 @@ class OrderController extends Controller
             $validated['order_ids'],
             $delay
         );
+
+        return response()->json($result, $result['code'] ?? 200);
+    }
+
+    /**
+     * Delete a single order (soft delete).
+     * DELETE /api/v2/website-admin/orders/{id}
+     */
+    public function destroy(int $id): JsonResponse
+    {
+        $result = $this->orderService->deleteOrder($id);
+
+        return response()->json($result, $result['code'] ?? 200);
+    }
+
+    /**
+     * Bulk delete orders (soft delete).
+     * POST /api/v2/website-admin/orders/bulk-delete
+     */
+    public function bulkDestroy(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_ids' => 'required|array|min:1',
+            'order_ids.*' => 'integer|exists:sales_orders,id',
+        ]);
+
+        $result = $this->orderService->bulkDeleteOrders($validated['order_ids']);
 
         return response()->json($result, $result['code'] ?? 200);
     }

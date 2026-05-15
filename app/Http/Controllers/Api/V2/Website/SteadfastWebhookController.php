@@ -17,8 +17,9 @@ class SteadfastWebhookController
 {
     private OrderStatusTransitionService $transitionService;
 
-    // Webhook authentication token from SteadFast
-    private const WEBHOOK_TOKEN = 'ZdiiUzPZTyMJQvAu8Xdj7OAy8oxkcu2w';
+    // SteadFast API credentials
+    private const API_KEY = 'xtbyeznvlaascpvxcbx623xgowa2xkkl';
+    private const SECRET_KEY = 'xlczsdqf4uoutgswrlj4c6xv';
 
     public function __construct(OrderStatusTransitionService $transitionService)
     {
@@ -289,26 +290,22 @@ class SteadfastWebhookController
 
     /**
      * Verify webhook authentication
+     * Checks for SteadFast Api-Key and Secret-Key headers
      *
      * @param Request $request
      * @return bool
      */
     private function verifyWebhookAuth(Request $request): bool
     {
-        $authHeader = $request->header('Authorization');
+        $apiKey = $request->header('Api-Key');
+        $secretKey = $request->header('Secret-Key');
 
-        if (!$authHeader) {
-            return false;
-        }
+        // Check both Api-Key and Secret-Key (case-insensitive header names)
+        $providedApiKey = $apiKey ?: $request->header('api-key');
+        $providedSecretKey = $secretKey ?: $request->header('secret-key');
 
-        // Extract token from "Bearer {token}" format
-        if (!preg_match('/Bearer\s+(.+)/', $authHeader, $matches)) {
-            return false;
-        }
-
-        $providedToken = $matches[1];
-
-        return hash_equals(self::WEBHOOK_TOKEN, $providedToken);
+        return hash_equals(self::API_KEY, $providedApiKey ?: '') &&
+               hash_equals(self::SECRET_KEY, $providedSecretKey ?: '');
     }
 
     /**

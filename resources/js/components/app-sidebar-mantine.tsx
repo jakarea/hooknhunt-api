@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Link, useLocation } from "react-router-dom"
 import { useTranslation } from "react-i18next"
+import { useEffect } from "react"
 import {
   IconDashboard,
   IconUsers,
@@ -40,7 +41,7 @@ import {
 } from "@mantine/core"
 import { useMediaQuery } from "@mantine/hooks"
 import { useAuthStore } from "@/stores/authStore"
-import { useOrderBadgeStore } from "@/stores/orderBadgeStore"
+import { useWebsiteOrdersStore } from "@/stores/websiteOrdersStore"
 import { usePermissions } from "@/hooks/usePermissions"
 
 interface NavItem {
@@ -70,12 +71,14 @@ export function AppSidebarMantine({
   const isMobile = useMediaQuery("(max-width: 768px)")
   const user = useAuthStore((state) => state.user)
   const { permissions, permissionObjects, isSuperAdmin } = usePermissions()
-  const pendingCount = useOrderBadgeStore((s) => s.pendingCount)
-  const fetchPendingCount = useOrderBadgeStore((s) => s.fetchPendingCount)
+  const stats = useWebsiteOrdersStore((s) => s.stats)
+  const fetchStats = useWebsiteOrdersStore((s) => s.fetchStats)
+  const pendingCount = stats?.pending || 0
 
-  React.useEffect(() => {
-    if (user) fetchPendingCount()
-  }, [user])
+  // Fetch stats on mount to show pending count in sidebar
+  useEffect(() => {
+    fetchStats()
+  }, [fetchStats])
 
   const toggleSection = (label: string) => {
     setOpened((prev) => ({
@@ -183,6 +186,10 @@ export function AppSidebarMantine({
             children: [
               { title: t("crm.customersMenu"), url: "/crm/customers" },
               { title: t("crm.leadsMenu"), url: "/crm/leads" },
+              { title: t("crm.affiliatesMenu"), url: "/marketing/affiliates" },
+              { title: t("crm.productCommissionsMenu"), url: "/marketing/product-commissions" },
+              { title: t("crm.categoryCommissionsMenu"), url: "/marketing/category-commissions" },
+              { title: t("crm.payoutsMenu"), url: "/marketing/payouts" },
               { title: t("crm.walletMenu"), url: "/crm/wallet" },
               { title: t("crm.loyaltyMenu"), url: "/crm/loyalty" },
             ],
@@ -422,6 +429,11 @@ export function AppSidebarMantine({
       if (path === '/attendance' || path === '/leaves' ||
           path === '/hrm/attendance' || path === '/hrm/leaves') {
         return true
+      }
+
+      // Affiliates menu - check for specific permission or CRM module access
+      if (path === '/marketing/affiliates' || path === '/marketing/product-commissions' || path === '/marketing/category-commissions' || path === '/marketing/payouts') {
+        return nestedPermissions['crm'] || nestedPermissions['affiliates']
       }
 
       // Remove leading slash and split
