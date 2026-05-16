@@ -485,9 +485,9 @@ export default function ProductsPage() {
               h={40}
               className="bg-gray-100 rounded flex items-center justify-center"
             >
-              {product.thumbnail ? (
+              {product.thumbnail?.url || product.thumbnailUrl ? (
                 <Image
-                  src={product.thumbnail.fullUrl}
+                  src={product.thumbnail?.url || product.thumbnailUrl}
                   alt={product.name}
                   w={40}
                   h={40}
@@ -645,9 +645,9 @@ export default function ProductsPage() {
                 h={60}
                 className="bg-gray-100 rounded-md flex items-center justify-center"
               >
-                {product.thumbnail ? (
+                {product.thumbnail?.url || product.thumbnailUrl ? (
                   <Image
-                    src={product.thumbnail.fullUrl}
+                    src={product.thumbnail?.url || product.thumbnailUrl}
                     alt={product.name}
                     w={60}
                     h={60}

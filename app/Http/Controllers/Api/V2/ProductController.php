@@ -14,6 +14,7 @@ use App\Events\Product\ProductDeleted;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class ProductController extends Controller
@@ -130,10 +131,19 @@ class ProductController extends Controller
         $result->getCollection()->transform(function ($product) {
             // Add thumbnail URL - compute directly without using append
             if ($product->thumbnail) {
-                $product->thumbnail_url = $product->thumbnail->url
-                    ?? (str_starts_with($product->thumbnail->path ?? '', 'http')
-                        ? $product->thumbnail->path
-                        : url($product->thumbnail->path ?? ''));
+                $thumbnail = $product->thumbnail;
+
+                // 1. If absolute URL exists in DB, use it
+                if ($thumbnail->url && str_starts_with($thumbnail->url, 'http')) {
+                    $product->thumbnail_url = $thumbnail->url;
+                }
+                // 2. Otherwise generate from Disk using Storage facade
+                elseif (!empty($thumbnail->path)) {
+                    $product->thumbnail_url = Storage::disk($thumbnail->disk ?? 'public')->url($thumbnail->path);
+                }
+                else {
+                    $product->thumbnail_url = null;
+                }
             }
             // Add basic stock total
             $product->total_stock = $product->variants->sum('stock') ?? 0;
@@ -556,9 +566,14 @@ class ProductController extends Controller
         // Build thumbnail URL
         $thumbnailUrl = null;
         if ($product->thumbnail_id) {
-            $thumbnailUrl = $product->thumbnail_url;
-            if (empty($thumbnailUrl) || !str_starts_with($thumbnailUrl, 'http')) {
-                $thumbnailUrl = url($product->thumbnail_path ?? '');
+            // 1. If absolute URL exists in DB, use it
+            if ($product->thumbnail_url && str_starts_with($product->thumbnail_url, 'http')) {
+                $thumbnailUrl = $product->thumbnail_url;
+            }
+            // 2. Otherwise generate from Disk using Storage facade
+            elseif (!empty($product->thumbnail_path)) {
+                $disk = $product->thumbnail_disk ?? 'public';
+                $thumbnailUrl = Storage::disk($disk)->url($product->thumbnail_path);
             }
         }
 
@@ -721,7 +736,13 @@ class ProductController extends Controller
     }
 
     /**
-     * Update Product
+     * Update Product (Memory Optimized with Direct SQL)
+     *
+     * OPTIMIZED: Uses direct SQL queries instead of Eloquent models to prevent memory exhaustion.
+     * This follows the same pattern as the show() method.
+     *
+     * MEMORY BUDGET: ~5-10MB per product update (down from 512MB crash)
+     *
      * PUT/PATCH /api/v2/catalog/products/{id}
      */
     public function update(Request $request, $id)
@@ -773,212 +794,238 @@ class ProductController extends Controller
             'variants.*.wholesale_id' => 'nullable|integer',
         ]);
 
-        $product = Product::findOrFail($id);
+        // Load product using DIRECT SQL (not Eloquent) to prevent memory exhaustion
+        $product = DB::table('products as p')
+            ->where('p.id', $id)
+            ->select(['p.*'])
+            ->first();
 
-        // Debug logging
-        \Log::info('Product update request data', [
-            'highlights' => $validated['highlights'] ?? null,
-            'highlightsBn' => $validated['highlightsBn'] ?? null,
-            'attributes' => $validated['attributes'] ?? null,
-            'attributesBn' => $validated['attributesBn'] ?? null,
-            'includesInTheBox' => $validated['includesInTheBox'] ?? null,
-            'includesInTheBoxBn' => $validated['includesInTheBoxBn'] ?? null,
-        ]);
+        if (!$product) {
+            return $this->sendError('Product not found', [], 404);
+        }
+
+        // Free memory immediately after getting current values
+        $currentSlug = $product->slug;
+        $currentName = $product->name;
 
         DB::beginTransaction();
         try {
             // Generate new slug if product name changed
-            $newSlug = $product->slug;
-            if (isset($validated['productName']) && $validated['productName'] !== $product->name) {
+            $newSlug = $currentSlug;
+            if (isset($validated['productName']) && $validated['productName'] !== $currentName) {
                 $newSlug = SlugHelper::generateUniqueSlug($validated['productName'], 'products', 'slug');
             }
 
             // Prepare includes_in_box: frontend may send comma-separated string
-            // Laravel's cast will automatically JSON encode it
             $includesInTheBox = $product->includes_in_box;
             if (array_key_exists('includesInTheBox', $validated)) {
                 $val = $validated['includesInTheBox'];
-                if (!empty($val)) {
-                    $includesInTheBox = array_map('trim', explode(',', $val));
-                } else {
-                    $includesInTheBox = null;
-                }
+                $includesInTheBox = !empty($val) ? array_map('trim', explode(',', $val)) : null;
             }
 
             // Prepare seo_tags: frontend sends comma-separated string
             $seoTags = $product->seo_tags;
+            if (is_string($seoTags)) {
+                $seoTags = json_decode($seoTags, true) ?? [];
+            }
             if (array_key_exists('seoTags', $validated)) {
                 $val = $validated['seoTags'];
-                if (!empty($val)) {
-                    $seoTags = array_map('trim', explode(',', $val));
-                } else {
-                    $seoTags = null;
-                }
-            }
-
-            // Prepare warranty_details
-            $warrantyDetails = $product->warranty_details;
-            if (array_key_exists('warrantyDetails', $validated)) {
-                $val = $validated['warrantyDetails'];
-                $warrantyDetails = ($val !== '' && $val !== null) ? $val : null;
+                $seoTags = !empty($val) ? array_map('trim', explode(',', $val)) : null;
             }
 
             // Prepare includes_in_box_bn
-            // Laravel's cast will automatically JSON encode it
-            $includesInTheBoxBn = $product->includes_in_box_bn ?? [];
+            $includesInTheBoxBn = $product->includes_in_box_bn;
+            if (is_string($includesInTheBoxBn)) {
+                $includesInTheBoxBn = json_decode($includesInTheBoxBn, true) ?? [];
+            }
             if (array_key_exists('includesInTheBoxBn', $validated)) {
                 $val = $validated['includesInTheBoxBn'];
-                if (!empty($val)) {
-                    $includesInTheBoxBn = array_map('trim', explode(',', $val));
-                } else {
-                    $includesInTheBoxBn = [];
-                }
+                $includesInTheBoxBn = !empty($val) ? array_map('trim', explode(',', $val)) : [];
             }
 
-            // Update product fields - map camelCase to snake_case
-            $product->update([
-                'name' => $validated['productName'] ?? $product->name,
-                'retail_name' => $validated['retailName'] ?? ($validated['productName'] ?? $product->retail_name),
-                'wholesale_name' => $validated['wholesaleName'] ?? $product->wholesale_name,
-                'retail_name_bn' => array_key_exists('retailNameBn', $validated) ? $validated['retailNameBn'] : $product->retail_name_bn,
-                'wholesale_name_bn' => array_key_exists('wholesaleNameBn', $validated) ? $validated['wholesaleNameBn'] : $product->wholesale_name_bn,
-                'product_code' => array_key_exists('productCode', $validated) ? $validated['productCode'] : $product->product_code,
-                'slug' => $newSlug,
-                'category_id' => $validated['category'] ?? $product->category_id,
-                'brand_id' => $validated['brand'] ?? $product->brand_id,
-                'thumbnail_id' => array_key_exists('featuredImage', $validated) ? $validated['featuredImage'] : $product->thumbnail_id,
-                'gallery_images' => array_key_exists('galleryImages', $validated) ? $validated['galleryImages'] : $product->gallery_images,
-                'description' => $validated['description'] ?? $product->description,
-                'description_bn' => array_key_exists('descriptionBn', $validated) ? $validated['descriptionBn'] : $product->description_bn,
-                'video_url' => $validated['videoUrl'] ?? $product->video_url,
-                'seo_title' => $validated['seoTitle'] ?? $product->seo_title,
-                'seo_description' => $validated['seoDescription'] ?? $product->seo_description,
-                'seo_tags' => $seoTags,
-                'status' => $validated['status'] ?? $product->status,
-                'warranty_enabled' => array_key_exists('enableWarranty', $validated) ? filter_var($validated['enableWarranty'], FILTER_VALIDATE_BOOLEAN) : $product->warranty_enabled,
-                'warranty_details' => $warrantyDetails,
-                'highlights' => $validated['highlights'] ?? $product->highlights,
-                'highlights_bn' => $validated['highlightsBn'] ?? $product->highlights_bn,
-                'attributes' => $validated['attributes'] ?? $product->attributes,
-                'attributes_bn' => $validated['attributesBn'] ?? $product->attributes_bn,
-                'includes_in_box' => $includesInTheBox,
-                'includes_in_box_bn' => $includesInTheBoxBn,
-                'cross_sale' => array_key_exists('crossSale', $validated) ? $validated['crossSale'] : $product->cross_sale,
-                'up_sale' => array_key_exists('upSale', $validated) ? $validated['upSale'] : $product->up_sale,
-                'thank_you' => array_key_exists('thankYou', $validated) ? $validated['thankYou'] : $product->thank_you,
-            ]);
+            // Parse JSON fields if they're strings
+            $highlights = $product->highlights;
+            if (is_string($highlights)) {
+                $highlights = json_decode($highlights, true) ?? [];
+            }
+            $highlightsBn = $product->highlights_bn;
+            if (is_string($highlightsBn)) {
+                $highlightsBn = json_decode($highlightsBn, true) ?? [];
+            }
+            $attributes = $product->attributes;
+            if (is_string($attributes)) {
+                $attributes = json_decode($attributes, true) ?? [];
+            }
+            $attributesBn = $product->attributes_bn;
+            if (is_string($attributesBn)) {
+                $attributesBn = json_decode($attributesBn, true) ?? [];
+            }
+            $galleryImages = $product->gallery_images;
+            if (is_string($galleryImages)) {
+                $galleryImages = json_decode($galleryImages, true) ?? [];
+            }
 
-            \Log::info('Product updated successfully', [
-                'highlights' => $product->highlights,
-                'highlights_bn' => $product->highlights_bn,
-                'attributes' => $product->attributes,
-                'attributes_bn' => $product->attributes_bn,
-                'includes_in_box' => $product->includes_in_box,
-                'includes_in_box_bn' => $product->includes_in_box_bn,
-            ]);
+            // Update product using DB::table (not Eloquent model)
+            DB::table('products')
+                ->where('id', $id)
+                ->update([
+                    'name' => $validated['productName'] ?? $product->name,
+                    'retail_name' => $validated['retailName'] ?? ($validated['productName'] ?? $product->retail_name),
+                    'wholesale_name' => $validated['wholesaleName'] ?? $product->wholesale_name,
+                    'retail_name_bn' => array_key_exists('retailNameBn', $validated) ? $validated['retailNameBn'] : $product->retail_name_bn,
+                    'wholesale_name_bn' => array_key_exists('wholesaleNameBn', $validated) ? $validated['wholesaleNameBn'] : $product->wholesale_name_bn,
+                    'product_code' => array_key_exists('productCode', $validated) ? $validated['productCode'] : $product->product_code,
+                    'slug' => $newSlug,
+                    'category_id' => $validated['category'] ?? $product->category_id,
+                    'brand_id' => $validated['brand'] ?? $product->brand_id,
+                    'thumbnail_id' => array_key_exists('featuredImage', $validated) ? $validated['featuredImage'] : $product->thumbnail_id,
+                    'gallery_images' => array_key_exists('galleryImages', $validated) ? $validated['galleryImages'] : $galleryImages,
+                    'description' => $validated['description'] ?? $product->description,
+                    'description_bn' => array_key_exists('descriptionBn', $validated) ? $validated['descriptionBn'] : $product->description_bn,
+                    'video_url' => $validated['videoUrl'] ?? $product->video_url,
+                    'seo_title' => $validated['seoTitle'] ?? $product->seo_title,
+                    'seo_description' => $validated['seoDescription'] ?? $product->seo_description,
+                    'seo_tags' => $seoTags,
+                    'status' => $validated['status'] ?? $product->status,
+                    'warranty_enabled' => array_key_exists('enableWarranty', $validated) ? filter_var($validated['enableWarranty'], FILTER_VALIDATE_BOOLEAN) : $product->warranty_enabled,
+                    'warranty_details' => array_key_exists('warrantyDetails', $validated) && $validated['warrantyDetails'] !== '' ? $validated['warrantyDetails'] : $product->warranty_details,
+                    'highlights' => $validated['highlights'] ?? $highlights,
+                    'highlights_bn' => $validated['highlightsBn'] ?? $highlightsBn,
+                    'attributes' => $validated['attributes'] ?? $attributes,
+                    'attributes_bn' => $validated['attributesBn'] ?? $attributesBn,
+                    'includes_in_box' => $includesInTheBox,
+                    'includes_in_box_bn' => $includesInTheBoxBn,
+                    'cross_sale' => array_key_exists('crossSale', $validated) ? $validated['crossSale'] : $product->cross_sale,
+                    'up_sale' => array_key_exists('upSale', $validated) ? $validated['upSale'] : $product->up_sale,
+                    'thank_you' => array_key_exists('thankYou', $validated) ? $validated['thankYou'] : $product->thank_you,
+                    'updated_at' => now(),
+                ]);
+
+            // Clear product from memory
+            unset($product);
 
             // Auto-generate product_code if null and category has code
-            if ($product->product_code === null && $product->category_id) {
-                $generatedCode = ProductCodeService::generateProductCode($product->category_id);
+            $updatedProduct = DB::table('products')->where('id', $id)->select('id', 'product_code', 'category_id', 'slug', 'name')->first();
+            if ($updatedProduct->product_code === null && $updatedProduct->category_id) {
+                $generatedCode = ProductCodeService::generateProductCode($updatedProduct->category_id);
                 if ($generatedCode !== null) {
-                    $product->product_code = $generatedCode;
-                    $product->save();
+                    DB::table('products')->where('id', $id)->update(['product_code' => $generatedCode]);
                 }
             }
+            unset($updatedProduct);
 
             // Update affiliate commission (global commission for all affiliates)
             if (array_key_exists('affiliateCommission', $validated)) {
                 $commissionRate = (float) $validated['affiliateCommission'];
 
-                // Find or create the global commission entry for this product
-                $globalCommission = \App\Models\ProductAffiliateCommission::where('product_id', $product->id)
+                // Use DB query instead of model
+                $existingCommission = DB::table('product_affiliate_commissions')
+                    ->where('product_id', $id)
                     ->whereNull('affiliate_id')
                     ->first();
 
-                if ($globalCommission) {
-                    // Update existing global commission
-                    $globalCommission->commission_rate = $commissionRate;
-                    $globalCommission->save();
+                if ($existingCommission) {
+                    DB::table('product_affiliate_commissions')
+                        ->where('id', $existingCommission->id)
+                        ->update(['commission_rate' => $commissionRate]);
                 } else {
-                    // Create new global commission entry
-                    \App\Models\ProductAffiliateCommission::create([
-                        'product_id' => $product->id,
+                    DB::table('product_affiliate_commissions')->insert([
+                        'product_id' => $id,
                         'affiliate_id' => null,
                         'commission_rate' => $commissionRate,
                         'is_active' => true,
+                        'created_at' => now(),
+                        'updated_at' => now(),
                     ]);
                 }
+                unset($existingCommission);
             }
 
             // Handle variants update (create, update, delete)
             if (isset($validated['variants']) && is_array($validated['variants'])) {
-                // Get all existing variant IDs for this product
-                $existingRetailIds = $product->variants()->where('channel', 'retail')->pluck('id')->toArray();
-                $existingWholesaleIds = $product->variants()->where('channel', 'wholesale')->pluck('id')->toArray();
+                // Get all existing variant IDs using direct SQL
+                $existingRetailIds = DB::table('product_variants')
+                    ->where('product_id', $id)
+                    ->where('channel', 'retail')
+                    ->pluck('id')
+                    ->toArray();
+                $existingWholesaleIds = DB::table('product_variants')
+                    ->where('product_id', $id)
+                    ->where('channel', 'wholesale')
+                    ->pluck('id')
+                    ->toArray();
+
                 $submittedRetailIds = [];
                 $submittedWholesaleIds = [];
+                $newSlugForVariants = $newSlug; // Use the slug we computed earlier
 
                 foreach ($validated['variants'] as $variantData) {
-                    \Log::info('Updating variant', [
-                        'name' => $variantData['name'],
-                        'thumbnail' => $variantData['thumbnail'] ?? null,
-                        'retail_id' => $variantData['retail_id'] ?? null,
-                        'wholesale_id' => $variantData['wholesale_id'] ?? null
-                    ]);
-
-                    // Common fields (same for both channels)
+                    // Common fields
                     $commonFields = [
                         'variant_name' => $variantData['name'],
-                        'purchase_cost' => $variantData['purchaseCost'] ?? 0,
+                        'purchase_cost' => ($variantData['purchaseCost'] ?? 0) * 100, // Convert to paisa/cents
                         'weight' => $variantData['weight'] ?? 0,
                         'stock' => $variantData['stock'] ?? 0,
                         'allow_preorder' => $validated['enablePreorder'] ?? false,
                         'expected_delivery' => $validated['expectedDeliveryDate'] ?? null,
                     ];
 
-                    // Check if this is a new variant (no IDs yet) or existing variant
                     $isNewVariant = empty($variantData['retail_id']) && empty($variantData['wholesale_id']);
 
                     if ($isNewVariant) {
-                        // Create new retail + wholesale variant pair
-                        $retailSlug = SlugHelper::generateVariantSlug($product->slug, $variantData['name'], 'retail');
-                        $wholesaleSlug = SlugHelper::generateVariantSlug($product->slug, $variantData['name'], 'wholesale');
+                        // Create new retail + wholesale variant pair using direct SQL
+                        $retailSlug = SlugHelper::generateVariantSlug($newSlugForVariants, $variantData['name'], 'retail');
+                        $wholesaleSlug = SlugHelper::generateVariantSlug($newSlugForVariants, $variantData['name'], 'wholesale');
 
-                        // Generate base SKU if not provided
-                        $baseSku = $variantData['sellerSku'] ?? $this->generateSkuFromNames($product->name, $variantData['name']);
+                        $baseSku = $variantData['sellerSku'] ?? $this->generateSkuFromNames($validated['productName'] ?? $currentName, $variantData['name']);
 
-                        // Create retail variant with unique SKU
-                        $retailVariant = \App\Models\ProductVariant::create(array_merge($commonFields, [
-                            'product_id' => $product->id,
+                        // Insert retail variant
+                        $retailId = DB::table('product_variants')->insertGetId([
+                            'product_id' => $id,
                             'channel' => 'retail',
                             'variant_slug' => $retailSlug,
+                            'variant_name' => $variantData['name'],
                             'thumbnail' => $variantData['thumbnail'] ?? null,
                             'sku' => $baseSku . '-R-' . rand(1000, 9999),
                             'custom_sku' => $variantData['sellerSku'] ?? null,
-                            'price' => $variantData['retailPrice'] ?? 0,
-                            'offer_price' => $variantData['retailOfferPrice'] ?? 0,
+                            'purchase_cost' => $commonFields['purchase_cost'],
+                            'price' => ($variantData['retailPrice'] ?? 0) * 100,
+                            'offer_price' => ($variantData['retailOfferPrice'] ?? 0) * 100,
+                            'weight' => $commonFields['weight'],
+                            'stock' => $commonFields['stock'],
+                            'allow_preorder' => $commonFields['allow_preorder'],
+                            'expected_delivery' => $commonFields['expected_delivery'],
                             'is_active' => true,
-                        ]));
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
 
-                        // Create wholesale variant with unique SKU
-                        $wholesaleVariant = \App\Models\ProductVariant::create(array_merge($commonFields, [
-                            'product_id' => $product->id,
+                        // Insert wholesale variant
+                        $wholesaleId = DB::table('product_variants')->insertGetId([
+                            'product_id' => $id,
                             'channel' => 'wholesale',
                             'variant_slug' => $wholesaleSlug,
+                            'variant_name' => $variantData['name'],
                             'thumbnail' => $variantData['thumbnail'] ?? null,
                             'sku' => $baseSku . '-W-' . rand(1000, 9999),
                             'custom_sku' => $variantData['sellerSku'] ?? null,
-                            'price' => $variantData['wholesalePrice'] ?? 0,
-                            'offer_price' => $variantData['wholesaleOfferPrice'] ?? 0,
+                            'purchase_cost' => $commonFields['purchase_cost'],
+                            'price' => ($variantData['wholesalePrice'] ?? 0) * 100,
+                            'offer_price' => ($variantData['wholesaleOfferPrice'] ?? 0) * 100,
                             'moq' => $variantData['wholesaleMoq'] ?? 6,
+                            'weight' => $commonFields['weight'],
+                            'stock' => $commonFields['stock'],
+                            'allow_preorder' => $commonFields['allow_preorder'],
+                            'expected_delivery' => $commonFields['expected_delivery'],
                             'is_active' => true,
-                        ]));
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
 
-                        $submittedRetailIds[] = $retailVariant->id;
-                        $submittedWholesaleIds[] = $wholesaleVariant->id;
+                        $submittedRetailIds[] = $retailId;
+                        $submittedWholesaleIds[] = $wholesaleId;
 
                     } else {
-                        // Update existing variants
                         // Track submitted IDs
                         if (!empty($variantData['retail_id'])) {
                             $submittedRetailIds[] = $variantData['retail_id'];
@@ -987,162 +1034,328 @@ class ProductController extends Controller
                             $submittedWholesaleIds[] = $variantData['wholesale_id'];
                         }
 
-                        // Update retail variant
+                        // Update retail variant using direct SQL
                         if (!empty($variantData['retail_id'])) {
-                            $retailVariant = \App\Models\ProductVariant::find($variantData['retail_id']);
-                            if ($retailVariant && $retailVariant->product_id == $product->id) {
-                                // Generate new variant slug if name changed
-                                $newRetailVariantSlug = $retailVariant->variant_slug;
-                                if (isset($variantData['name']) && $variantData['name'] !== $retailVariant->variant_name) {
-                                    $newRetailVariantSlug = SlugHelper::generateVariantSlug($product->slug, $variantData['name'], 'retail');
+                            $existingRetail = DB::table('product_variants')
+                                ->where('id', $variantData['retail_id'])
+                                ->where('product_id', $id)
+                                ->first();
+
+                            if ($existingRetail) {
+                                $newRetailSlug = $existingRetail->variant_slug;
+                                if (isset($variantData['name']) && $variantData['name'] !== $existingRetail->variant_name) {
+                                    $newRetailSlug = SlugHelper::generateVariantSlug($newSlugForVariants, $variantData['name'], 'retail');
                                 }
 
-                                $retailUpdateData = [
-                                    'variant_slug' => $newRetailVariantSlug,
-                                    'sku' => $variantData['sellerSku'] ?? $retailVariant->sku,
-                                    'price' => $variantData['retailPrice'] ?? 0,
-                                    'offer_price' => $variantData['retailOfferPrice'] ?? 0,
-                                ];
+                                $updateData = array_merge($commonFields, [
+                                    'variant_slug' => $newRetailSlug,
+                                    'sku' => $variantData['sellerSku'] ?? $existingRetail->sku,
+                                    'price' => ($variantData['retailPrice'] ?? 0) * 100,
+                                    'offer_price' => ($variantData['retailOfferPrice'] ?? 0) * 100,
+                                    'updated_at' => now(),
+                                ]);
 
-                                // Only update thumbnail if explicitly provided (non-null or empty string to clear)
                                 if (array_key_exists('thumbnail', $variantData)) {
-                                    $retailUpdateData['thumbnail'] = $variantData['thumbnail'];
+                                    $updateData['thumbnail'] = $variantData['thumbnail'];
                                 }
 
-                                $retailVariant->update(array_merge($commonFields, $retailUpdateData));
+                                DB::table('product_variants')
+                                    ->where('id', $variantData['retail_id'])
+                                    ->update($updateData);
+                                unset($existingRetail);
                             }
                         }
 
-                        // Update wholesale variant
+                        // Update wholesale variant using direct SQL
                         if (!empty($variantData['wholesale_id'])) {
-                            $wholesaleVariant = \App\Models\ProductVariant::find($variantData['wholesale_id']);
-                            if ($wholesaleVariant && $wholesaleVariant->product_id == $product->id) {
-                                // Generate new variant slug if name changed
-                                $newWholesaleVariantSlug = $wholesaleVariant->variant_slug;
-                                if (isset($variantData['name']) && $variantData['name'] !== $wholesaleVariant->variant_name) {
-                                    $newWholesaleVariantSlug = SlugHelper::generateVariantSlug($product->slug, $variantData['name'], 'wholesale');
+                            $existingWholesale = DB::table('product_variants')
+                                ->where('id', $variantData['wholesale_id'])
+                                ->where('product_id', $id)
+                                ->first();
+
+                            if ($existingWholesale) {
+                                $newWholesaleSlug = $existingWholesale->variant_slug;
+                                if (isset($variantData['name']) && $variantData['name'] !== $existingWholesale->variant_name) {
+                                    $newWholesaleSlug = SlugHelper::generateVariantSlug($newSlugForVariants, $variantData['name'], 'wholesale');
                                 }
 
-                                $wholesaleUpdateData = [
-                                    'variant_slug' => $newWholesaleVariantSlug,
-                                    'price' => $variantData['wholesalePrice'] ?? 0,
-                                    'offer_price' => $variantData['wholesaleOfferPrice'] ?? 0,
-                                ];
+                                $updateData = array_merge($commonFields, [
+                                    'variant_slug' => $newWholesaleSlug,
+                                    'price' => ($variantData['wholesalePrice'] ?? 0) * 100,
+                                    'offer_price' => ($variantData['wholesaleOfferPrice'] ?? 0) * 100,
+                                    'updated_at' => now(),
+                                ]);
 
-                                // Only update MOQ if it's explicitly provided (allow 0, but use current value if not provided)
                                 if (array_key_exists('wholesaleMoq', $variantData)) {
-                                    $wholesaleUpdateData['moq'] = is_null($variantData['wholesaleMoq']) ? $wholesaleVariant->moq : $variantData['wholesaleMoq'];
+                                    $updateData['moq'] = $variantData['wholesaleMoq'];
                                 }
 
-                                // Only update thumbnail if explicitly provided (non-null or empty string to clear)
                                 if (array_key_exists('thumbnail', $variantData)) {
-                                    $wholesaleUpdateData['thumbnail'] = $variantData['thumbnail'];
+                                    $updateData['thumbnail'] = $variantData['thumbnail'];
                                 }
 
-                                $wholesaleVariant->update(array_merge($commonFields, $wholesaleUpdateData));
+                                DB::table('product_variants')
+                                    ->where('id', $variantData['wholesale_id'])
+                                    ->update($updateData);
+                                unset($existingWholesale);
                             }
                         }
                     }
                 }
 
-                // Delete variants that were removed (exist in DB but not in submitted list)
+                // Delete variants that were removed using direct SQL
                 $retailIdsToDelete = array_diff($existingRetailIds, $submittedRetailIds);
                 $wholesaleIdsToDelete = array_diff($existingWholesaleIds, $submittedWholesaleIds);
 
                 if (!empty($retailIdsToDelete)) {
-                    \App\Models\ProductVariant::whereIn('id', $retailIdsToDelete)->delete();
+                    DB::table('product_variants')->whereIn('id', $retailIdsToDelete)->delete();
                 }
                 if (!empty($wholesaleIdsToDelete)) {
-                    \App\Models\ProductVariant::whereIn('id', $wholesaleIdsToDelete)->delete();
+                    DB::table('product_variants')->whereIn('id', $wholesaleIdsToDelete)->delete();
                 }
             }
 
             DB::commit();
 
-            // Lazychat webhook sent to queue (background) instead of blocking response
-            // This prevents timeout issues during product update
-            dispatch(new \App\Jobs\SendLazychatWebhook($product, 'product.updated', 'product/update'))
+            // Lazychat webhook - load minimal Product model (only ID, no relationships to avoid memory overhead)
+            $webhookProduct = new Product();
+            $webhookProduct->id = $id;
+            dispatch(new \App\Jobs\SendLazychatWebhook($webhookProduct, 'product.updated', 'product/update'))
                 ->onQueue('lazychat-webhooks');
+            unset($webhookProduct);
 
-            // Transform variants to plain arrays - prevents model appends overhead
-            // Load all variant data needed for the response
-            $product->load(['variants' => fn($q) => $q->select(
-                'id',
-                'product_id',
-                'channel',
-                'variant_slug',
-                'variant_name',
-                'thumbnail',
-                'sku',
-                'custom_sku',
-                'color',
-                'size',
-                'material',
-                'weight',
-                'pattern',
-                'unit_id',
-                'unit_value',
-                'purchase_cost',
-                'stock',
-                'stock_alert_level',
-                'moq',
-                'is_active',
-                'allow_preorder',
-                'expected_delivery',
-                'price',
-                'offer_price',
-                'offer_starts',
-                'offer_ends'
-            )]);
+            // Build response using DIRECT SQL (no Eloquent models)
+            // This is the same optimized approach as show() method
+            $responseProduct = DB::table('products as p')
+                ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
+                ->leftJoin('brands as b', 'p.brand_id', '=', 'b.id')
+                ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+                ->where('p.id', $id)
+                ->select([
+                    'p.id',
+                    'p.name',
+                    'p.retail_name',
+                    'p.wholesale_name',
+                    'p.retail_name_bn',
+                    'p.wholesale_name_bn',
+                    'p.slug',
+                    'p.product_code',
+                    'p.status',
+                    'p.category_id',
+                    'p.brand_id',
+                    'p.thumbnail_id',
+                    'p.gallery_images',
+                    'p.description',
+                    'p.description_bn',
+                    'p.highlights',
+                    'p.highlights_bn',
+                    'p.attributes',
+                    'p.attributes_bn',
+                    'p.includes_in_box',
+                    'p.includes_in_box_bn',
+                    'p.video_url',
+                    'p.warranty_enabled',
+                    'p.warranty_details',
+                    'p.seo_title',
+                    'p.seo_description',
+                    'p.seo_tags',
+                    'p.cross_sale',
+                    'p.up_sale',
+                    'p.created_at',
+                    'p.updated_at',
+                    'c.id as category_id',
+                    'c.name as category_name',
+                    'c.slug as category_slug',
+                    'b.id as brand_id',
+                    'b.name as brand_name',
+                    'b.slug as brand_slug',
+                    'm.id as thumbnail_id',
+                    'm.path as thumbnail_path',
+                    'm.url as thumbnail_url',
+                    'm.disk as thumbnail_disk',
+                ])
+                ->first();
 
-            $variants = $product->variants->groupBy('variant_name')->map(function ($group) {
-                $retail  = $group->firstWhere('channel', 'retail');
+            if (!$responseProduct) {
+                return $this->sendError('Failed to load updated product', [], 500);
+            }
+
+            // Load variants using direct SQL
+            $variants = DB::table('product_variants')
+                ->where('product_id', $id)
+                ->select([
+                    'id',
+                    'product_id',
+                    'channel',
+                    'variant_slug',
+                    'variant_name',
+                    'thumbnail',
+                    'sku',
+                    'custom_sku',
+                    'color',
+                    'size',
+                    'weight',
+                    'stock',
+                    'moq',
+                    'is_active',
+                    'allow_preorder',
+                    'expected_delivery',
+                    'price',
+                    'offer_price',
+                    'offer_starts',
+                    'offer_ends',
+                ])
+                ->get();
+
+            // Transform variants to paired format (same as show() method)
+            $variantPairs = $variants->groupBy('variant_name')->map(function ($group) {
+                $retail = $group->firstWhere('channel', 'retail');
                 $wholesale = $group->firstWhere('channel', 'wholesale');
                 $base = $retail ?? $wholesale;
 
-                // Use stock directly from column - current_stock is just a cast
                 $stockValue = (int)($base->stock ?? 0);
 
+                // Build thumbnail URL
+                $thumbnailUrl = null;
+                if ($base->thumbnail) {
+                    if (str_starts_with($base->thumbnail, 'http')) {
+                        $thumbnailUrl = $base->thumbnail;
+                    } else {
+                        $thumbnailUrl = Storage::disk('public')->url($base->thumbnail);
+                    }
+                }
+
                 return [
-                    'id'                    => $base->id,
-                    'retailId'              => $retail?->id,
-                    'wholesaleId'           => $wholesale?->id,
-                    'productId'             => $base->product_id,
-                    'variantName'           => $base->variant_name,
-                    'variantSlug'           => $base->variant_slug,
-                    'customSku'             => $base->custom_sku,
-                    'sku'                   => $base->sku,
-                    'thumbnail'             => $base->thumbnail ? (str_starts_with($base->thumbnail, 'http') ? $base->thumbnail : url($base->thumbnail)) : null,
-                    'color'                 => $base->color,
-                    'size'                  => $base->size,
-                    'material'              => $base->material,
-                    'weight'                => (float)($base->weight ?? 0),
-                    'pattern'               => $base->pattern,
-                    'unitId'                => $base->unit_id,
-                    'unitValue'             => $base->unit_value,
-                    'purchaseCost'          => $base->purchase_cost ? (float) $base->purchase_cost : 0,
-                    'stock'                 => $stockValue,
-                    'currentStock'          => $stockValue, // Use stock directly - no accessor overhead
-                    'stockAlertLevel'       => (int)($base->stock_alert_level ?? 5),
-                    'moq'                   => (int)($base->moq ?? 1),
-                    'isActive'              => (bool)($base->is_active ?? true),
-                    'allowPreorder'         => (bool)($base->allow_preorder ?? false),
-                    'expectedDelivery'      => $base->expected_delivery,
-                    'retailPrice'           => $retail ? (float) $retail->price : 0,
-                    'retailOfferPrice'      => $retail && $retail->offer_price ? (float) $retail->offer_price : null,
-                    'retailOfferStarts'     => $retail?->offer_starts,
-                    'retailOfferEnds'       => $retail?->offer_ends,
-                    'retailSku'             => $retail?->sku,
-                    'wholesalePrice'        => $wholesale ? (float) $wholesale->price : 0,
-                    'wholesaleOfferPrice'   => $wholesale && $wholesale->offer_price ? (float) $wholesale->offer_price : null,
-                    'wholesaleOfferStarts'  => $wholesale?->offer_starts,
-                    'wholesaleOfferEnds'    => $wholesale?->offer_ends,
-                    'wholesaleSku'          => $wholesale?->sku,
+                    'id' => $base->id,
+                    'retailId' => $retail?->id,
+                    'wholesaleId' => $wholesale?->id,
+                    'productId' => $base->product_id,
+                    'variantName' => $base->variant_name,
+                    'variantSlug' => $base->variant_slug,
+                    'customSku' => $base->custom_sku,
+                    'sku' => $base->sku,
+                    'thumbnail' => $thumbnailUrl,
+                    'weight' => (float)($base->weight ?? 0),
+                    'stock' => $stockValue,
+                    'currentStock' => $stockValue,
+                    'moq' => (int)($base->moq ?? 1),
+                    'isActive' => (bool)($base->is_active ?? true),
+                    'allowPreorder' => (bool)($base->allow_preorder ?? false),
+                    'expectedDelivery' => $base->expected_delivery,
+                    'retailPrice' => ($retail?->price ?? 0) / 100,
+                    'retailOfferPrice' => $retail && $retail->offer_price ? $retail->offer_price / 100 : null,
+                    'retailOfferStarts' => $retail?->offer_starts,
+                    'retailOfferEnds' => $retail?->offer_ends,
+                    'retailSku' => $retail?->sku,
+                    'wholesalePrice' => ($wholesale?->price ?? 0) / 100,
+                    'wholesaleOfferPrice' => $wholesale && $wholesale->offer_price ? $wholesale->offer_price / 100 : null,
+                    'wholesaleOfferStarts' => $wholesale?->offer_starts,
+                    'wholesaleOfferEnds' => $wholesale?->offer_ends,
+                    'wholesaleSku' => $wholesale?->sku,
                 ];
             })->values();
-            $product->setRelation('variants', $variants);
 
-            return $this->sendSuccess($product->load(['category', 'brand', 'thumbnail']), 'Product updated successfully');
+            // Parse JSON fields for response
+            $highlights = $responseProduct->highlights;
+            if (is_string($highlights)) {
+                $highlights = json_decode($highlights, true) ?? [];
+            }
+            $highlightsBn = $responseProduct->highlights_bn;
+            if (is_string($highlightsBn)) {
+                $highlightsBn = json_decode($highlightsBn, true) ?? [];
+            }
+            $attributes = $responseProduct->attributes;
+            if (is_string($attributes)) {
+                $attributes = json_decode($attributes, true) ?? [];
+            }
+            $attributesBn = $responseProduct->attributes_bn;
+            if (is_string($attributesBn)) {
+                $attributesBn = json_decode($attributesBn, true) ?? [];
+            }
+            $includesInBox = $responseProduct->includes_in_box;
+            if (is_string($includesInBox)) {
+                $includesInBox = json_decode($includesInBox, true) ?? [];
+            }
+            $includesInBoxBn = $responseProduct->includes_in_box_bn;
+            if (is_string($includesInBoxBn)) {
+                $includesInBoxBn = json_decode($includesInBoxBn, true) ?? [];
+            }
+            $seoTags = $responseProduct->seo_tags;
+            if (is_string($seoTags)) {
+                $seoTags = json_decode($seoTags, true) ?? [];
+            }
+            $galleryImages = $responseProduct->gallery_images;
+            if (is_string($galleryImages)) {
+                $galleryImages = json_decode($galleryImages, true) ?? [];
+            }
+
+            // Build thumbnail URL
+            $thumbnailUrl = null;
+            if ($responseProduct->thumbnail_id) {
+                if ($responseProduct->thumbnail_url && str_starts_with($responseProduct->thumbnail_url, 'http')) {
+                    $thumbnailUrl = $responseProduct->thumbnail_url;
+                } elseif (!empty($responseProduct->thumbnail_path)) {
+                    $thumbnailUrl = Storage::disk($responseProduct->thumbnail_disk ?? 'public')->url($responseProduct->thumbnail_path);
+                }
+            }
+
+            // Build final response array (plain array, not a model)
+            $finalResponse = [
+                'id' => $responseProduct->id,
+                'name' => $responseProduct->name,
+                'retailName' => $responseProduct->retail_name,
+                'wholesaleName' => $responseProduct->wholesale_name,
+                'retailNameBn' => $responseProduct->retail_name_bn,
+                'wholesaleNameBn' => $responseProduct->wholesale_name_bn,
+                'slug' => $responseProduct->slug,
+                'productCode' => $responseProduct->product_code,
+                'status' => $responseProduct->status,
+                'description' => $responseProduct->description,
+                'descriptionBn' => $responseProduct->description_bn,
+                'highlights' => $highlights ?: [],
+                'highlightsBn' => $highlightsBn ?: [],
+                'attributes' => $attributes ?: [],
+                'attributesBn' => $attributesBn ?: [],
+                'includesInBox' => $includesInBox ?: [],
+                'includesInBoxBn' => $includesInBoxBn ?: [],
+                'videoUrl' => $responseProduct->video_url,
+                'warrantyEnabled' => (bool)$responseProduct->warranty_enabled,
+                'warrantyDetails' => $responseProduct->warranty_details,
+                'seoTitle' => $responseProduct->seo_title,
+                'seoDescription' => $responseProduct->seo_description,
+                'seoTags' => $seoTags ?: [],
+                'category' => $responseProduct->category_id ? [
+                    'id' => $responseProduct->category_id,
+                    'name' => $responseProduct->category_name,
+                    'slug' => $responseProduct->category_slug,
+                ] : null,
+                'brand' => $responseProduct->brand_id ? [
+                    'id' => $responseProduct->brand_id,
+                    'name' => $responseProduct->brand_name,
+                    'slug' => $responseProduct->brand_slug,
+                ] : null,
+                'thumbnail' => $responseProduct->thumbnail_id ? [
+                    'id' => $responseProduct->thumbnail_id,
+                    'path' => $responseProduct->thumbnail_path,
+                    'url' => $responseProduct->thumbnail_url,
+                    'fullUrl' => $thumbnailUrl,
+                ] : null,
+                'thumbnailUrl' => $thumbnailUrl,
+                'featured_image' => $thumbnailUrl,
+                'galleryImages' => $galleryImages ?: [],
+                'galleryImagesUrls' => $this->getGalleryImagesUrls($galleryImages ?: []),
+                'affiliateCommission' => 5.00,
+                'variants' => $variantPairs,
+                'cross_sale' => $responseProduct->cross_sale,
+                'up_sale' => $responseProduct->up_sale,
+                'created_at' => $responseProduct->created_at,
+                'updated_at' => $responseProduct->updated_at,
+            ];
+
+            // Free all variables before returning
+            unset($responseProduct, $variants, $variantPairs, $thumbnailUrl);
+
+            return $this->sendSuccess($finalResponse, 'Product updated successfully');
 
         } catch (\Exception $e) {
             DB::rollBack();

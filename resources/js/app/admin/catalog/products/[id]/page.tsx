@@ -57,6 +57,7 @@ import {
   IconDiscount,
   IconTrendingUp,
   IconHeart,
+  IconExternalLink,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { getProduct, updateProduct, getProducts } from '@/utils/api'
@@ -926,14 +927,29 @@ export default function ProductDetailPage() {
             {/* Status badge and actions row */}
             <Group justify="space-between" align="center">
               {getStatusBadge(product.status)}
-              <Button
-                size="xs"
-                variant="default"
-                leftSection={<IconEdit size={14} />}
-                onClick={() => navigate(`/catalog/products/${product.id}/edit`)}
-              >
-                Edit
-              </Button>
+              <Group gap="xs">
+                {product.slug && (
+                  <Button
+                    size="xs"
+                    variant="light"
+                    component="a"
+                    href={`https://www.hooknhunt.com/products/${product.slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    leftSection={<IconExternalLink size={14} />}
+                  >
+                    View on Website
+                  </Button>
+                )}
+                <Button
+                  size="xs"
+                  variant="default"
+                  leftSection={<IconEdit size={14} />}
+                  onClick={() => navigate(`/catalog/products/${product.id}/edit`)}
+                >
+                  Edit
+                </Button>
+              </Group>
             </Group>
           </Stack>
         </Paper>

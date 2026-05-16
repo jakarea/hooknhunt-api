@@ -45,7 +45,8 @@ import {
   IconLoader,
   IconArrowLeft,
   IconSparkles,
-  IconCheck
+  IconCheck,
+  IconExternalLink
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { getCategories, getBrands, getProduct, type Category, type Brand, type MediaFile } from '@/utils/api'
@@ -285,6 +286,7 @@ export default function EditProductPage() {
 
   // Affiliate state
   const [affiliateCommission, setAffiliateCommission] = useState(5)
+  const [productSlug, setProductSlug] = useState('')
 
   // Quill editor refs
   const descriptionQuillRef = useRef<any>(null)
@@ -1000,7 +1002,7 @@ export default function EditProductPage() {
             toolbar: [
               ['bold', 'italic', 'underline'],
               [{ 'header': [2, 3, 4, 5, 6, false] }],
-              [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+              [['list', 'ordered'], ['list', 'bullet']],
               [{ 'align': [] }, { 'align': 'center' }],
               ['link', 'image'],
               ['clean']
@@ -1068,7 +1070,7 @@ export default function EditProductPage() {
           placeholder: '• Add key product highlights, features, or benefits...',
           modules: {
             toolbar: [
-              [{ 'list': 'bullet' }],
+              ['list', 'bullet'],
               ['clean']
             ]
           }
@@ -1184,7 +1186,7 @@ export default function EditProductPage() {
           placeholder: t('catalog.productsCreate.attributesPlaceholder') || '• Enter product attributes as bullet points...',
           modules: {
             toolbar: [
-              [{ 'list': 'bullet' }],
+              ['list', 'bullet'],
               ['clean']
             ]
           }
@@ -1252,7 +1254,7 @@ export default function EditProductPage() {
           const initialHtml = arrayToListHtml(attributesList)
           if (initialHtml) {
             isProgrammaticUpdate = true
-            quill2a.root.innerHTML = initialHtml
+            quill2a.clipboard.dangerouslyPasteHTML(initialHtml)
             setTimeout(() => { isProgrammaticUpdate = false }, 0)
           }
         } else {
@@ -1277,6 +1279,7 @@ export default function EditProductPage() {
         attributesQuillRef.current = quill2a
         setupImageInteractions(quill2a)
       } else if (attributesQuillRef.current) {
+        // Update existing editor with loaded data
         const nonEmpty = attributesList.filter(item => item.trim() !== '')
         if (nonEmpty.length > 0) {
           const html = `<ul>${nonEmpty.map(item => `<li>${item}</li>`).join('')}</ul>`
@@ -1300,7 +1303,7 @@ export default function EditProductPage() {
             toolbar: [
               ['bold', 'italic', 'underline'],
               [{ 'header': [2, 3, 4, 5, 6, false] }],
-              [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+              [['list', 'ordered'], ['list', 'bullet']],
               [{ 'align': [] }, { 'align': 'center' }],
               ['link', 'image'],
               ['clean']
@@ -1366,7 +1369,7 @@ export default function EditProductPage() {
           placeholder: '• পণ্যের মূল বৈশিষ্ট্য বুলেট পয়েন্ট হিসেবে লিখুন...',
           modules: {
             toolbar: [
-              [{ 'list': 'bullet' }],
+              ['list', 'bullet'],
               ['clean']
             ]
           }
@@ -1475,7 +1478,7 @@ export default function EditProductPage() {
           placeholder: 'পণ্যের বৈশিষ্ট্যসমূহ বুলেট পয়েন্ট হিসেবে লিখুন...',
           modules: {
             toolbar: [
-              [{ 'list': 'bullet' }],
+              ['list', 'bullet'],
               ['clean']
             ]
           }
@@ -1543,7 +1546,7 @@ export default function EditProductPage() {
           const initialHtml = arrayToListHtml(attributesBn)
           if (initialHtml) {
             isProgrammaticUpdate = true
-            quillBn2a.root.innerHTML = initialHtml
+            quillBn2a.clipboard.dangerouslyPasteHTML(initialHtml)
             setTimeout(() => { isProgrammaticUpdate = false }, 0)
           }
         } else {
@@ -1568,6 +1571,7 @@ export default function EditProductPage() {
         attributesBnQuillRef.current = quillBn2a
         setupImageInteractions(quillBn2a)
       } else if (attributesBnQuillRef.current) {
+        // Update existing Bangla editor with loaded data
         const nonEmpty = attributesBn.filter(item => item.trim() !== '')
         if (nonEmpty.length > 0) {
           const html = `<ul>${nonEmpty.map(item => `<li>${item}</li>`).join('')}</ul>`
@@ -1584,6 +1588,14 @@ export default function EditProductPage() {
 
     // Small delay to ensure DOM is ready
     setTimeout(initializeQuillEditors, 100)
+  }, [initialDataLoaded])
+
+  // Reset Quill refs when loading new data so editors are re-created
+  useEffect(() => {
+    if (isLoading) {
+      attributesQuillRef.current = null
+      attributesBnQuillRef.current = null
+    }
   }, [isLoading])
 
   // Cleanup Quill editors on unmount
@@ -1709,6 +1721,7 @@ export default function EditProductPage() {
 
       try {
         setIsLoading(true)
+        setInitialDataLoaded(false)
         const response = await getProduct(Number(id))
 
         // Handle different response structures
@@ -1721,6 +1734,7 @@ export default function EditProductPage() {
         // Populate form fields - Handle both nested objects and IDs
         setProductName(productData.name || productData.baseName || productData.retailName || '')
         setWholesaleName(productData.wholesaleName || '')
+        setProductSlug(productData.slug || '')
 
         // Category - check for both nested object and ID
         const categoryId = productData.category?.id || productData.categoryId
@@ -2699,13 +2713,27 @@ export default function EditProductPage() {
             <IconPackages size={32} className="text-blue-600" />
             <Title order={1}>{t('catalog.productsEdit.title') || 'Edit Product'}</Title>
           </Group>
-          <Button
-            variant="light"
-            leftSection={<IconArrowLeft size={16} />}
-            onClick={() => navigate(`/catalog/products/${id}`)}
-          >
-            {t('catalog.productsEdit.back') || 'Back to Product'}
-          </Button>
+          <Group gap="sm">
+            {productSlug && (
+              <Button
+                component="a"
+                href={`https://www.hooknhunt.com/products/${productSlug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="light"
+                leftSection={<IconExternalLink size={16} />}
+              >
+                View on Website
+              </Button>
+            )}
+            <Button
+              variant="light"
+              leftSection={<IconArrowLeft size={16} />}
+              onClick={() => navigate(`/catalog/products/${id}`)}
+            >
+              {t('catalog.productsEdit.back') || 'Back to Product'}
+            </Button>
+          </Group>
         </Group>
 
         {/* Form */}

@@ -220,11 +220,22 @@ class LazychatRetailController extends Controller
         // Build images array
         $images = [];
         if ($product->thumbnail_id) {
-            $thumbnailUrl = $product->thumbnail_url;
-            if (empty($thumbnailUrl) || !str_starts_with($thumbnailUrl, 'http')) {
-                $thumbnailUrl = url($product->thumbnail_path ?? '');
+            // 1. If absolute URL exists in DB, use it
+            if ($product->thumbnail_url && str_starts_with($product->thumbnail_url, 'http')) {
+                $thumbnailUrl = $product->thumbnail_url;
             }
-            $images[] = ['url' => $thumbnailUrl];
+            // 2. Otherwise generate from Disk using Storage facade
+            elseif (!empty($product->thumbnail_path)) {
+                $disk = $product->thumbnail_disk ?? 'public';
+                $thumbnailUrl = \Storage::disk($disk)->url($product->thumbnail_path);
+            }
+            else {
+                $thumbnailUrl = null;
+            }
+
+            if ($thumbnailUrl) {
+                $images[] = ['url' => $thumbnailUrl];
+            }
         }
 
         // Add gallery images using direct SQL
@@ -243,9 +254,11 @@ class LazychatRetailController extends Controller
                 foreach ($galleryIds as $imageId) {
                     if (isset($galleryUrls[$imageId])) {
                         $file = $galleryUrls[$imageId];
+                        // 1. If absolute URL exists in DB, use it
+                        // 2. Otherwise generate from path using Storage facade
                         $url = ($file->url && str_starts_with($file->url, 'http'))
                             ? $file->url
-                            : url($file->path ?? '');
+                            : \Storage::disk('public')->url($file->path ?? '');
                         $images[] = ['url' => $url];
                     }
                 }
