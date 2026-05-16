@@ -44,7 +44,7 @@ class SendLazychatWebhook implements ShouldQueue
     private string $eventType;
     private string $webhookTopic;
     private ?int $webhookLogId;
-    private bool $isDelete;
+    private bool $isDelete = false;
 
     /**
      * Create a new job instance.

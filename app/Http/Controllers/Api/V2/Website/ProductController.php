@@ -3,11 +3,10 @@
 namespace App\Http\Controllers\Api\V2\Website;
 
 use App\Http\Controllers\Controller;
-use App\Models\Product;
-use App\Models\Category;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
@@ -16,90 +15,616 @@ class ProductController extends Controller
     /**
      * List published products (retail channel only).
      * GET /api/v2/store/products
+     *
+     * OPTIMIZED: Returns ONLY what ProductCard needs - nothing more, nothing less
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Product::with(['category', 'brand', 'thumbnail'])
-            ->where('status', 'published')
-            ->whereHas('variants', fn($q) => $q->where('channel', 'retail')->where('is_active', true));
+        // Build query with direct SQL - only select what's needed
+        $query = DB::table('products as p')
+            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->where('p.status', 'published')
+            ->whereExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('product_variants')
+                    ->whereColumn('product_variants.product_id', '=', 'p.id')
+                    ->where('channel', 'retail')
+                    ->where('is_active', true)
+                    ->limit(1);
+            })
+            ->select([
+                'p.id',
+                'p.name',
+                'p.retail_name',
+                'p.retail_name_bn',
+                'p.slug',
+                'p.thumbnail_id',
+                'm.path as thumbnail_path',
+                'm.url as thumbnail_url',
+                'p.created_at',
+            ]);
 
-        $this->applyFilters($query, $request);
-        $this->applySorting($query, $request);
+        // Apply filters
+        if ($request->search) {
+            $query->where('p.name', 'like', "%{$request->search}%");
+        }
+        if ($request->category_id) {
+            $query->where('p.category_id', $request->category_id);
+        }
+        if ($request->brand_id) {
+            $query->where('p.brand_id', $request->brand_id);
+        }
 
-        $perPage = $request->input('per_page', 20);
-        $products = $query->paginate($perPage);
+        // Sorting
+        $sortBy = $request->input('sort_by', 'created_at_desc');
+        switch ($sortBy) {
+            case 'created_at_desc':
+                $query->orderBy('p.created_at', 'desc');
+                break;
+            case 'created_at_asc':
+                $query->orderBy('p.created_at', 'asc');
+                break;
+            case 'name_asc':
+                $query->orderBy('p.name', 'asc');
+                break;
+            case 'name_desc':
+                $query->orderBy('p.name', 'desc');
+                break;
+            default:
+                $query->orderBy('p.created_at', 'desc');
+        }
 
-        $products->getCollection()->transform(fn($product) => $this->transformProduct($product));
+        // Pagination
+        $perPage = min((int)($request->input('per_page', 20)), 100);
+        $page = $request->input('page', 1);
+        $offset = ($page - 1) * $perPage;
 
-        return $this->sendSuccess($products);
+        $total = $query->count();
+        $products = $query->offset($offset)->limit($perPage)->get();
+
+        // Get all variant data in one query for performance
+        $productIds = $products->pluck('id')->toArray();
+        $allVariants = DB::table('product_variants')
+            ->whereIn('product_id', $productIds)
+            ->where('channel', 'retail')
+            ->where('is_active', true)
+            ->select('product_id', 'id', 'variant_name', 'variant_slug', 'sku', 'price', 'offer_price', 'stock', 'weight', 'size', 'color')
+            ->get()
+            ->groupBy('product_id');
+
+        // Transform to array - OPTIMIZED for ProductCard only
+        // Removed: variants array, thumbnail object, galleryImages, category, brand, descriptions
+        $transformed = $products->map(function ($product) use ($allVariants) {
+            // Build image URL
+            $imageUrl = null;
+            if ($product->thumbnail_id) {
+                $imageUrl = $product->thumbnail_url;
+                if (empty($imageUrl) || !str_starts_with($imageUrl, 'http')) {
+                    $imageUrl = url($product->thumbnail_path ?? '');
+                }
+            }
+
+            // Get all variants for this product
+            $variants = $allVariants->get($product->id, collect());
+            $variantCount = $variants->count();
+
+            // Calculate price from first variant
+            $firstVariant = $variants->first();
+            $price = 0;
+            $originalPrice = 0;
+            $stock = 0;
+
+            if ($firstVariant) {
+                $price = ($firstVariant->offer_price > 0) ? (float) $firstVariant->offer_price : (float) $firstVariant->price;
+                $originalPrice = (float) $firstVariant->price;
+                $stock = (int) $variants->sum('stock');
+            }
+
+            return [
+                // Core fields - ProductCard needs these
+                'id' => $product->id,
+                'slug' => $product->slug,
+                'name' => $product->name,
+                'retailName' => $product->retail_name ?? $product->name,
+                'title' => $product->retail_name ?? $product->name,
+                'nameBn' => $product->retail_name_bn ?? $product->name,
+
+                // Images - ProductCard only needs flat URLs
+                'image' => $imageUrl,
+                'featured_image' => $imageUrl,
+
+                // Pricing - ProductCard needs these
+                'price' => $price,
+                'actual_price' => $price,
+                'originalPrice' => $originalPrice,
+                'compare_at_price' => $originalPrice,
+
+                // Stock - ProductCard needs these
+                'stock' => $stock,
+                'inventory_quantity' => $stock,
+
+                // Variant count - ProductCard needs this
+                'variant_count' => $variantCount,
+            ];
+        });
+
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $currentPage = (int) $page;
+
+        // Return response with correct structure for frontend
+        // Frontend expects: response.data = { data: [...], total: ..., last_page: ..., current_page: ..., next_page_url: ... }
+        return response()->json([
+            'status' => true,
+            'message' => 'Success',
+            'data' => [
+                'data' => $transformed,
+                'total' => $total,
+                'last_page' => $lastPage,
+                'current_page' => $currentPage,
+                'next_page_url' => ($currentPage < $lastPage) ? url()->current() . '?' . http_build_query(['page' => $currentPage + 1, 'per_page' => $perPage]) : null,
+            ],
+            'errors' => null,
+        ]);
     }
 
     /**
      * Get a single published product by slug (retail only).
      * GET /api/v2/store/products/{slug}
+     *
+     * DIRECT SQL - Memory optimized to prevent crashes
      */
     public function show(string $slug): JsonResponse
     {
-        $product = Product::with(['category', 'brand', 'thumbnail'])
-            ->where('slug', $slug)
-            ->where('status', 'published')
-            ->firstOrFail();
+        // Use direct SQL to avoid model serialization overhead
+        $product = DB::table('products as p')
+            ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
+            ->leftJoin('brands as b', 'p.brand_id', '=', 'b.id')
+            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->where('p.slug', $slug)
+            ->where('p.status', 'published')
+            ->select([
+                'p.id',
+                'p.name',
+                'p.retail_name',
+                'p.wholesale_name',
+                'p.retail_name_bn',
+                'p.wholesale_name_bn',
+                'p.slug',
+                'p.product_code',
+                'p.status',
+                'p.category_id',
+                'p.brand_id',
+                'p.thumbnail_id',
+                'p.gallery_images',
+                'p.description',
+                'p.description_bn',
+                'p.highlights',
+                'p.highlights_bn',
+                'p.attributes',
+                'p.attributes_bn',
+                'p.includes_in_box',
+                'p.includes_in_box_bn',
+                'p.video_url',
+                'p.warranty_enabled',
+                'p.warranty_details',
+                'p.seo_title',
+                'p.seo_description',
+                'p.seo_tags',
+                'p.thank_you',
+                'p.cross_sale',
+                'p.up_sale',
+                'c.id as category_id',
+                'c.name as category_name',
+                'c.slug as category_slug',
+                'b.id as brand_id',
+                'b.name as brand_name',
+                'b.slug as brand_slug',
+                'm.id as thumbnail_id',
+                'm.path as thumbnail_path',
+                'm.url as thumbnail_url',
+                'm.disk as thumbnail_disk',
+                'm.original_filename',
+            ])
+            ->first();
 
-        return $this->sendSuccess($this->transformProduct($product));
+        if (!$product) {
+            return $this->sendError('Product not found', [], 404);
+        }
+
+        // Load retail variants using direct SQL
+        $variants = DB::table('product_variants')
+            ->where('product_id', $product->id)
+            ->where('channel', 'retail')
+            ->where('is_active', true)
+            ->select([
+                'id',
+                'product_id',
+                'variant_name',
+                'variant_slug',
+                'sku',
+                'stock',
+                'price',
+                'offer_price',
+                'offer_starts',
+                'offer_ends',
+                'weight',
+                'size',
+                'color',
+                'thumbnail',
+            ])
+            ->get();
+
+        // Build thumbnail URL
+        $thumbnailUrl = null;
+        if ($product->thumbnail_id) {
+            $thumbnailUrl = $product->thumbnail_url;
+            if (empty($thumbnailUrl) || !str_starts_with($thumbnailUrl, 'http')) {
+                $thumbnailUrl = url($product->thumbnail_path ?? '');
+            }
+        }
+
+        // Parse JSON fields
+        $galleryImages = $product->gallery_images;
+        if (is_string($galleryImages)) {
+            $galleryImages = json_decode($galleryImages, true) ?? [];
+        }
+
+        $highlights = $product->highlights;
+        if (is_string($highlights)) {
+            $highlights = json_decode($highlights, true) ?? [];
+        }
+
+        $highlightsBn = $product->highlights_bn;
+        if (is_string($highlightsBn)) {
+            $highlightsBn = json_decode($highlightsBn, true) ?? [];
+        }
+
+        $attributes = $product->attributes;
+        if (is_string($attributes)) {
+            $attributes = json_decode($attributes, true) ?? [];
+        }
+
+        $attributesBn = $product->attributes_bn;
+        if (is_string($attributesBn)) {
+            $attributesBn = json_decode($attributesBn, true) ?? [];
+        }
+
+        $includesInBox = $product->includes_in_box;
+        if (is_string($includesInBox)) {
+            $includesInBox = json_decode($includesInBox, true) ?? [];
+        }
+
+        $includesInBoxBn = $product->includes_in_box_bn;
+        if (is_string($includesInBoxBn)) {
+            $includesInBoxBn = json_decode($includesInBoxBn, true) ?? [];
+        }
+
+        $seoTags = $product->seo_tags;
+        if (is_string($seoTags)) {
+            $seoTags = json_decode($seoTags, true) ?? [];
+        }
+
+        // Get gallery image URLs
+        $galleryUrls = $this->getGalleryImagesUrlsDirect($galleryImages);
+
+        // Get first variant for price calculation
+        $firstVariant = $variants->first();
+        $price = 0;
+        $originalPrice = 0;
+        if ($firstVariant) {
+            $price = ($firstVariant->offer_price > 0) ? (float) $firstVariant->offer_price : (float) $firstVariant->price;
+            $originalPrice = (float) $firstVariant->price;
+        }
+
+        $stock = (int) $variants->sum('stock');
+
+        // Build response array directly - NO MODEL OVERHEAD
+        $response = [
+            'id' => $product->id,
+            'name' => $product->name,
+            'retailName' => $product->retail_name ?? $product->name,
+            'slug' => $product->slug,
+            'description' => $product->description,
+            'shortDescription' => null,
+            'highlights' => $highlights ?: [],
+            'attributes' => $attributes ?: [],
+            'includesInBox' => $includesInBox ?: [],
+            // Bangla fields
+            'nameBn' => $product->retail_name_bn ?? $product->name,
+            'descriptionBn' => $product->description_bn,
+            'highlightsBn' => $highlightsBn ?: [],
+            'attributesBn' => $attributesBn ?: [],
+            'includesInBoxBn' => $includesInBoxBn ?: [],
+            // Common fields
+            'videoUrl' => $product->video_url,
+            'warrantyEnabled' => (bool) $product->warranty_enabled,
+            'warrantyDetails' => $product->warranty_details,
+            'seoTitle' => $product->seo_title,
+            'seoDescription' => $product->seo_description,
+            'seoTags' => $seoTags ?: [],
+            // Image fields
+            'image' => $thumbnailUrl,
+            'featured_image' => $thumbnailUrl,
+            'thumbnail' => $product->thumbnail_id ? [
+                'id' => $product->thumbnail_id,
+                'fullUrl' => $thumbnailUrl,
+                'alt' => $product->original_filename,
+            ] : null,
+            'thumbnailUrl' => $thumbnailUrl,
+            'galleryImages' => collect($galleryUrls)->map(fn($url) => ['fullUrl' => $url])->values()->toArray(),
+            // Price fields
+            'price' => $price,
+            'actual_price' => $price,
+            'originalPrice' => $originalPrice,
+            'compare_at_price' => $originalPrice,
+            // Stock fields
+            'stock' => $stock,
+            'inventory_quantity' => $stock,
+            'variant_count' => $variants->count(),
+            // Relations
+            'category' => $product->category_id ? [
+                'id' => $product->category_id,
+                'name' => $product->category_name,
+                'slug' => $product->category_slug,
+            ] : null,
+            'brand' => $product->brand_id ? [
+                'id' => $product->brand_id,
+                'name' => $product->brand_name,
+            ] : null,
+            'variants' => $variants->map(fn($v) => [
+                'id' => $v->id,
+                'variantName' => $v->variant_name,
+                'variantSlug' => $v->variant_slug,
+                'sku' => $v->sku,
+                'price' => (float) $v->price,
+                'offerPrice' => (float) $v->offer_price,
+                'offerStarts' => $v->offer_starts,
+                'offerEnds' => $v->offer_ends,
+                'stock' => (int) $v->stock,
+                'weight' => $v->weight,
+                'size' => $v->size,
+                'color' => $v->color,
+                'isActive' => true,
+                'thumbnail' => $v->thumbnail && !str_starts_with($v->thumbnail, 'http') ? url($v->thumbnail) : $v->thumbnail,
+            ])->values()->toArray(),
+            'crossSaleProducts' => [],
+            'upSaleProducts' => [],
+            'isThankYou' => (bool) $product->thank_you,
+        ];
+
+        // Clear references
+        unset($variants, $product);
+
+        return $this->sendSuccess($response);
+    }
+
+    /**
+     * Get gallery image URLs using direct SQL - no models
+     */
+    private function getGalleryImagesUrlsDirect($galleryIds): array
+    {
+        if (empty($galleryIds) || !is_array($galleryIds)) {
+            return [];
+        }
+
+        $results = DB::table('media_files')
+            ->whereIn('id', $galleryIds)
+            ->select('id', 'path', 'url')
+            ->get()
+            ->keyBy('id');
+
+        $urls = [];
+        foreach ($galleryIds as $id) {
+            if (isset($results[$id])) {
+                $file = $results[$id];
+                $urls[] = ($file->url && str_starts_with($file->url, 'http'))
+                    ? $file->url
+                    : url($file->path ?? '');
+            }
+        }
+
+        return $urls;
     }
 
     /**
      * Get featured/published products for homepage (retail only).
      * GET /api/v2/store/products/featured
+     *
+     * DIRECT SQL - Memory optimized
      */
     public function featured(Request $request): JsonResponse
     {
-        $limit = $request->input('limit', 12);
+        $limit = min((int) $request->input('limit', 12), 100);
 
-        $products = Product::with(['category', 'brand', 'thumbnail'])
-            ->where('status', 'published')
-            ->whereHas('variants', fn($q) => $q->where('channel', 'retail')->where('is_active', true))
-            ->orderBy('created_at', 'desc')
+        $products = DB::table('products as p')
+            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->where('p.status', 'published')
+            ->whereExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('product_variants')
+                    ->whereColumn('product_variants.product_id', '=', 'p.id')
+                    ->where('channel', 'retail')
+                    ->where('is_active', true)
+                    ->limit(1);
+            })
+            ->orderBy('p.created_at', 'desc')
             ->limit($limit)
+            ->select([
+                'p.id',
+                'p.name',
+                'p.retail_name',
+                'p.retail_name_bn',
+                'p.slug',
+                'p.thumbnail_id',
+                'm.path as thumbnail_path',
+                'm.url as thumbnail_url',
+                'p.created_at',
+            ])
             ->get();
 
-        $products->transform(fn($product) => $this->transformProduct($product));
+        // Get all variant data
+        $productIds = $products->pluck('id')->toArray();
+        $allVariants = DB::table('product_variants')
+            ->whereIn('product_id', $productIds)
+            ->where('channel', 'retail')
+            ->where('is_active', true)
+            ->select('product_id', 'id', 'variant_name', 'variant_slug', 'sku', 'price', 'offer_price', 'stock', 'weight', 'size', 'color')
+            ->get()
+            ->groupBy('product_id');
 
-        return $this->sendSuccess($products);
+        // Transform to array - OPTIMIZED for ProductCard only
+        // Removed: variants array, thumbnail object, galleryImages, category, brand, descriptions
+        $transformed = $products->map(function ($product) use ($allVariants) {
+            $imageUrl = null;
+            if ($product->thumbnail_id) {
+                $imageUrl = $product->thumbnail_url;
+                if (empty($imageUrl) || !str_starts_with($imageUrl, 'http')) {
+                    $imageUrl = url($product->thumbnail_path ?? '');
+                }
+            }
+
+            $variants = $allVariants->get($product->id, collect());
+            $firstVariant = $variants->first();
+            $price = 0;
+            $originalPrice = 0;
+            $stock = 0;
+
+            if ($firstVariant) {
+                $price = ($firstVariant->offer_price > 0) ? (float) $firstVariant->offer_price : (float) $firstVariant->price;
+                $originalPrice = (float) $firstVariant->price;
+                $stock = (int) $variants->sum('stock');
+            }
+
+            return [
+                // Core fields - ProductCard needs these
+                'id' => $product->id,
+                'slug' => $product->slug,
+                'name' => $product->name,
+                'retailName' => $product->retail_name ?? $product->name,
+                'title' => $product->retail_name ?? $product->name,
+                'nameBn' => $product->retail_name_bn ?? $product->name,
+                // Images - ProductCard only needs flat URLs
+                'image' => $imageUrl,
+                'featured_image' => $imageUrl,
+                // Pricing - ProductCard needs these
+                'price' => $price,
+                'actual_price' => $price,
+                'originalPrice' => $originalPrice,
+                'compare_at_price' => $originalPrice,
+                // Stock - ProductCard needs these
+                'stock' => $stock,
+                'inventory_quantity' => $stock,
+                // Variant count - ProductCard needs this
+                'variant_count' => $variants->count(),
+            ];
+        });
+
+        return $this->sendSuccess($transformed);
     }
 
     /**
      * Get products with the biggest discounts (retail only).
-     * Sorted by highest discount amount (price - offer_price).
      * GET /api/v2/store/products/hot-deals
+     *
+     * DIRECT SQL - Memory optimized
      */
     public function hotDeals(Request $request): JsonResponse
     {
-        $limit = $request->input('limit', 12);
+        $limit = min((int) $request->input('limit', 12), 100);
 
-        $products = Product::with(['category', 'brand', 'thumbnail'])
-            ->where('status', 'published')
-            ->whereHas('variants', fn($q) => $q
-                ->where('channel', 'retail')
-                ->where('is_active', true)
-                ->where('offer_price', '>', 0)
-                ->whereColumn('offer_price', '<', 'price')
-            )
+        $products = DB::table('products as p')
+            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->where('p.status', 'published')
+            ->whereExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('product_variants')
+                    ->whereColumn('product_variants.product_id', '=', 'p.id')
+                    ->where('channel', 'retail')
+                    ->where('is_active', true)
+                    ->where('offer_price', '>', 0)
+                    ->whereColumn('offer_price', '<', 'price')
+                    ->limit(1);
+            })
+            ->orderBy('p.created_at', 'desc')
             ->limit($limit)
+            ->select([
+                'p.id',
+                'p.name',
+                'p.retail_name',
+                'p.retail_name_bn',
+                'p.slug',
+                'p.thumbnail_id',
+                'm.path as thumbnail_path',
+                'm.url as thumbnail_url',
+                'p.created_at',
+            ])
+            ->get();
+
+        // Get all variant data
+        $productIds = $products->pluck('id')->toArray();
+        $allVariants = DB::table('product_variants')
+            ->whereIn('product_id', $productIds)
+            ->where('channel', 'retail')
+            ->where('is_active', true)
+            ->select('product_id', 'id', 'variant_name', 'variant_slug', 'sku', 'price', 'offer_price', 'stock', 'weight', 'size', 'color')
             ->get()
-            ->sortByDesc(fn($product) => $this->getMaxDiscount($product))
-            ->values();
+            ->groupBy('product_id');
 
-        $products->transform(fn($product) => $this->transformProduct($product));
+        // Transform to array - OPTIMIZED for ProductCard only
+        // Removed: variants array, thumbnail object, galleryImages, category, brand, descriptions
+        $transformed = $products->map(function ($product) use ($allVariants) {
+            $imageUrl = null;
+            if ($product->thumbnail_id) {
+                $imageUrl = $product->thumbnail_url;
+                if (empty($imageUrl) || !str_starts_with($imageUrl, 'http')) {
+                    $imageUrl = url($product->thumbnail_path ?? '');
+                }
+            }
 
-        return $this->sendSuccess($products);
+            $variants = $allVariants->get($product->id, collect());
+            $firstVariant = $variants->first();
+            $price = 0;
+            $originalPrice = 0;
+            $stock = 0;
+
+            if ($firstVariant) {
+                $price = ($firstVariant->offer_price > 0) ? (float) $firstVariant->offer_price : (float) $firstVariant->price;
+                $originalPrice = (float) $firstVariant->price;
+                $stock = (int) $variants->sum('stock');
+            }
+
+            return [
+                // Core fields - ProductCard needs these
+                'id' => $product->id,
+                'slug' => $product->slug,
+                'name' => $product->name,
+                'retailName' => $product->retail_name ?? $product->name,
+                'title' => $product->retail_name ?? $product->name,
+                'nameBn' => $product->retail_name_bn ?? $product->name,
+                // Images - ProductCard only needs flat URLs
+                'image' => $imageUrl,
+                'featured_image' => $imageUrl,
+                // Pricing - ProductCard needs these
+                'price' => $price,
+                'actual_price' => $price,
+                'originalPrice' => $originalPrice,
+                'compare_at_price' => $originalPrice,
+                // Stock - ProductCard needs these
+                'stock' => $stock,
+                'inventory_quantity' => $stock,
+                // Variant count - ProductCard needs this
+                'variant_count' => $variants->count(),
+            ];
+        });
+
+        return $this->sendSuccess($transformed);
     }
 
     /**
      * Get cross-sale products for cart page.
-     * Accepts comma-separated cross-sale IDs and cart product IDs.
-     * Returns unique cross-sale products not already in the cart.
      * GET /api/v2/store/cross-sale-products
+     *
+     * DIRECT SQL - Memory optimized
      */
     public function crossSaleForCart(Request $request): JsonResponse
     {
@@ -118,301 +643,224 @@ class ProductController extends Controller
             return $this->sendSuccess([]);
         }
 
-        $products = Product::with(['thumbnail'])
-            ->whereIn('id', $uniqueIds)
-            ->where('status', 'published')
+        $products = DB::table('products as p')
+            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->whereIn('p.id', $uniqueIds)
+            ->where('p.status', 'published')
+            ->select([
+                'p.id',
+                'p.name',
+                'p.retail_name',
+                'p.slug',
+                'p.thumbnail_id',
+                'm.path as thumbnail_path',
+                'm.url as thumbnail_url',
+            ])
             ->get()
             ->sortBy(fn($p) => array_search($p->id, $uniqueIds))
             ->values();
 
-        $products->transform(fn($p) => $this->transformCompactProduct($p));
+        $transformed = $products->map(function ($product) {
+            $thumbnailUrl = null;
+            if ($product->thumbnail_id) {
+                $thumbnailUrl = $product->thumbnail_url;
+                if (empty($thumbnailUrl) || !str_starts_with($thumbnailUrl, 'http')) {
+                    $thumbnailUrl = url($product->thumbnail_path ?? '');
+                }
+            }
 
-        return $this->sendSuccess($products);
+            return [
+                'id' => $product->id,
+                'title' => $product->retail_name ?? $product->name,
+                'slug' => $product->slug,
+                'name' => $product->retail_name ?? $product->name,
+                'image' => $thumbnailUrl,
+                'featured_image' => $thumbnailUrl,
+                'thumbnail' => $thumbnailUrl ? [
+                    'id' => $product->thumbnail_id,
+                    'fullUrl' => $thumbnailUrl,
+                ] : null,
+            ];
+        });
+
+        return $this->sendSuccess($transformed);
     }
 
     /**
      * Get products marked as thank-you products (retail only).
      * GET /api/v2/store/products/thank-you
+     *
+     * DIRECT SQL - Memory optimized
      */
     public function thankYouProducts(Request $request): JsonResponse
     {
-        $limit = $request->input('limit', 12);
+        $limit = min((int) $request->input('limit', 12), 100);
 
-        $products = Product::with(['category', 'brand', 'thumbnail'])
-            ->where('status', 'published')
-            ->where('thank_you', true)
-            ->whereHas('variants', fn($q) => $q->where('channel', 'retail')->where('is_active', true))
-            ->orderBy('created_at', 'desc')
+        $products = DB::table('products as p')
+            ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
+            ->leftJoin('brands as b', 'p.brand_id', '=', 'b.id')
+            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->where('p.status', 'published')
+            ->where('p.thank_you', true)
+            ->whereExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('product_variants')
+                    ->whereColumn('product_variants.product_id', '=', 'p.id')
+                    ->where('channel', 'retail')
+                    ->where('is_active', true)
+                    ->limit(1);
+            })
+            ->orderBy('p.created_at', 'desc')
             ->limit($limit)
+            ->select([
+                'p.id',
+                'p.name',
+                'p.retail_name',
+                'p.slug',
+                'p.status',
+                'p.thumbnail_id',
+                'm.path as thumbnail_path',
+                'm.url as thumbnail_url',
+                'm.original_filename',
+                'c.id as category_id',
+                'c.name as category_name',
+                'c.slug as category_slug',
+                'b.id as brand_id',
+                'b.name as brand_name',
+            ])
             ->get();
 
-        $products->transform(fn($product) => $this->transformProduct($product));
+        $transformed = $products->map(function ($product) {
+            $thumbnailUrl = null;
+            if ($product->thumbnail_id) {
+                $thumbnailUrl = $product->thumbnail_url;
+                if (empty($thumbnailUrl) || !str_starts_with($thumbnailUrl, 'http')) {
+                    $thumbnailUrl = url($product->thumbnail_path ?? '');
+                }
+            }
 
-        return $this->sendSuccess($products);
-    }
+            return [
+                'id' => $product->id,
+                'name' => $product->retail_name ?? $product->name,
+                'slug' => $product->slug,
+                'shortDescription' => null,
+                'image' => $thumbnailUrl,
+                'featured_image' => $thumbnailUrl,
+                'thumbnail' => $thumbnailUrl ? [
+                    'id' => $product->thumbnail_id,
+                    'fullUrl' => $thumbnailUrl,
+                    'alt' => $product->original_filename,
+                ] : null,
+                'category' => $product->category_id ? [
+                    'id' => $product->category_id,
+                    'name' => $product->category_name,
+                    'slug' => $product->category_slug,
+                ] : null,
+                'brand' => $product->brand_id ? [
+                    'id' => $product->brand_id,
+                    'name' => $product->brand_name,
+                ] : null,
+            ];
+        });
 
-    /**
-     * Get the highest discount amount across retail variants.
-     */
-    private function getMaxDiscount(Product $product): float
-    {
-        if (!$product->relationLoaded('variants')) {
-            $product->load(['variants' => fn($q) => $q->where('channel', 'retail')->where('is_active', true)]);
-        }
-
-        return $product->variants
-            ->filter(fn($v) => $v->offer_price > 0 && $v->offer_price < $v->price)
-            ->map(fn($v) => (float) $v->price - (float) $v->offer_price)
-            ->max() ?? 0;
+        return $this->sendSuccess($transformed);
     }
 
     /**
      * Get related products in the same category (retail only).
      * GET /api/v2/store/products/{slug}/related
+     *
+     * DIRECT SQL - Memory optimized
      */
     public function related(string $slug, Request $request): JsonResponse
     {
-        $product = Product::where('slug', $slug)
+        // First get the product to find its category
+        $product = DB::table('products')
+            ->where('slug', $slug)
             ->where('status', 'published')
-            ->firstOrFail();
-
-        $limit = $request->input('limit', 8);
-
-        $related = Product::with(['category', 'brand', 'thumbnail'])
-            ->where('status', 'published')
-            ->where('id', '!=', $product->id)
-            ->where('category_id', $product->category_id)
-            ->whereHas('variants', fn($q) => $q->where('channel', 'retail')->where('is_active', true))
-            ->orderBy('created_at', 'desc')
-            ->limit($limit)
-            ->get();
-
-        $related->transform(fn($p) => $this->transformProduct($p));
-
-        return $this->sendSuccess($related);
-    }
-
-    /**
-     * Get products by category slug (retail only).
-     * GET /api/v2/store/categories/{categorySlug}/products
-     */
-    public function byCategory(string $categorySlug, Request $request): JsonResponse
-    {
-        $category = Category::where('slug', $categorySlug)->firstOrFail();
-
-        $query = Product::with(['category', 'brand', 'thumbnail'])
-            ->where('status', 'published')
-            ->where('category_id', $category->id)
-            ->whereHas('variants', fn($q) => $q->where('channel', 'retail')->where('is_active', true));
-
-        $this->applyFilters($query, $request);
-        $this->applySorting($query, $request);
-
-        $perPage = $request->input('per_page', 20);
-        $products = $query->paginate($perPage);
-
-        $products->getCollection()->transform(fn($product) => $this->transformProduct($product));
-
-        return $this->sendSuccess($products);
-    }
-
-    // -------------------------------------------------------
-    // Private helpers — pure transforms, no side effects
-    // -------------------------------------------------------
-
-    /**
-     * Transform a product for storefront consumption.
-     *
-     * - Uses retail_name as the public-facing name (falls back to name)
-     * - Loads only retail-channel variants
-     * - Strips internal fields (purchase_cost, moq, wholesale_name, etc.)
-     */
-    private function transformProduct(Product $product): array
-    {
-        // Lazy-load retail variants only if not already loaded
-        if (!$product->relationLoaded('variants')) {
-            $product->load(['variants' => fn($q) => $q->where('channel', 'retail')->where('is_active', true)]);
-        } else {
-            // Filter already-loaded variants to retail + active
-            $product->setRelation(
-                'variants',
-                $product->variants->filter(
-                    fn($v) => $v->channel === 'retail' && $v->is_active
-                )->values()
-            );
-        }
-
-        $thumbnailUrl = $product->thumbnail?->full_url ?? null;
-
-        // Get first variant for price calculation
-        $firstVariant = $product->variants->first();
-        $price = $firstVariant ? (float) ($firstVariant['offerPrice'] > 0 ? $firstVariant['offerPrice'] : $firstVariant['price']) : 0;
-        $originalPrice = $firstVariant ? (float) $firstVariant['price'] : 0;
-        $variantCount = $product->variants->count();
-        $stock = $variantCount > 0 ? (int) $product->variants->sum('stock') : 0;
-
-        // Use variant image if no thumbnail
-        $imageUrl = $thumbnailUrl;
-        if (!$imageUrl && $firstVariant) {
-            $variantThumbnail = $firstVariant['thumbnail'] ?? null;
-            if ($variantThumbnail) {
-                $imageUrl = is_string($variantThumbnail) && !str_starts_with($variantThumbnail, 'http')
-                    ? url($variantThumbnail)
-                    : $variantThumbnail;
-            }
-        }
-
-        return [
-            'id'               => $product->id,
-            'name'             => $product->retail_name ?? $product->name,
-            'slug'             => $product->slug,
-            'description'      => $product->description,
-            'shortDescription' => $product->short_description,
-            'highlights'       => $product->highlights,
-            'attributes'       => $product->attributes,
-            'includesInBox'    => $product->includes_in_box,
-            // Bangla fields
-            'nameBn'           => $product->retail_name_bn ?? $product->name_bn,
-            'descriptionBn'    => $product->description_bn,
-            'highlightsBn'     => $product->highlights_bn,
-            'attributesBn'     => $product->attributes_bn,
-            'includesInBoxBn'  => $product->includes_in_box_bn,
-            // Common fields
-            'videoUrl'         => $product->video_url,
-            'warrantyEnabled'  => $product->warranty_enabled,
-            'warrantyDetails'  => $product->warranty_details,
-            'seoTitle'         => $product->seo_title,
-            'seoDescription'   => $product->seo_description,
-            'seoTags'          => $product->seo_tags,
-            // Image fields - both string URL and object for compatibility
-            'image'            => $imageUrl,
-            'featured_image'   => $imageUrl,
-            'thumbnail'        => $this->transformMedia($product->thumbnail),
-            'thumbnailObj'     => $this->transformMedia($product->thumbnail),
-            // Price fields for ProductCard compatibility
-            'price'            => $price,
-            'actual_price'     => $price,
-            'originalPrice'    => $originalPrice,
-            'compare_at_price' => $originalPrice,
-            // Stock fields for ProductCard compatibility
-            'stock'            => $stock,
-            'inventory_quantity' => $stock,
-            'variant_count'    => $variantCount,
-            'galleryImages'    => collect($product->gallery_images_urls)->map(fn($url) => ['fullUrl' => $url])->values()->toArray(),
-            'category'         => $this->transformCategory($product->category),
-            'brand'            => $product->brand ? [
-                'id'   => $product->brand->id,
-                'name' => $product->brand->name,
-            ] : null,
-            'variants'         => $product->variants->map(fn($v) => $this->transformVariant($v))->values()->toArray(),
-            'crossSaleProducts' => $this->transformLinkedProducts($product->cross_sale),
-            'upSaleProducts'    => $this->transformLinkedProducts($product->up_sale),
-            'isThankYou'        => (bool) $product->thank_you,
-        ];
-    }
-
-    /**
-     * Transform comma-separated product IDs into a list of compact product data.
-     */
-    private function transformLinkedProducts(?string $ids): array
-    {
-        if (empty($ids)) return [];
-
-        $idArray = array_map('intval', explode(',', $ids));
-
-        return Product::with(['thumbnail'])
-            ->whereIn('id', $idArray)
-            ->where('status', 'published')
-            ->get()
-            ->sortBy(fn($p) => array_search($p->id, $idArray))
-            ->values()
-            ->map(fn($p) => $this->transformCompactProduct($p))
-            ->toArray();
-    }
-
-    /**
-     * Compact product transform for cross-sale / up-sale / thank-you.
-     * Returns: title, slug, thumbnail, retailPrice, retailOfferPrice
-     */
-    private function transformCompactProduct(Product $p): array
-    {
-        $retailVariant = $p->variants()
-            ->where('channel', 'retail')
-            ->where('is_active', true)
+            ->select('id', 'category_id')
             ->first();
 
-        $thumbnailUrl = $p->thumbnail?->full_url;
+        if (!$product) {
+            return $this->sendError('Product not found', [], 404);
+        }
 
-        // Use variant image if no thumbnail
-        $imageUrl = $thumbnailUrl;
-        if (!$imageUrl && $retailVariant) {
-            $variantThumbnail = $retailVariant->thumbnail;
-            if ($variantThumbnail) {
-                $imageUrl = is_string($variantThumbnail) && !str_starts_with($variantThumbnail, 'http')
-                    ? url($variantThumbnail)
-                    : $variantThumbnail;
+        $limit = min((int) $request->input('limit', 8), 100);
+
+        $related = DB::table('products as p')
+            ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
+            ->leftJoin('brands as b', 'p.brand_id', '=', 'b.id')
+            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->where('p.status', 'published')
+            ->where('p.id', '!=', $product->id)
+            ->where('p.category_id', $product->category_id)
+            ->whereExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('product_variants')
+                    ->whereColumn('product_variants.product_id', '=', 'p.id')
+                    ->where('channel', 'retail')
+                    ->where('is_active', true)
+                    ->limit(1);
+            })
+            ->orderBy('p.created_at', 'desc')
+            ->limit($limit)
+            ->select([
+                'p.id',
+                'p.name',
+                'p.retail_name',
+                'p.slug',
+                'p.status',
+                'p.thumbnail_id',
+                'm.path as thumbnail_path',
+                'm.url as thumbnail_url',
+                'm.original_filename',
+                'c.id as category_id',
+                'c.name as category_name',
+                'c.slug as category_slug',
+                'b.id as brand_id',
+                'b.name as brand_name',
+            ])
+            ->get();
+
+        $transformed = $related->map(function ($product) {
+            $thumbnailUrl = null;
+            if ($product->thumbnail_id) {
+                $thumbnailUrl = $product->thumbnail_url;
+                if (empty($thumbnailUrl) || !str_starts_with($thumbnailUrl, 'http')) {
+                    $thumbnailUrl = url($product->thumbnail_path ?? '');
+                }
             }
-        }
 
-        // Calculate price: use offer_price if available and greater than 0, otherwise use price
-        $displayPrice = 0;
-        if ($retailVariant) {
-            $displayPrice = ($retailVariant->offer_price > 0)
-                ? (float) $retailVariant->offer_price
-                : (float) $retailVariant->price;
-        }
+            return [
+                'id' => $product->id,
+                'name' => $product->retail_name ?? $product->name,
+                'slug' => $product->slug,
+                'shortDescription' => null,
+                'image' => $thumbnailUrl,
+                'featured_image' => $thumbnailUrl,
+                'thumbnail' => $thumbnailUrl ? [
+                    'id' => $product->thumbnail_id,
+                    'fullUrl' => $thumbnailUrl,
+                    'alt' => $product->original_filename,
+                ] : null,
+                'category' => $product->category_id ? [
+                    'id' => $product->category_id,
+                    'name' => $product->category_name,
+                    'slug' => $product->category_slug,
+                ] : null,
+                'brand' => $product->brand_id ? [
+                    'id' => $product->brand_id,
+                    'name' => $product->brand_name,
+                ] : null,
+            ];
+        });
 
-        return [
-            'id'               => $p->id,
-            'title'            => $p->retail_name ?? $p->name,
-            'titleBn'          => $p->retail_name_bn ?? $p->name_bn,
-            'slug'             => $p->slug,
-            'name'             => $p->retail_name ?? $p->name,
-            // Image fields - both string URL and object for compatibility
-            'image'            => $imageUrl,
-            'featured_image'   => $imageUrl,
-            'thumbnail'        => $this->transformMedia($p->thumbnail),
-            'thumbnailObj'     => $this->transformMedia($p->thumbnail),
-            'retailPrice'      => $retailVariant ? (float) $retailVariant->price : 0,
-            'retailOfferPrice' => $retailVariant ? (float) $retailVariant->offer_price : 0,
-            'price'            => $displayPrice,
-            'actual_price'     => $displayPrice,
-            'originalPrice'    => $retailVariant ? (float) $retailVariant->price : 0,
-            'compare_at_price' => $retailVariant ? (float) $retailVariant->price : 0,
-        ];
-    }
-
-    /**
-     * Transform a single variant — retail-safe fields only.
-     */
-    private function transformVariant($variant): array
-    {
-        // Convert variant thumbnail to full URL
-        $variantThumbnail = $variant->thumbnail;
-        if ($variantThumbnail && !str_starts_with($variantThumbnail, 'http')) {
-            $variantThumbnail = url($variantThumbnail);
-        }
-
-        return [
-            'id'            => $variant->id,
-            'variantName'   => $variant->variant_name,
-            'variantSlug'   => $variant->variant_slug,
-            'sku'           => $variant->sku,
-            'price'         => (float) $variant->price,
-            'offerPrice'    => (float) $variant->offer_price,
-            'offerStarts'   => $variant->offer_starts,
-            'offerEnds'     => $variant->offer_ends,
-            'stock'         => (int) $variant->stock,
-            'weight'        => $variant->weight,
-            'size'          => $variant->size,
-            'color'         => $variant->color,
-            'isActive'      => (bool) $variant->is_active,
-            'thumbnail'     => $variantThumbnail,
-        ];
+        return $this->sendSuccess($transformed);
     }
 
     /**
      * Transform a media file for public URL.
+     * NOTE: Don't use $media->full_url accessor - it was removed to prevent memory issues
      */
     private function transformMedia($media): ?array
     {
@@ -420,10 +868,16 @@ class ProductController extends Controller
             return null;
         }
 
+        // Build URL directly instead of using accessor
+        $fullUrl = $media->url;
+        if (empty($fullUrl) || !str_starts_with($fullUrl, 'http')) {
+            $fullUrl = url($media->path ?? '');
+        }
+
         return [
             'id'       => $media->id,
-            'fullUrl'  => $media->full_url,
-            'alt'      => $media->original_filename,
+            'fullUrl'  => $fullUrl,
+            'alt'      => $media->original_filename ?? '',
         ];
     }
 
@@ -444,67 +898,10 @@ class ProductController extends Controller
     }
 
     /**
-     * Apply query filters (search, category, brand).
-     */
-    private function applyFilters($query, Request $request): void
-    {
-        if ($request->filled('search')) {
-            $search = $request->input('search');
-            $query->where(function ($q) use ($search) {
-                // Use FULLTEXT search on name column for better performance
-                $q->whereRaw("MATCH(name) AGAINST(? IN BOOLEAN MODE)", [$search])
-                  // Search in seo_tags (JSON array)
-                  ->orWhereJsonContains('seo_tags', [$search])
-                  ->orWhereJsonContains('seo_tags', ["%{$search}%"])
-                  // Search in Bangla names
-                  ->orWhere('retail_name_bn', 'like', "%{$search}%")
-                  ->orWhere('name_bn', 'like', "%{$search}%")
-                  // Search by category name
-                  ->orWhereHas('category', fn($cq) => $cq->where('name', 'like', "%{$search}%"))
-                  // Search by SKU
-                  ->orWhereHas('variants', fn($vq) => $vq->where('sku', 'like', "%{$search}%"));
-            });
-        }
-
-        if ($request->filled('category_id')) {
-            $query->where('category_id', $request->input('category_id'));
-        }
-
-        if ($request->filled('brand_id')) {
-            $query->where('brand_id', $request->input('brand_id'));
-        }
-    }
-
-    /**
-     * Apply sorting to query.
-     */
-    private function applySorting($query, Request $request): void
-    {
-        $sortBy = $request->input('sort_by', 'created_at_desc');
-
-        match ($sortBy) {
-            'created_at_asc'  => $query->orderBy('created_at', 'asc'),
-            'price_asc'       => $query->select('products.*')
-                ->leftJoin('product_variants', function ($join) {
-                    $join->on('products.id', '=', 'product_variants.product_id')
-                         ->where('product_variants.channel', '=', 'retail');
-                })
-                ->groupBy('products.id')
-                ->orderByRaw('MIN(product_variants.price) ASC'),
-            'price_desc'      => $query->select('products.*')
-                ->leftJoin('product_variants', function ($join) {
-                    $join->on('products.id', '=', 'product_variants.product_id')
-                         ->where('product_variants.channel', '=', 'retail');
-                })
-                ->groupBy('products.id')
-                ->orderByRaw('MAX(product_variants.price) DESC'),
-            default           => $query->orderBy('created_at', 'desc'),
-        };
-    }
-
-    /**
      * Search products with suggestions dropdown.
      * GET /api/v2/public/search/suggestions?q=query
+     *
+     * DIRECT SQL - Memory optimized
      */
     public function searchSuggestions(Request $request): JsonResponse
     {
@@ -512,30 +909,42 @@ class ProductController extends Controller
 
         $query = $request->input('q');
 
-        $products = Product::with(['category', 'thumbnail', 'variants'])
-            ->where('status', 'published')
-            ->whereHas('variants', fn($q) => $q->where('channel', 'retail')->where('is_active', true))
+        $products = DB::table('products as p')
+            ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
+            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->where('p.status', 'published')
+            ->whereExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('product_variants')
+                    ->whereColumn('product_variants.product_id', '=', 'p.id')
+                    ->where('channel', 'retail')
+                    ->where('is_active', true)
+                    ->limit(1);
+            })
             ->where(function ($q) use ($query) {
-                $q->whereRaw("MATCH(name) AGAINST(? IN BOOLEAN MODE)", [$query])
-                  ->orWhereJsonContains('seo_tags', [$query])
-                  ->orWhereHas('category', fn($cq) => $cq->where('name', 'like', "%{$query}%"))
-                  ->orWhereHas('variants', fn($vq) => $vq->where('sku', 'like', "%{$query}%"));
+                $q->where('p.name', 'like', "%{$query}%")
+                  ->orWhere('p.retail_name', 'like', "%{$query}%")
+                  ->orWhere('c.name', 'like', "%{$query}%");
             })
             ->limit(8)
+            ->select([
+                'p.id',
+                'p.name',
+                'p.retail_name',
+                'p.slug',
+                'p.thumbnail_id',
+                'm.path as thumbnail_path',
+                'm.url as thumbnail_url',
+                'c.name as category_name',
+            ])
             ->get();
 
         $suggestions = $products->map(function ($product) {
-            $thumbnailUrl = $product->thumbnail?->full_url;
-            $retailVariant = $product->variants->where('channel', 'retail')->where('is_active', true)->first();
-
-            // Use variant image if no thumbnail
-            $imageUrl = $thumbnailUrl;
-            if (!$imageUrl && $retailVariant) {
-                $variantThumbnail = $retailVariant->thumbnail;
-                if ($variantThumbnail) {
-                    $imageUrl = is_string($variantThumbnail) && !str_starts_with($variantThumbnail, 'http')
-                        ? url($variantThumbnail)
-                        : $variantThumbnail;
+            $thumbnailUrl = null;
+            if ($product->thumbnail_id) {
+                $thumbnailUrl = $product->thumbnail_url;
+                if (empty($thumbnailUrl) || !str_starts_with($thumbnailUrl, 'http')) {
+                    $thumbnailUrl = url($product->thumbnail_path ?? '');
                 }
             }
 
@@ -543,11 +952,10 @@ class ProductController extends Controller
                 'id' => $product->id,
                 'name' => $product->name,
                 'slug' => $product->slug,
-                'thumbnail' => $this->transformMedia($product->thumbnail),
-                'image' => $imageUrl,
-                'featured_image' => $imageUrl,
-                'category' => $product->category?->name,
-                'price' => $retailVariant?->offer_price > 0 ? $retailVariant?->offer_price : $retailVariant?->price,
+                'thumbnail' => $thumbnailUrl ? ['fullUrl' => $thumbnailUrl] : null,
+                'image' => $thumbnailUrl,
+                'featured_image' => $thumbnailUrl,
+                'category' => $product->category_name,
             ];
         });
 
@@ -557,6 +965,8 @@ class ProductController extends Controller
     /**
      * Search products with full results.
      * GET /api/v2/public/search?q=query&category_id=X&per_page=20
+     *
+     * DIRECT SQL - Memory optimized
      */
     public function search(Request $request): JsonResponse
     {
@@ -568,28 +978,194 @@ class ProductController extends Controller
 
         $searchQuery = $request->input('q');
 
-        $query = Product::with(['category', 'brand', 'thumbnail'])
-            ->where('status', 'published')
-            ->whereHas('variants', fn($q) => $q->where('channel', 'retail')->where('is_active', true))
+        $query = DB::table('products as p')
+            ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
+            ->leftJoin('brands as b', 'p.brand_id', '=', 'b.id')
+            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->where('p.status', 'published')
+            ->whereExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('product_variants')
+                    ->whereColumn('product_variants.product_id', '=', 'p.id')
+                    ->where('channel', 'retail')
+                    ->where('is_active', true)
+                    ->limit(1);
+            })
             ->where(function ($q) use ($searchQuery) {
-                $q->whereRaw("MATCH(name) AGAINST(? IN BOOLEAN MODE)", [$searchQuery])
-                  ->orWhereJsonContains('seo_tags', [$searchQuery])
-                  ->orWhereHas('category', fn($cq) => $cq->where('name', 'like', "%{$searchQuery}%"))
-                  ->orWhereHas('variants', fn($vq) => $vq->where('sku', 'like', "%{$searchQuery}%"));
-            });
+                $q->where('p.name', 'like', "%{$searchQuery}%")
+                  ->orWhere('p.retail_name', 'like', "%{$searchQuery}%")
+                  ->orWhere('c.name', 'like', "%{$searchQuery}%");
+            })
+            ->select([
+                'p.id',
+                'p.name',
+                'p.retail_name',
+                'p.slug',
+                'p.status',
+                'p.thumbnail_id',
+                'p.category_id',
+                'p.brand_id',
+                'm.path as thumbnail_path',
+                'm.url as thumbnail_url',
+                'm.original_filename',
+                'c.id as category_id',
+                'c.name as category_name',
+                'c.slug as category_slug',
+                'b.id as brand_id',
+                'b.name as brand_name',
+                'p.created_at',
+            ]);
 
         // Filter by category if provided
         if ($request->filled('category_id')) {
-            $query->where('category_id', $request->input('category_id'));
+            $query->where('p.category_id', $request->input('category_id'));
         }
 
-        $this->applySorting($query, $request);
+        // Sorting
+        $sortBy = $request->input('sort_by', 'created_at_desc');
+        switch ($sortBy) {
+            case 'created_at_desc':
+                $query->orderBy('p.created_at', 'desc');
+                break;
+            case 'created_at_asc':
+                $query->orderBy('p.created_at', 'asc');
+                break;
+            case 'name_asc':
+                $query->orderBy('p.name', 'asc');
+                break;
+            case 'name_desc':
+                $query->orderBy('p.name', 'desc');
+                break;
+            default:
+                $query->orderBy('p.created_at', 'desc');
+        }
 
-        $perPage = $request->input('per_page', 24);
-        $products = $query->paginate($perPage);
+        $perPage = min((int) $request->input('per_page', 24), 100);
+        $page = $request->input('page', 1);
+        $offset = ($page - 1) * $perPage;
 
-        $products->getCollection()->transform(fn($product) => $this->transformProduct($product));
+        $total = $query->count();
+        $products = $query->offset($offset)->limit($perPage)->get();
 
-        return $this->sendSuccess($products);
+        $transformed = $products->map(function ($product) {
+            $thumbnailUrl = null;
+            if ($product->thumbnail_id) {
+                $thumbnailUrl = $product->thumbnail_url;
+                if (empty($thumbnailUrl) || !str_starts_with($thumbnailUrl, 'http')) {
+                    $thumbnailUrl = url($product->thumbnail_path ?? '');
+                }
+            }
+
+            return [
+                'id' => $product->id,
+                'name' => $product->retail_name ?? $product->name,
+                'slug' => $product->slug,
+                'shortDescription' => null,
+                'image' => $thumbnailUrl,
+                'featured_image' => $thumbnailUrl,
+                'thumbnail' => $thumbnailUrl ? [
+                    'id' => $product->thumbnail_id,
+                    'fullUrl' => $thumbnailUrl,
+                    'alt' => $product->original_filename,
+                ] : null,
+                'category' => $product->category_id ? [
+                    'id' => $product->category_id,
+                    'name' => $product->category_name,
+                    'slug' => $product->category_slug,
+                ] : null,
+                'brand' => $product->brand_id ? [
+                    'id' => $product->brand_id,
+                    'name' => $product->brand_name,
+                ] : null,
+            ];
+        });
+
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $currentPage = (int) $page;
+
+        // Return response with correct structure for frontend
+        return response()->json([
+            'status' => true,
+            'message' => 'Success',
+            'data' => [
+                'data' => $transformed,
+                'total' => $total,
+                'last_page' => $lastPage,
+                'current_page' => $currentPage,
+                'next_page_url' => ($currentPage < $lastPage) ? url()->current() . '?' . http_build_query(['page' => $currentPage + 1, 'per_page' => $perPage]) : null,
+            ],
+            'errors' => null,
+        ]);
+    }
+
+    /**
+     * Get categories for storefront homepage.
+     * GET /api/v2/store/categories
+     *
+     * OPTIMIZED: Returns ONLY what frontend uses - nothing more
+     */
+    public function categories(): JsonResponse
+    {
+        try {
+            $categories = DB::table('categories as c')
+                ->leftJoin('media_files as m', 'c.image_id', '=', 'm.id')
+                ->whereNull('c.parent_id')
+                ->where('c.is_active', true)
+                ->select([
+                    'c.id',
+                    'c.name',
+                    'c.slug',
+                    'c.image_id',
+                    'm.url as image_url',
+                ])
+                ->orderBy('c.sort_order', 'asc')
+                ->orderBy('c.name', 'asc')
+                ->get();
+
+            $transformed = $categories->map(function ($category) {
+                // Build image URL
+                $imageUrl = null;
+                if ($category->image_id) {
+                    $imageUrl = $category->image_url;
+                    if (empty($imageUrl) || !str_starts_with($imageUrl, 'http')) {
+                        // Build URL from path if needed
+                        $imageUrl = url('storage/' . $category->image_id); // fallback
+                    }
+                }
+
+                return [
+                    'id' => $category->id,
+                    'name' => $category->name,
+                    'slug' => $category->slug,
+                    'image' => $category->image_id ? [
+                        'full_url' => $imageUrl,
+                    ] : null,
+                    'image_url' => $imageUrl,
+                ];
+            });
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Success',
+                'data' => [
+                    'data' => $transformed,
+                    'total' => $transformed->count(),
+                ],
+                'errors' => null,
+            ]);
+        } catch (\Exception $e) {
+            // Log error for debugging
+            \Log::error('Categories API Error: ' . $e->getMessage());
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Error fetching categories',
+                'data' => [
+                    'data' => [],
+                    'total' => 0,
+                ],
+                'errors' => ['message' => $e->getMessage()],
+            ], 500);
+        }
     }
 }

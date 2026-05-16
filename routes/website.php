@@ -32,7 +32,7 @@ Route::prefix('api')->group(function () {
     Route::get('/auth/test-sms-balance', [AuthController::class, 'testSmsBalance']); // Development only
 
     // Public Category Routes
-    Route::get('/categories', [CategoryController::class, 'index']);
+    Route::get('/categories', [ProductController::class, 'categories']);
     Route::get('/categories/featured', [CategoryController::class, 'featured']);
     Route::get('/categories/{slug}', [CategoryController::class, 'show']);
 

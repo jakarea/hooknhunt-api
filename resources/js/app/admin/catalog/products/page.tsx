@@ -42,6 +42,7 @@ import {
   IconDots,
   IconCube,
   IconGripVertical,
+  IconExternalLink,
 } from '@tabler/icons-react'
 import {
   DndContext,

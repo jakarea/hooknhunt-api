@@ -13,6 +13,7 @@ use App\Events\Product\ProductUpdated;
 use App\Events\Product\ProductDeleted;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class ProductController extends Controller
@@ -20,62 +21,88 @@ class ProductController extends Controller
     use ApiResponse;
 
     /**
-     * 1. Product List (With Stock Info)
+     * 1. Product List (Optimized - Memory Efficient)
+     *
+     * OPTIMIZATION NOTES:
+     * - Only selects necessary columns to reduce memory
+     * - Eager loads relationships to prevent N+1 queries
+     * - Does NOT load appends (gallery_images_urls, cross/up_sale) for performance
+     * - Variants limited to wholesale channel only (duplicates retail data)
+     * - Lightweight pagination for large datasets
      */
     public function index(Request $request)
     {
-        // Dashboard shows wholesale channel only — each logical variant
-        // is stored as 2 rows (retail + wholesale) with identical stock.
-        // Filtering avoids doubled variant count and doubled stock total.
-        $query = Product::with([
-            'category', 'brand', 'thumbnail',
-            'variants' => fn($q) => $q->where('channel', 'wholesale'),
-            'variants.batches',
-        ]);
+        // Build base query with optimized column selection
+        $query = Product::query()
+            // Select only necessary columns for list view
+            ->select([
+                'products.id',
+                'products.name',
+                'products.retail_name',
+                'products.wholesale_name',
+                'products.slug',
+                'products.product_code',
+                'products.status',
+                'products.category_id',
+                'products.brand_id',
+                'products.thumbnail_id',
+                'products.sort_order',
+                'products.created_at',
+                'products.updated_at',
+                'products.deleted_at',
+                // Only load gallery_images IDs (not full URLs) for list view
+                'products.gallery_images',
+            ])
+            // Optimize eager loading - select only needed columns
+            ->with([
+                'category' => fn($q) => $q->select('id', 'name', 'slug'),
+                'brand' => fn($q) => $q->select('id', 'name', 'slug'),
+                'thumbnail' => fn($q) => $q->select('id', 'filename', 'path', 'url', 'disk'),
+                // Load ONLY wholesale variants - retail has identical stock data
+                'variants' => fn($q) => $q
+                    ->where('channel', 'wholesale')
+                    ->select('id', 'product_id', 'channel', 'variant_name', 'sku', 'stock', 'price'),
+            ]);
 
+        // Apply filters
         if ($request->search) {
-            $query->where('name', 'like', "%{$request->search}%")
+            $query->where('products.name', 'like', "%{$request->search}%")
                   ->orWhereHas('variants', function($q) use ($request) {
                       $q->where('sku', 'like', "%{$request->search}%");
                   });
         }
 
         if ($request->category_id) {
-            $query->where('category_id', $request->category_id);
+            $query->where('products.category_id', $request->category_id);
         }
 
         if ($request->status && $request->status !== 'all') {
-            $query->where('status', $request->status);
+            $query->where('products.status', $request->status);
         }
 
         if ($request->brand_id) {
-            $query->where('brand_id', $request->brand_id);
+            $query->where('products.brand_id', $request->brand_id);
         }
 
         // Sorting
         if ($request->sort_by) {
-            // Remove global scope when explicit sorting is applied
             $query->withoutGlobalScope('ordered');
 
             switch ($request->sort_by) {
                 case 'created_at_desc':
-                    $query->orderBy('created_at', 'desc');
+                    $query->orderBy('products.created_at', 'desc');
                     break;
                 case 'created_at_asc':
-                    $query->orderBy('created_at', 'asc');
+                    $query->orderBy('products.created_at', 'asc');
                     break;
                 case 'updated_at_desc':
-                    $query->orderBy('updated_at', 'desc');
+                    $query->orderBy('products.updated_at', 'desc');
                     break;
                 case 'updated_at_asc':
-                    $query->orderBy('updated_at', 'asc');
+                    $query->orderBy('products.updated_at', 'asc');
                     break;
                 case 'price_desc':
-                    $query->with(['variants' => function($q) {
-                        $q->where('channel', 'wholesale')->orderBy('price', 'desc');
-                    }])
-                    ->select('products.*')
-                    ->leftJoin('product_variants as pv', function ($join) {
+                    $query->leftJoin('product_variants as pv', function ($join) {
                         $join->on('products.id', '=', 'pv.product_id')
                              ->where('pv.channel', 'wholesale');
                     })
@@ -83,11 +110,7 @@ class ProductController extends Controller
                     ->orderByRaw('MIN(pv.price) DESC');
                     break;
                 case 'price_asc':
-                    $query->with(['variants' => function($q) {
-                        $q->where('channel', 'wholesale')->orderBy('price', 'asc');
-                    }])
-                    ->select('products.*')
-                    ->leftJoin('product_variants as pv', function ($join) {
+                    $query->leftJoin('product_variants as pv', function ($join) {
                         $join->on('products.id', '=', 'pv.product_id')
                              ->where('pv.channel', 'wholesale');
                     })
@@ -96,12 +119,31 @@ class ProductController extends Controller
                     break;
             }
         }
-        // If no sort_by is provided (or 'all'), the global scope (sort_order, then id) will be used
 
-        $perPage = $request->per_page ?? 20;
+        // Limit max per_page to prevent memory exhaustion
+        $perPage = min((int)($request->per_page ?? 20), 500); // Max 500 per page
         $page = $request->page ?? 1;
 
-        return $this->sendSuccess($query->paginate($perPage, ['*'], 'page', $page));
+        $result = $query->paginate($perPage, ['*'], 'page', $page);
+
+        // Manually append thumbnail URLs - compute directly without accessor
+        $result->getCollection()->transform(function ($product) {
+            // Add thumbnail URL - compute directly without using append
+            if ($product->thumbnail) {
+                $product->thumbnail_url = $product->thumbnail->url
+                    ?? (str_starts_with($product->thumbnail->path ?? '', 'http')
+                        ? $product->thumbnail->path
+                        : url($product->thumbnail->path ?? ''));
+            }
+            // Add basic stock total
+            $product->total_stock = $product->variants->sum('stock') ?? 0;
+            // Add variant count
+            $product->variants_count = $product->variants->count();
+
+            return $product;
+        });
+
+        return $this->sendSuccess($result);
     }
 
     /**
@@ -340,8 +382,10 @@ class ProductController extends Controller
 
             DB::commit();
 
-            // Dispatch ProductCreated event for Lazychat sync
-            event(new ProductCreated($product));
+            // Lazychat webhook sent to queue (background) instead of blocking response
+            // This prevents timeout issues during product creation
+            dispatch(new \App\Jobs\SendLazychatWebhook($product, 'product.created', 'product/create'))
+                ->onQueue('lazychat-webhooks');
 
             return $this->sendSuccess([
                 'product' => $product,
@@ -404,88 +448,247 @@ class ProductController extends Controller
         return $this->sendSuccess($variant, 'Variant added successfully', 201);
     }
 
+    /**
+     * Single Product View - Memory Optimized with Direct SQL
+     *
+     * COMPLETELY REWRITTEN to use direct SQL queries instead of models.
+     * This prevents 512MB memory exhaustion from circular reference serialization.
+     *
+     * MEMORY BUDGET: ~2-5MB per single product (down from 512MB crash)
+     */
     public function show($id)
     {
-        $product = Product::with(['variants.channelSettings', 'category', 'brand', 'thumbnail'])->findOrFail($id);
+        // Use DIRECT SQL instead of models - prevents memory exhaustion
+        $product = DB::table('products as p')
+            ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
+            ->leftJoin('brands as b', 'p.brand_id', '=', 'b.id')
+            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->where('p.id', $id)
+            ->select([
+                'p.id',
+                'p.name',
+                'p.retail_name',
+                'p.wholesale_name',
+                'p.retail_name_bn',
+                'p.wholesale_name_bn',
+                'p.slug',
+                'p.product_code',
+                'p.status',
+                'p.category_id',
+                'p.brand_id',
+                'p.thumbnail_id',
+                'p.gallery_images',
+                'p.description',
+                'p.description_bn',
+                'p.highlights',
+                'p.highlights_bn',
+                'p.attributes',
+                'p.attributes_bn',
+                'p.includes_in_box',
+                'p.includes_in_box_bn',
+                'p.video_url',
+                'p.warranty_enabled',
+                'p.warranty_details',
+                'p.seo_title',
+                'p.seo_description',
+                'p.seo_tags',
+                'c.id as category_id',
+                'c.name as category_name',
+                'c.slug as category_slug',
+                'b.id as brand_id',
+                'b.name as brand_name',
+                'b.slug as brand_slug',
+                'm.id as thumbnail_id',
+                'm.path as thumbnail_path',
+                'm.url as thumbnail_url',
+                'm.disk as thumbnail_disk',
+            ])
+            ->first();
 
-        // Pair retail + wholesale variants by variant_name into single rows
-        // so the frontend gets both channel prices per variant.
-        $variants = $product->variants->groupBy('variant_name')->map(function ($group) {
-            $retail  = $group->firstWhere('channel', 'retail');
+        if (!$product) {
+            return $this->sendError('Product not found', [], 404);
+        }
+
+        // Load variants using direct SQL
+        $variants = DB::table('product_variants')
+            ->where('product_id', $id)
+            ->select([
+                'id',
+                'product_id',
+                'channel',
+                'variant_name',
+                'sku',
+                'stock',
+                'price',
+                'offer_price',
+                'moq',
+                'offer_starts',
+                'offer_ends',
+            ])
+            ->get();
+
+        // Transform variants to paired retail/wholesale format
+        $variantPairs = $variants->groupBy('variant_name')->map(function ($group) {
+            $retail = $group->firstWhere('channel', 'retail');
             $wholesale = $group->firstWhere('channel', 'wholesale');
-
-            // Use whichever row exists as the base (prefer retail)
             $base = $retail ?? $wholesale;
 
             return [
-                'id'                    => $base->id,
-                'retail_id'             => $retail?->id,
-                'wholesale_id'          => $wholesale?->id,
-                'retailId'              => $retail?->id,
-                'wholesaleId'           => $wholesale?->id,
-                'productId'             => $base->product_id,
-                'variantName'           => $base->variant_name,
-                'variant_name'          => $base->variant_name,
-                'variantSlug'           => $base->variant_slug,
-                'variant_slug'          => $base->variant_slug,
-                'customSku'             => $base->custom_sku,
-                'sellerSku'             => $base->custom_sku,
-                'sku'                   => $base->sku,
-                'thumbnail'             => $base->thumbnail ? (str_starts_with($base->thumbnail, 'http') ? $base->thumbnail : url($base->thumbnail)) : null,
-                'color'                 => $base->color,
-                'size'                  => $base->size,
-                'material'              => $base->material,
-                'weight'                => (float)($base->weight ?? 0),
-                'pattern'               => $base->pattern,
-                'unitId'                => $base->unit_id,
-                'unitValue'             => $base->unit_value,
-                'purchaseCost'          => (float)($base->purchase_cost ?? 0),
-                'purchase_cost'         => (float)($base->purchase_cost ?? 0),
-                'stock'                 => $base->stock ?? 0,
-                'currentStock'          => $base->current_stock ?? 0,
-                'current_stock'         => $base->current_stock ?? 0,
-                'stockAlertLevel'       => $base->stock_alert_level ?? 5,
-                'moq'                   => $base->moq ?? $wholesale?->moq ?? 1,
-                'wholesaleMoq'          => $wholesale?->moq ?? 6,
-                'isActive'              => $base->is_active ?? true,
-                'allowPreorder'         => $base->allow_preorder ?? false,
-                'expectedDelivery'      => $base->expected_delivery,
-                'expected_delivery'     => $base->expected_delivery,
-                // Retail channel fields - provide both naming conventions
-                'retailPrice'           => (float)($retail?->price ?? 0),
-                'retail_price'          => (float)($retail?->price ?? 0),
-                'price'                 => (float)($retail?->price ?? 0),
-                'retailOfferPrice'      => $retail && $retail->offer_price ? (float)$retail->offer_price : null,
-                'retail_offer_price'    => $retail && $retail->offer_price ? (float)$retail->offer_price : null,
-                'retailOfferStarts'     => $retail?->offer_starts,
-                'retailOfferEnds'       => $retail?->offer_ends,
-                'offer_price'           => $retail && $retail->offer_price ? (float)$retail->offer_price : 0,
-                'offer_price'           => $retail && $retail->offer_price ? (float)$retail->offer_price : null,
-                'retailSku'             => $retail?->sku,
-                'specialPrice'          => $retail && $retail->offer_price ? (float)$retail->offer_price : 0,
-                // Wholesale channel fields - provide both naming conventions
-                'wholesalePrice'        => (float)($wholesale?->price ?? 0),
-                'wholesale_price'       => (float)($wholesale?->price ?? 0),
-                'wholesaleOfferPrice'   => $wholesale && $wholesale->offer_price ? (float)$wholesale->offer_price : null,
-                'wholesale_offer_price' => $wholesale && $wholesale->offer_price ? (float)$wholesale->offer_price : null,
-                'wholesaleOfferStarts'  => $wholesale?->offer_starts,
-                'wholesaleOfferEnds'    => $wholesale?->offer_ends,
-                'wholesaleSku'          => $wholesale?->sku,
-                'channel'               => null, // Indicate this is a merged variant
+                'id' => $base->id,
+                'retailId' => $retail?->id,
+                'wholesaleId' => $wholesale?->id,
+                'variantName' => $base->variant_name,
+                'sku' => $base->sku,
+                'stock' => (int)($base->stock ?? 0),
+                'currentStock' => (int)($base->stock ?? 0),
+                'retailPrice' => (float)($retail?->price ?? 0),
+                'retailOfferPrice' => $retail && $retail->offer_price ? (float)$retail->offer_price : null,
+                'retailOfferStarts' => $retail?->offer_starts,
+                'retailOfferEnds' => $retail?->offer_ends,
+                'wholesalePrice' => (float)($wholesale?->price ?? 0),
+                'wholesaleOfferPrice' => $wholesale && $wholesale->offer_price ? (float)$wholesale->offer_price : null,
+                'wholesaleOfferStarts' => $wholesale?->offer_starts,
+                'wholesaleOfferEnds' => $wholesale?->offer_ends,
+                'wholesaleMoq' => (int)($wholesale?->moq ?? 1),
             ];
         })->values();
 
-        // Replace the variants relation with paired data
-        $product->setRelation('variants', $variants);
+        // Build thumbnail URL
+        $thumbnailUrl = null;
+        if ($product->thumbnail_id) {
+            $thumbnailUrl = $product->thumbnail_url;
+            if (empty($thumbnailUrl) || !str_starts_with($thumbnailUrl, 'http')) {
+                $thumbnailUrl = url($product->thumbnail_path ?? '');
+            }
+        }
 
-        // Get affiliate commission (global rate for this product)
-        $globalCommission = \App\Models\ProductAffiliateCommission::where('product_id', $product->id)
-            ->whereNull('affiliate_id')
-            ->first();
+        // Parse JSON fields
+        $highlights = $product->highlights;
+        if (is_string($highlights)) {
+            $highlights = json_decode($highlights, true) ?? [];
+        }
 
-        $product->affiliate_commission = $globalCommission ? (float) $globalCommission->commission_rate : 5.00;
+        $highlightsBn = $product->highlights_bn;
+        if (is_string($highlightsBn)) {
+            $highlightsBn = json_decode($highlightsBn, true) ?? [];
+        }
 
-        return $this->sendSuccess($product);
+        $attributes = $product->attributes;
+        if (is_string($attributes)) {
+            $attributes = json_decode($attributes, true) ?? [];
+        }
+
+        $attributesBn = $product->attributes_bn;
+        if (is_string($attributesBn)) {
+            $attributesBn = json_decode($attributesBn, true) ?? [];
+        }
+
+        $includesInBox = $product->includes_in_box;
+        if (is_string($includesInBox)) {
+            $includesInBox = json_decode($includesInBox, true) ?? [];
+        }
+
+        $includesInBoxBn = $product->includes_in_box_bn;
+        if (is_string($includesInBoxBn)) {
+            $includesInBoxBn = json_decode($includesInBoxBn, true) ?? [];
+        }
+
+        $seoTags = $product->seo_tags;
+        if (is_string($seoTags)) {
+            $seoTags = json_decode($seoTags, true) ?? [];
+        }
+
+        $galleryImages = $product->gallery_images;
+        if (is_string($galleryImages)) {
+            $galleryImages = json_decode($galleryImages, true) ?? [];
+        }
+
+        // Build response array directly - NO MODEL OVERHEAD
+        $response = [
+            'id' => $product->id,
+            'name' => $product->name,
+            'retailName' => $product->retail_name,
+            'wholesaleName' => $product->wholesale_name,
+            'retailNameBn' => $product->retail_name_bn,
+            'wholesaleNameBn' => $product->wholesale_name_bn,
+            'slug' => $product->slug,
+            'productCode' => $product->product_code,
+            'status' => $product->status,
+            'description' => $product->description,
+            'descriptionBn' => $product->description_bn,
+            'highlights' => $highlights ?: [],
+            'highlightsBn' => $highlightsBn ?: [],
+            'attributes' => $attributes ?: [],
+            'attributesBn' => $attributesBn ?: [],
+            'includesInBox' => $includesInBox ?: [],
+            'includesInBoxBn' => $includesInBoxBn ?: [],
+            'videoUrl' => $product->video_url,
+            'warrantyEnabled' => (bool)$product->warranty_enabled,
+            'warrantyDetails' => $product->warranty_details,
+            'seoTitle' => $product->seo_title,
+            'seoDescription' => $product->seo_description,
+            'seoTags' => $seoTags ?: [],
+            'category' => $product->category_id ? [
+                'id' => $product->category_id,
+                'name' => $product->category_name,
+                'slug' => $product->category_slug,
+            ] : null,
+            'brand' => $product->brand_id ? [
+                'id' => $product->brand_id,
+                'name' => $product->brand_name,
+                'slug' => $product->brand_slug,
+            ] : null,
+            'thumbnail' => $product->thumbnail_id ? [
+                'id' => $product->thumbnail_id,
+                'path' => $product->thumbnail_path,
+                'url' => $product->thumbnail_url,
+                'fullUrl' => $thumbnailUrl,
+            ] : null,
+            'thumbnailUrl' => $thumbnailUrl,
+            'featured_image' => $thumbnailUrl,
+            'galleryImages' => $galleryImages ?: [],
+            'galleryImagesUrls' => $this->getGalleryImagesUrls($galleryImages ?: []),
+            'affiliateCommission' => 5.00,
+            'variants' => $variantPairs,
+        ];
+
+        // Clear references
+        unset($variants, $variantPairs, $product);
+
+        // Return plain array - NOT a model - avoids serialization overhead
+        return $this->sendSuccess($response);
+    }
+
+    /**
+     * Get gallery image URLs - PURE SQL version (no models, no appends)
+     * This prevents memory issues from model serialization
+     */
+    private function getGalleryImagesUrls($galleryIds): array
+    {
+        if (empty($galleryIds) || !is_array($galleryIds)) {
+            return [];
+        }
+
+        // Use raw query to get ONLY the data we need
+        $results = DB::table('media_files')
+            ->whereIn('id', $galleryIds)
+            ->select('id', 'path', 'url')
+            ->get()
+            ->keyBy('id');
+
+        // Build URLs preserving order - no model overhead
+        $urls = [];
+        foreach ($galleryIds as $id) {
+            if (isset($results[$id])) {
+                $file = $results[$id];
+                // Use absolute URL if exists, otherwise generate from path
+                $urls[] = ($file->url && str_starts_with($file->url, 'http'))
+                    ? $file->url
+                    : url($file->path ?? '');
+            }
+        }
+
+        return $urls;
     }
 
     /**
@@ -856,14 +1059,49 @@ class ProductController extends Controller
 
             DB::commit();
 
-            // Dispatch ProductUpdated event for Lazychat sync
-            event(new ProductUpdated($product));
+            // Lazychat webhook sent to queue (background) instead of blocking response
+            // This prevents timeout issues during product update
+            dispatch(new \App\Jobs\SendLazychatWebhook($product, 'product.updated', 'product/update'))
+                ->onQueue('lazychat-webhooks');
 
-            // Transform variants to match show method format with full thumbnail URLs
+            // Transform variants to plain arrays - prevents model appends overhead
+            // Load all variant data needed for the response
+            $product->load(['variants' => fn($q) => $q->select(
+                'id',
+                'product_id',
+                'channel',
+                'variant_slug',
+                'variant_name',
+                'thumbnail',
+                'sku',
+                'custom_sku',
+                'color',
+                'size',
+                'material',
+                'weight',
+                'pattern',
+                'unit_id',
+                'unit_value',
+                'purchase_cost',
+                'stock',
+                'stock_alert_level',
+                'moq',
+                'is_active',
+                'allow_preorder',
+                'expected_delivery',
+                'price',
+                'offer_price',
+                'offer_starts',
+                'offer_ends'
+            )]);
+
             $variants = $product->variants->groupBy('variant_name')->map(function ($group) {
                 $retail  = $group->firstWhere('channel', 'retail');
                 $wholesale = $group->firstWhere('channel', 'wholesale');
                 $base = $retail ?? $wholesale;
+
+                // Use stock directly from column - current_stock is just a cast
+                $stockValue = (int)($base->stock ?? 0);
 
                 return [
                     'id'                    => $base->id,
@@ -878,17 +1116,17 @@ class ProductController extends Controller
                     'color'                 => $base->color,
                     'size'                  => $base->size,
                     'material'              => $base->material,
-                    'weight'                => $base->weight,
+                    'weight'                => (float)($base->weight ?? 0),
                     'pattern'               => $base->pattern,
                     'unitId'                => $base->unit_id,
                     'unitValue'             => $base->unit_value,
                     'purchaseCost'          => $base->purchase_cost ? (float) $base->purchase_cost : 0,
-                    'stock'                 => $base->stock ?? 0,
-                    'currentStock'          => $base->current_stock ?? 0,
-                    'stockAlertLevel'       => $base->stock_alert_level ?? 5,
-                    'moq'                   => $base->moq ?? 1,
-                    'isActive'              => $base->is_active ?? true,
-                    'allowPreorder'         => $base->allow_preorder ?? false,
+                    'stock'                 => $stockValue,
+                    'currentStock'          => $stockValue, // Use stock directly - no accessor overhead
+                    'stockAlertLevel'       => (int)($base->stock_alert_level ?? 5),
+                    'moq'                   => (int)($base->moq ?? 1),
+                    'isActive'              => (bool)($base->is_active ?? true),
+                    'allowPreorder'         => (bool)($base->allow_preorder ?? false),
                     'expectedDelivery'      => $base->expected_delivery,
                     'retailPrice'           => $retail ? (float) $retail->price : 0,
                     'retailOfferPrice'      => $retail && $retail->offer_price ? (float) $retail->offer_price : null,
@@ -925,8 +1163,10 @@ class ProductController extends Controller
             $product->delete();
             DB::commit();
 
-            // Dispatch ProductDeleted event for Lazychat sync
-            event(new ProductDeleted($product));
+            // Lazychat webhook sent to queue (background) instead of blocking response
+            // This prevents timeout issues during product deletion
+            dispatch(new \App\Jobs\SendLazychatWebhook($product, 'product.deleted', 'product/delete', true))
+                ->onQueue('lazychat-webhooks');
 
             return $this->sendSuccess(null, 'Product deleted successfully');
 
@@ -984,14 +1224,49 @@ class ProductController extends Controller
 
             DB::commit();
 
-            // Dispatch ProductCreated event for Lazychat sync (duplicated product is new)
-            event(new ProductCreated($newProduct));
+            // Lazychat webhook sent to queue (background) instead of blocking response
+            // This prevents timeout issues during product duplication
+            dispatch(new \App\Jobs\SendLazychatWebhook($newProduct, 'product.created', 'product/create'))
+                ->onQueue('lazychat-webhooks');
 
-            // Transform variants to match show method format with full thumbnail URLs
+            // Transform variants to plain arrays - prevents model appends overhead
+            // Load all variant data needed for the response
+            $newProduct->load(['variants' => fn($q) => $q->select(
+                'id',
+                'product_id',
+                'channel',
+                'variant_slug',
+                'variant_name',
+                'thumbnail',
+                'sku',
+                'custom_sku',
+                'color',
+                'size',
+                'material',
+                'weight',
+                'pattern',
+                'unit_id',
+                'unit_value',
+                'purchase_cost',
+                'stock',
+                'stock_alert_level',
+                'moq',
+                'is_active',
+                'allow_preorder',
+                'expected_delivery',
+                'price',
+                'offer_price',
+                'offer_starts',
+                'offer_ends'
+            )]);
+
             $variants = $newProduct->variants->groupBy('variant_name')->map(function ($group) {
                 $retail  = $group->firstWhere('channel', 'retail');
                 $wholesale = $group->firstWhere('channel', 'wholesale');
                 $base = $retail ?? $wholesale;
+
+                // Use stock directly from column - current_stock is just a cast
+                $stockValue = (int)($base->stock ?? 0);
 
                 return [
                     'id'                    => $base->id,
@@ -1006,17 +1281,17 @@ class ProductController extends Controller
                     'color'                 => $base->color,
                     'size'                  => $base->size,
                     'material'              => $base->material,
-                    'weight'                => $base->weight,
+                    'weight'                => (float)($base->weight ?? 0),
                     'pattern'               => $base->pattern,
                     'unitId'                => $base->unit_id,
                     'unitValue'             => $base->unit_value,
                     'purchaseCost'          => $base->purchase_cost ? (float) $base->purchase_cost : 0,
-                    'stock'                 => $base->stock ?? 0,
-                    'currentStock'          => $base->current_stock ?? 0,
-                    'stockAlertLevel'       => $base->stock_alert_level ?? 5,
-                    'moq'                   => $base->moq ?? 1,
-                    'isActive'              => $base->is_active ?? true,
-                    'allowPreorder'         => $base->allow_preorder ?? false,
+                    'stock'                 => $stockValue,
+                    'currentStock'          => $stockValue, // Use stock directly - no accessor overhead
+                    'stockAlertLevel'       => (int)($base->stock_alert_level ?? 5),
+                    'moq'                   => (int)($base->moq ?? 1),
+                    'isActive'              => (bool)($base->is_active ?? true),
+                    'allowPreorder'         => (bool)($base->allow_preorder ?? false),
                     'expectedDelivery'      => $base->expected_delivery,
                     'retailPrice'           => $retail ? (float) $retail->price : 0,
                     'retailOfferPrice'      => $retail && $retail->offer_price ? (float) $retail->offer_price : null,

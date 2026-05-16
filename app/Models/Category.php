@@ -6,7 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class Category extends Model
 {
-    protected $appends = ['childrenCount'];
+    // NOTE: Removed automatic appends to prevent memory exhaustion
+    // The 'childrenCount' accessor is lightweight but adds overhead during serialization
+    // Use $category->append('childrenCount') when explicitly needed
+    // protected $appends = ['childrenCount'];
 
     protected $fillable = [
         'name',

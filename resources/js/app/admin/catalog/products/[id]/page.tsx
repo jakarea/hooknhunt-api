@@ -1121,7 +1121,7 @@ export default function ProductDetailPage() {
                   <Text size="sm">{product.seoDescription}</Text>
                 </Stack>
               )}
-              {product.seoTags && product.seoTags.length > 0 && (
+              {product.seoTags && Array.isArray(product.seoTags) && product.seoTags.length > 0 && (
                 <Stack gap="xs">
                   <Text size="xs" fw={500} c="dimmed">
                     {t('catalog.productsDetail.seo.tags') || 'SEO Tags'}
@@ -1190,7 +1190,7 @@ export default function ProductDetailPage() {
         )}
 
         {/* Product Highlights */}
-        {((product.highlights && product.highlights.length > 0) || (product.highlightsBn && product.highlightsBn.length > 0)) && (
+        {((Array.isArray(product.highlights) && product.highlights.length > 0) || (Array.isArray(product.highlightsBn) && product.highlightsBn.length > 0)) && (
           <Paper withBorder p="sm" radius="sm">
             <Group gap="sm" align="center" mb="xs">
               <IconBulb size={18} style={{ color: '#ca8a04' }} />
@@ -1200,7 +1200,7 @@ export default function ProductDetailPage() {
             </Group>
             <Grid>
               {/* English Highlights */}
-              {product.highlights && product.highlights.length > 0 && (
+              {Array.isArray(product.highlights) && product.highlights.length > 0 && (
                 <Grid.Col span={{ base: 12, md: 6 }}>
                   <Stack gap="xs">
                     <Text size="xs" fw={500} c="dimmed">{t('catalog.productsDetail.highlightsEnglish') || 'Highlights (English)'}</Text>
@@ -1214,7 +1214,7 @@ export default function ProductDetailPage() {
                 </Grid.Col>
               )}
               {/* Bangla Highlights */}
-              {product.highlightsBn && product.highlightsBn.length > 0 && (
+              {Array.isArray(product.highlightsBn) && product.highlightsBn.length > 0 && (
                 <Grid.Col span={{ base: 12, md: 6 }}>
                   <Stack gap="xs">
                     <Text size="xs" fw={500} c="dimmed">{t('catalog.productsDetail.highlightsBangla') || 'Highlights (বাংলা)'}</Text>
@@ -1232,7 +1232,7 @@ export default function ProductDetailPage() {
         )}
 
         {/* Product Attributes */}
-        {((product.attributes && product.attributes.length > 0) || (product.attributesBn && product.attributesBn.length > 0)) && (
+        {((Array.isArray(product.attributes) && product.attributes.length > 0) || (Array.isArray(product.attributesBn) && product.attributesBn.length > 0)) && (
           <Paper withBorder p="sm" radius="sm">
             <Group gap="sm" align="center" mb="xs">
               <IconBulb size={18} style={{ color: '#2563eb' }} />
@@ -1242,7 +1242,7 @@ export default function ProductDetailPage() {
             </Group>
             <Grid>
               {/* English Attributes */}
-              {product.attributes && product.attributes.length > 0 && (
+              {Array.isArray(product.attributes) && product.attributes.length > 0 && (
                 <Grid.Col span={{ base: 12, md: 6 }}>
                   <Stack gap="xs">
                     <Text size="xs" fw={500} c="dimmed">{t('catalog.productsDetail.attributesEnglish') || 'Attributes (English)'}</Text>
@@ -1256,7 +1256,7 @@ export default function ProductDetailPage() {
                 </Grid.Col>
               )}
               {/* Bangla Attributes */}
-              {product.attributesBn && product.attributesBn.length > 0 && (
+              {Array.isArray(product.attributesBn) && product.attributesBn.length > 0 && (
                 <Grid.Col span={{ base: 12, md: 6 }}>
                   <Stack gap="xs">
                     <Text size="xs" fw={500} c="dimmed">{t('catalog.productsDetail.attributesBangla') || 'Attributes (বাংলা)'}</Text>

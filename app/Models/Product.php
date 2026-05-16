@@ -61,8 +61,10 @@ class Product extends Model
         'thank_you' => 'boolean',
     ];
 
-    // Automatically append gallery images URLs to JSON response
-    protected $appends = ['gallery_images_urls', 'cross_sale_products', 'up_sale_products'];
+    // NOTE: Removed automatic appends to prevent memory exhaustion
+    // These accessors caused N+1 queries when loading multiple products
+    // Use $product->append('gallery_images_urls') when needed for single product
+    // protected $appends = ['gallery_images_urls', 'cross_sale_products', 'up_sale_products'];
 
     /**
      * Global scope to order products by sort_order by default
@@ -199,10 +201,29 @@ class Product extends Model
         return $this->attributes['wholesale_name'] ?? null;
     }
 
-    // 10. Accessor for camelCase compatibility (seoTags -> seo_tags)
+    // 10. Accessors for camelCase compatibility
+    // These map camelCase frontend expectations to snake_case database columns
+    // Note: We access $this->attributes directly to avoid infinite recursion
+    // Laravel's cast system still applies when data is loaded/saved
+
     public function getSeoTagsAttribute()
     {
-        return $this->attributes['seo_tags'] ?? null;
+        // Use getAttribute to ensure casting is applied, but add fallback
+        $value = $this->getAttribute('seo_tags');
+
+        // If it's already an array (from cast), return it
+        if (is_array($value)) {
+            return $value;
+        }
+
+        // If it's a string (maybe from direct query), try to decode
+        if (is_string($value) && !empty($value)) {
+            $decoded = json_decode($value, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        // Default to empty array for null, empty string, etc.
+        return [];
     }
 
     public function getSeoTitleAttribute()
@@ -235,8 +256,39 @@ class Product extends Model
         return $this->attributes['warranty_details'] ?? null;
     }
 
+    // Array-type accessors - always return arrays, never null
+    public function getHighlightsAttribute()
+    {
+        $value = $this->getAttribute('highlights');
+        return is_array($value) ? $value : [];
+    }
 
+    public function getHighlightsBnAttribute()
+    {
+        $value = $this->getAttribute('highlights_bn');
+        return is_array($value) ? $value : [];
+    }
 
+    // NOTE: getAttributesAttribute() removed to avoid conflict with attributes() relationship
+    // The database column 'attributes' is handled by Laravel's cast system
+
+    public function getAttributesBnAttribute()
+    {
+        $value = $this->getAttribute('attributes_bn');
+        return is_array($value) ? $value : [];
+    }
+
+    public function getIncludesInBoxAttribute()
+    {
+        $value = $this->getAttribute('includes_in_box');
+        return is_array($value) ? $value : [];
+    }
+
+    public function getIncludesInBoxBnAttribute()
+    {
+        $value = $this->getAttribute('includes_in_box_bn');
+        return is_array($value) ? $value : [];
+    }
 
     public function suppliers()
     {

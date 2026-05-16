@@ -51,7 +51,11 @@ class ProductVariant extends Model
         'unit_value' => 'decimal:2',
     ];
 
-    protected $appends = ['current_stock', 'full_name'];
+    // NOTE: Removed automatic appends to prevent memory exhaustion
+    // The 'full_name' accessor creates circular references during serialization
+    // The 'current_stock' accessor is redundant (stock is already a column)
+    // Use $variant->append('full_name') explicitly when needed in controller
+    // protected $appends = ['current_stock', 'full_name'];
 
     // --- Relationships ---
 

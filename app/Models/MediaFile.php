@@ -41,8 +41,11 @@ class MediaFile extends Model
         'is_staff_document' => 'boolean',
     ];
 
-    // অটোমেটিক JSON রেসপন্সে যুক্ত হবে
-    protected $appends = ['formatted_size', 'full_url'];
+    // NOTE: Removed automatic appends to prevent memory exhaustion
+    // The 'full_url' accessor uses Storage facade which adds overhead during serialization
+    // The 'formatted_size' accessor is lightweight but not always needed
+    // Use $file->append('full_url') or $file->append('formatted_size') explicitly when needed
+    // protected $appends = ['formatted_size', 'full_url'];
 
     /**
      * Get the folder that contains the media file.

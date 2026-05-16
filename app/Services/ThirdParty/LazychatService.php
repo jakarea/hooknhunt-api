@@ -5,6 +5,7 @@ namespace App\Services\ThirdParty;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Config;
@@ -82,16 +83,35 @@ class LazychatService
         $firstVariant = $retailVariants->first();
 
         // Build product URL (use frontend domain for product pages)
-        $productUrl = URL::frontend('/products/' . $product->slug);
+        $productUrl = config('app.frontend_url') . '/products/' . $product->slug;
 
         // Build images array (thumbnail + gallery)
+        // Compute URLs directly - DO NOT use appends to avoid memory exhaustion
         $images = [];
         if ($product->thumbnail) {
-            $images[] = ['url' => $product->thumbnail->full_url];
+            $thumbnailUrl = $product->thumbnail->url;
+            if (empty($thumbnailUrl) || !str_starts_with($thumbnailUrl, 'http')) {
+                $thumbnailUrl = url($product->thumbnail->path ?? '');
+            }
+            $images[] = ['url' => $thumbnailUrl];
         }
-        if (!empty($product->gallery_images_urls)) {
-            foreach ($product->gallery_images_urls as $url) {
-                $images[] = ['url' => $url];
+        // Get gallery image URLs using direct SQL query
+        if (!empty($product->gallery_images) && is_array($product->gallery_images)) {
+            $galleryUrls = DB::table('media_files')
+                ->whereIn('id', $product->gallery_images)
+                ->select('id', 'path', 'url')
+                ->get()
+                ->keyBy('id');
+
+            // Preserve order from gallery_images array
+            foreach ($product->gallery_images as $imageId) {
+                if (isset($galleryUrls[$imageId])) {
+                    $file = $galleryUrls[$imageId];
+                    $url = ($file->url && str_starts_with($file->url, 'http'))
+                        ? $file->url
+                        : url($file->path ?? '');
+                    $images[] = ['url' => $url];
+                }
             }
         }
 
@@ -342,11 +362,23 @@ class LazychatService
         }
 
         try {
+            // Log full payload for debugging
             Log::info('Lazychat webhook sending', [
                 'topic' => $topic,
                 'product_id' => $data['id'] ?? $data['product_id'] ?? null,
                 'url' => $webhook['url'],
+                'payload_size' => strlen(json_encode($data)),
             ]);
+
+            // Log detailed payload to file for debugging
+            $debugFile = storage_path('logs/lazychat-payloads.log');
+            $debugData = [
+                'timestamp' => now()->toIso8601String(),
+                'topic' => $topic,
+                'product_id' => $data['id'] ?? $data['product_id'] ?? null,
+                'payload' => $data,
+            ];
+            file_put_contents($debugFile, json_encode($debugData) . "\n\n", FILE_APPEND);
 
             $response = Http::timeout($this->timeout)
                 ->withToken($webhook['token'])
@@ -365,6 +397,18 @@ class LazychatService
                 'success' => $success,
                 'body' => $response->body(),
             ]);
+
+            // Log Lazychat response to file for debugging
+            $debugFile = storage_path('logs/lazychat-responses.log');
+            $debugData = [
+                'timestamp' => now()->toIso8601String(),
+                'topic' => $topic,
+                'product_id' => $data['id'] ?? $data['product_id'] ?? null,
+                'response_status' => $response->status(),
+                'response_body' => $response->body(),
+                'success' => $success,
+            ];
+            file_put_contents($debugFile, json_encode($debugData) . "\n\n", FILE_APPEND);
 
             return [
                 'success' => $success,

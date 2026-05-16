@@ -5,21 +5,28 @@ namespace App\Listeners\Product;
 use App\Events\Product\ProductCreated;
 use App\Events\Product\ProductUpdated;
 use App\Events\Product\ProductDeleted;
-use App\Jobs\SendLazychatWebhook;
 use App\Models\LazychatWebhookLog;
+use App\Services\ThirdParty\LazychatService;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Sync Product to Lazychat Listener
+ * Sync Product to Lazychat Listener (cPanel Friendly - Synchronous)
  *
- * Listens for product events and dispatches webhook jobs.
- * Works asynchronously via Laravel queues (database driver).
+ * Listens for product events and sends webhooks immediately (no queue).
+ * Compatible with shared cPanel hosting where Supervisor is not available.
  *
  * @package App\Listeners\Product
  */
 class SyncProductToLazychat
 {
+    private LazychatService $lazychatService;
+
+    public function __construct(LazychatService $lazychatService)
+    {
+        $this->lazychatService = $lazychatService;
+    }
+
     /**
      * Handle product created event.
      *
@@ -28,7 +35,7 @@ class SyncProductToLazychat
      */
     public function handleProductCreated(ProductCreated $event): void
     {
-        $this->dispatchWebhookJob(
+        $this->sendWebhookSynchronously(
             $event->product,
             'product.created',
             'product/create'
@@ -43,7 +50,7 @@ class SyncProductToLazychat
      */
     public function handleProductUpdated(ProductUpdated $event): void
     {
-        $this->dispatchWebhookJob(
+        $this->sendWebhookSynchronously(
             $event->product,
             'product.updated',
             'product/update'
@@ -58,48 +65,25 @@ class SyncProductToLazychat
      */
     public function handleProductDeleted(ProductDeleted $event): void
     {
-        // Check if integration is enabled
-        if (!Config::get('lazychat.enabled', true)) {
-            Log::info('Lazychat integration disabled - skipping delete webhook', [
-                'product_id' => $event->product->id,
-            ]);
-            return;
-        }
-
-        // Create log entry for delete webhook
-        $log = LazychatWebhookLog::create([
-            'product_id' => $event->product->id,
-            'event_type' => 'product.deleted',
-            'webhook_topic' => 'product/delete',
-            'status' => 'pending',
-            'attempts' => 0,
-            'payload' => ['product_id' => (string) $event->product->id],
-        ]);
-
-        // Dispatch delete webhook job with product_id only
-        dispatch(new SendLazychatWebhook(
+        $this->sendWebhookSynchronously(
             $event->product,
             'product.deleted',
             'product/delete',
-            $log->id,
-            true // isDelete flag
-        ));
-
-        Log::info('Lazychat delete webhook job dispatched', [
-            'product_id' => $event->product->id,
-            'log_id' => $log->id,
-        ]);
+            true // isDelete
+        );
     }
 
     /**
-     * Dispatch webhook job to queue.
+     * Send webhook immediately (synchronous - no queue).
+     * cPanel-friendly alternative to queue-based system.
      *
      * @param \App\Models\Product $product
      * @param string $eventType
      * @param string $webhookTopic
+     * @param bool $isDelete
      * @return void
      */
-    private function dispatchWebhookJob($product, string $eventType, string $webhookTopic): void
+    private function sendWebhookSynchronously($product, string $eventType, string $webhookTopic, bool $isDelete = false): void
     {
         // Check if integration is enabled
         if (!Config::get('lazychat.enabled', true)) {
@@ -110,28 +94,73 @@ class SyncProductToLazychat
             return;
         }
 
-        // Create initial log entry
+        // Create log entry
         $log = LazychatWebhookLog::create([
             'product_id' => $product->id,
             'event_type' => $eventType,
             'webhook_topic' => $webhookTopic,
             'status' => 'pending',
             'attempts' => 0,
+            'payload' => $isDelete ? ['product_id' => (string) $product->id] : null,
         ]);
 
-        // Dispatch job to queue
-        dispatch(new SendLazychatWebhook(
-            $product,
-            $eventType,
-            $webhookTopic,
-            $log->id
-        ));
+        // Prepare payload
+        if ($isDelete) {
+            $payload = ['product_id' => (string) $product->id];
+        } else {
+            $payload = $this->lazychatService->transformProductForLazychat($product);
+            $log->update(['payload' => $payload]);
+        }
 
-        Log::info('Lazychat webhook job dispatched', [
-            'product_id' => $product->id,
-            'event_type' => $eventType,
-            'webhook_topic' => $webhookTopic,
-            'log_id' => $log->id,
+        // Update log with attempt info
+        $log->update([
+            'attempts' => 1,
+            'last_attempted_at' => now(),
         ]);
+
+        // Send webhook immediately
+        $result = $this->lazychatService->sendWebhook($webhookTopic, $payload);
+
+        // Check if skipped (integration disabled)
+        if (!empty($result['skipped'])) {
+            $log->update([
+                'status' => 'success',
+                'response_code' => null,
+                'response_body' => ['message' => 'Integration disabled'],
+                'sent_at' => now(),
+            ]);
+            return;
+        }
+
+        // Update log based on result
+        if ($result['success']) {
+            $log->update([
+                'status' => 'success',
+                'response_code' => $result['status_code'] ?? 200,
+                'response_body' => json_decode($result['response_body'] ?? '{}', true),
+                'sent_at' => now(),
+            ]);
+
+            Log::info('Lazychat webhook sent successfully (sync)', [
+                'product_id' => $product->id,
+                'event_type' => $eventType,
+                'status_code' => $result['status_code'] ?? 200,
+            ]);
+
+        } else {
+            // Webhook failed - mark as failed for retry via cron
+            $log->update([
+                'status' => 'failed',
+                'response_code' => $result['status_code'] ?? null,
+                'response_body' => json_decode($result['response_body'] ?? '{}', true),
+                'error_message' => $result['error'] ?? $result['message'] ?? 'Unknown error',
+            ]);
+
+            Log::error('Lazychat webhook failed (sync)', [
+                'product_id' => $product->id,
+                'event_type' => $eventType,
+                'error' => $result['error'] ?? $result['message'],
+            ]);
+        }
     }
 }

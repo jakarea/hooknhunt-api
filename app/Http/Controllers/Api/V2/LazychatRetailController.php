@@ -116,6 +116,9 @@ class LazychatRetailController extends Controller
     /**
      * Get a single product by ID in Lazychat format.
      *
+     * OPTIMIZED: Uses direct SQL queries to avoid model serialization memory issues.
+     * This prevents the 512MB memory exhaustion that was crashing servers.
+     *
      * GET /api/v2/lazychat-retail/products/{id}
      *
      * @param int $id
@@ -129,25 +132,281 @@ class LazychatRetailController extends Controller
         }
 
         try {
-            $product = Product::with(['category', 'brand', 'thumbnail', 'variants'])
-                ->where('id', $id)
-                ->whereHas('variants', fn($q) => $q
-                    ->where('channel', 'retail')
-                    ->where('is_active', true)
-                )
-                ->firstOrFail();
+            // Use DIRECT SQL instead of models - prevents memory exhaustion
+            $product = DB::table('products as p')
+                ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
+                ->leftJoin('brands as b', 'p.brand_id', '=', 'b.id')
+                ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+                ->where('p.id', $id)
+                ->where('p.status', 'published')
+                ->select([
+                    'p.id',
+                    'p.name',
+                    'p.retail_name',
+                    'p.slug',
+                    'p.description',
+                    'p.status',
+                    'p.product_code',
+                    'p.seo_tags',
+                    'p.created_at',
+                    'p.updated_at',
+                    'p.deleted_at',
+                    'p.gallery_images',
+                    'c.id as category_id',
+                    'c.name as category_name',
+                    'c.slug as category_slug',
+                    'b.id as brand_id',
+                    'b.name as brand_name',
+                    'm.id as thumbnail_id',
+                    'm.path as thumbnail_path',
+                    'm.url as thumbnail_url',
+                    'm.disk as thumbnail_disk',
+                ])
+                ->first();
 
-            $transformed = $this->lazychatService->transformProductForLazychat($product);
+            if (!$product) {
+                return $this->sendError('Product not found', [], 404);
+            }
+
+            // Load retail variants using direct SQL
+            $variants = DB::table('product_variants')
+                ->where('product_id', $id)
+                ->where('channel', 'retail')
+                ->where('is_active', true)
+                ->select([
+                    'id',
+                    'variant_name',
+                    'sku',
+                    'price',
+                    'offer_price',
+                    'stock',
+                    'weight',
+                    'size',
+                    'color',
+                    'material',
+                    'created_at',
+                    'updated_at',
+                ])
+                ->get();
+
+            if ($variants->isEmpty()) {
+                return $this->sendError('Product not found or has no active variants', [], 404);
+            }
+
+            // Build response array directly - NO MODEL SERIALIZATION
+            $transformed = $this->buildLazychatProductResponse($product, $variants);
 
             return $this->sendSuccess($transformed);
 
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return $this->sendError('Product not found', [], 404);
         } catch (\Exception $e) {
             return $this->sendError('Failed to fetch product', [
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Build Lazychat product response from raw SQL data.
+     * PURE FUNCTION - No model overhead.
+     *
+     * @param object $product
+     * @param \Illuminate\Support\Collection $variants
+     * @return array
+     */
+    private function buildLazychatProductResponse($product, $variants): array
+    {
+        $firstVariant = $variants->first();
+
+        // Build images array
+        $images = [];
+        if ($product->thumbnail_id) {
+            $thumbnailUrl = $product->thumbnail_url;
+            if (empty($thumbnailUrl) || !str_starts_with($thumbnailUrl, 'http')) {
+                $thumbnailUrl = url($product->thumbnail_path ?? '');
+            }
+            $images[] = ['url' => $thumbnailUrl];
+        }
+
+        // Add gallery images using direct SQL
+        if (!empty($product->gallery_images)) {
+            $galleryIds = is_array($product->gallery_images)
+                ? $product->gallery_images
+                : json_decode($product->gallery_images, true);
+
+            if (is_array($galleryIds) && !empty($galleryIds)) {
+                $galleryUrls = DB::table('media_files')
+                    ->whereIn('id', $galleryIds)
+                    ->select('id', 'path', 'url')
+                    ->get()
+                    ->keyBy('id');
+
+                foreach ($galleryIds as $imageId) {
+                    if (isset($galleryUrls[$imageId])) {
+                        $file = $galleryUrls[$imageId];
+                        $url = ($file->url && str_starts_with($file->url, 'http'))
+                            ? $file->url
+                            : url($file->path ?? '');
+                        $images[] = ['url' => $url];
+                    }
+                }
+            }
+        }
+
+        // Build categories array
+        $categories = [];
+        if ($product->category_id) {
+            $categories[] = [
+                'id' => $product->category_id,
+                'title' => $product->category_name,
+                'slug' => $product->category_slug,
+            ];
+        }
+
+        // Build SEO tags
+        $tags = [];
+        if (!empty($product->seo_tags)) {
+            $tags = is_array($product->seo_tags)
+                ? $product->seo_tags
+                : json_decode($product->seo_tags, true);
+        }
+
+        // Extract attributes from variants
+        $attributes = $this->extractAttributesFromVariants($variants);
+
+        // Build sale prices
+        $salePrices = [];
+        foreach ($variants as $variant) {
+            if ($variant->offer_price > 0 && $variant->offer_price < $variant->price) {
+                $salePrices[] = number_format($variant->offer_price, 2, '.', '');
+            }
+        }
+
+        // Build stock data
+        $totalStock = $variants->sum('stock');
+        $stocks = [];
+        if ($totalStock > 0) {
+            $stocks[] = [
+                'quantity' => $totalStock,
+                'date' => now()->toDateString(),
+                'note' => 'Current stock',
+            ];
+        }
+
+        // Transform variants
+        $transformedVariants = [];
+        foreach ($variants as $variant) {
+            $variantData = [
+                'id' => $variant->id,
+                'title' => $variant->variant_name,
+                'sku' => $variant->sku,
+                'published' => true,
+                'weight' => (string) $variant->weight,
+                'pricing' => [
+                    'regular_price' => number_format($variant->price, 2, '.', ''),
+                    'sale_prices' => [],
+                ],
+                'inventory' => [
+                    'stock_status' => $variant->stock > 0,
+                    'stocks' => [],
+                ],
+                'images' => [],
+                'attributes' => [],
+                'created_at' => $variant->created_at,
+                'updated_at' => $variant->updated_at,
+            ];
+
+            if ($variant->offer_price > 0 && $variant->offer_price < $variant->price) {
+                $variantData['pricing']['sale_prices'][] = number_format($variant->offer_price, 2, '.', '');
+            }
+
+            if ($variant->stock > 0) {
+                $variantData['inventory']['stocks'][] = [
+                    'quantity' => $variant->stock,
+                    'date' => now()->toDateString(),
+                    'note' => '',
+                ];
+            }
+
+            $transformedVariants[] = $variantData;
+        }
+
+        // Return complete Lazychat format response
+        return [
+            'id' => $product->id,
+            'title' => $product->retail_name ?? $product->name,
+            'slug' => $product->slug,
+            'url' => config('app.frontend_url') . '/products/' . $product->slug,
+            'description' => $product->description ?? '',
+            'summary' => '',
+            'published' => $product->status === 'published',
+            'is_draft' => $product->status === 'draft',
+            'featured' => false,
+            'purchasable' => $product->status === 'published',
+            'sku' => $firstVariant->sku ?? '',
+            'brand' => $product->brand_name ?? '',
+            'weight' => (string) ($firstVariant->weight ?? 0),
+            'tags' => $tags,
+            'note' => null,
+            'categories' => $categories,
+            'images' => $images,
+            'attributes' => $attributes,
+            'pricing' => [
+                'regular_price' => number_format($firstVariant->price ?? 0, 2, '.', ''),
+                'sale_prices' => $salePrices,
+            ],
+            'inventory' => [
+                'stock_status' => $totalStock > 0,
+                'stocks' => $stocks,
+            ],
+            'variations' => $transformedVariants,
+            'created_at' => $product->created_at,
+            'updated_at' => $product->updated_at,
+            'deleted_at' => $product->deleted_at,
+        ];
+    }
+
+    /**
+     * Extract attributes from variants (pure SQL data).
+     *
+     * @param \Illuminate\Support\Collection $variants
+     * @return array
+     */
+    private function extractAttributesFromVariants($variants): array
+    {
+        $attributes = [];
+        $attributeId = 1;
+
+        // Extract sizes
+        $sizes = $variants->pluck('size')->filter()->unique()->values();
+        if ($sizes->isNotEmpty()) {
+            $attributes[] = [
+                'id' => $attributeId++,
+                'name' => 'Size',
+                'values' => $sizes->toArray(),
+            ];
+        }
+
+        // Extract colors
+        $colors = $variants->pluck('color')->filter()->unique()->values();
+        if ($colors->isNotEmpty()) {
+            $attributes[] = [
+                'id' => $attributeId++,
+                'name' => 'Color',
+                'values' => $colors->toArray(),
+            ];
+        }
+
+        // Extract materials
+        $materials = $variants->pluck('material')->filter()->unique()->values();
+        if ($materials->isNotEmpty()) {
+            $attributes[] = [
+                'id' => $attributeId++,
+                'name' => 'Material',
+                'values' => $materials->toArray(),
+            ];
+        }
+
+        return $attributes;
     }
 
     /**

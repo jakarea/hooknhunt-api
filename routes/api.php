@@ -79,6 +79,24 @@ Route::group([
 });
 
 // ====================================================
+// QUEUE PROCESSING (cPanel Friendly - Public with Token)
+// ====================================================
+// Process queue jobs manually via URL visits
+// No Supervisor needed - just visit URL or use cron
+Route::group([
+    'prefix' => 'v2/queue',
+    'namespace' => 'App\Http\Controllers\Api\V2'
+], function () {
+    // Process ONE job from queue (each visit = one job processed)
+    // Usage: GET /api/v2/queue/process?token=YOUR_SECRET_TOKEN
+    Route::get('process', 'JobQueueController@process');
+
+    // Get queue status (for monitoring)
+    // Usage: GET /api/v2/queue/status?token=YOUR_SECRET_TOKEN
+    Route::get('status', 'JobQueueController@status');
+});
+
+// ====================================================
 // PROTECTED ROUTES (Middleware: Sanctum)
 // ====================================================
 Route::group([
@@ -805,6 +823,12 @@ Route::group([
     Route::get('reviews', 'Website\ReviewController@index');
     Route::get('reviews/featured', 'Website\ReviewController@featured');
     Route::get('reviews/product/{slug}', 'Website\ReviewController@getByProductSlug');
+
+    // --- Products (Public Storefront) ---
+    Route::get('products', 'Website\ProductController@index');
+
+    // --- Categories (Public Storefront) ---
+    Route::get('categories', 'Website\ProductController@categories');
 
     // --- Steadfast Webhook (Public - Courier Service) ---
     Route::post('webhook/steadfast', 'Website\SteadfastWebhookController@handle');

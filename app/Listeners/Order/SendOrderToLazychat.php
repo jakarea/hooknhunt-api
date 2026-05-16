@@ -6,31 +6,41 @@ use App\Events\Order\OrderCreated;
 use App\Events\Order\OrderPaid;
 use App\Events\Order\OrderFailed;
 use App\Events\Order\OrderCancelled;
-use App\Jobs\SendOrderLazychatWebhook;
+use App\Services\ThirdParty\LazychatService;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Config;
 
 /**
- * Send Order to Lazychat Listener
+ * Send Order to Lazychat Listener (cPanel Friendly - Synchronous)
  *
- * Handles all order-related events and dispatches webhook jobs.
- * Compatible with cPanel shared hosting (uses database queue).
+ * Handles all order-related events and sends webhooks immediately.
+ * Compatible with shared cPanel hosting where Supervisor is not available.
  */
 class SendOrderToLazychat
 {
+    private LazychatService $lazychatService;
+
+    public function __construct(LazychatService $lazychatService)
+    {
+        $this->lazychatService = $lazychatService;
+    }
+
     /**
      * Handle order created event.
      */
     public function handleOrderCreated(OrderCreated $event): void
     {
-        Log::info('Order created - dispatching Lazychat webhook', [
+        if (!Config::get('lazychat.enabled', true)) {
+            return;
+        }
+
+        Log::info('Order created - sending Lazychat webhook (sync)', [
             'order_id' => $event->order->id,
             'invoice_no' => $event->order->invoice_no,
         ]);
 
-        SendOrderLazychatWebhook::dispatch(
-            $event->order,
-            'order.created'
-        );
+        $payload = $this->lazychatService->transformOrderForLazychat($event->order);
+        $this->lazychatService->sendOrderWebhook('order/create', $payload);
     }
 
     /**
@@ -38,18 +48,19 @@ class SendOrderToLazychat
      */
     public function handleOrderPaid(OrderPaid $event): void
     {
-        Log::info('Order paid - dispatching Lazychat webhook', [
+        if (!Config::get('lazychat.enabled', true)) {
+            return;
+        }
+
+        Log::info('Order paid - sending Lazychat webhook (sync)', [
             'order_id' => $event->order->id,
             'invoice_no' => $event->order->invoice_no,
             'transaction_id' => $event->transactionId,
             'payment_method' => $event->paymentMethod,
         ]);
 
-        SendOrderLazychatWebhook::dispatch(
-            $event->order,
-            'order.paid',
-            $event->transactionId
-        );
+        $payload = $this->lazychatService->transformOrderForLazychat($event->order);
+        $this->lazychatService->sendOrderWebhook('order/paid', $payload);
     }
 
     /**
@@ -57,19 +68,19 @@ class SendOrderToLazychat
      */
     public function handleOrderFailed(OrderFailed $event): void
     {
-        Log::info('Order failed - dispatching Lazychat webhook', [
+        if (!Config::get('lazychat.enabled', true)) {
+            return;
+        }
+
+        Log::info('Order failed - sending Lazychat webhook (sync)', [
             'order_id' => $event->order->id,
             'invoice_no' => $event->order->invoice_no,
             'reason' => $event->reason,
             'error_code' => $event->errorCode,
         ]);
 
-        SendOrderLazychatWebhook::dispatch(
-            $event->order,
-            'order.failed',
-            null,
-            $event->reason
-        );
+        $payload = $this->lazychatService->transformOrderForLazychat($event->order);
+        $this->lazychatService->sendOrderWebhook('order/failed', $payload);
     }
 
     /**
@@ -77,18 +88,18 @@ class SendOrderToLazychat
      */
     public function handleOrderCancelled(OrderCancelled $event): void
     {
-        Log::info('Order cancelled - dispatching Lazychat webhook', [
+        if (!Config::get('lazychat.enabled', true)) {
+            return;
+        }
+
+        Log::info('Order cancelled - sending Lazychat webhook (sync)', [
             'order_id' => $event->order->id,
             'invoice_no' => $event->order->invoice_no,
             'reason' => $event->reason,
             'cancelled_by' => $event->cancelledBy,
         ]);
 
-        SendOrderLazychatWebhook::dispatch(
-            $event->order,
-            'order.cancelled',
-            null,
-            $event->reason
-        );
+        $payload = $this->lazychatService->transformOrderForLazychat($event->order);
+        $this->lazychatService->sendOrderWebhook('order/cancelled', $payload);
     }
 }

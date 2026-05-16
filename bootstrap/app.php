@@ -31,6 +31,13 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->dailyAt('06:00')
                  ->description('Generate daily financial report')
                  ->withoutOverlapping();
+
+        // Retry failed Lazychat webhooks every 5 minutes (cPanel-friendly)
+        $schedule->command('lazychat:retry-webhooks --max=10 --older-than=5')
+                 ->everyFiveMinutes()
+                 ->description('Retry failed Lazychat webhooks')
+                 ->withoutOverlapping()
+                 ->runInBackground(); // Run in background to avoid blocking other tasks
     })
     ->withMiddleware(function (Middleware $middleware) {
             // Disable EnsureFrontendRequestsAreStateful for local development with Bearer tokens

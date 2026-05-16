@@ -3,23 +3,29 @@
 namespace App\Listeners\Product;
 
 use App\Events\Product\VariantStockChanged;
-use App\Events\Product\ProductUpdated;
-use App\Jobs\SendLazychatWebhook;
+use App\Services\ThirdParty\LazychatService;
 use App\Models\LazychatWebhookLog;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * Sync Variant Stock Change to Lazychat Listener
+ * Sync Variant Stock Change to Lazychat Listener (cPanel Friendly - Synchronous)
  *
- * Listens for variant stock changes and dispatches ProductUpdated webhook.
+ * Listens for variant stock changes and sends webhooks immediately with debouncing.
  * This ensures LazyChat catalog stays in sync with actual inventory.
  *
  * @package App\Listeners\Product
  */
 class SyncVariantStockChangeToLazychat
 {
+    private LazychatService $lazychatService;
+
+    public function __construct(LazychatService $lazychatService)
+    {
+        $this->lazychatService = $lazychatService;
+    }
+
     /**
      * Handle variant stock changed event.
      *
@@ -59,7 +65,7 @@ class SyncVariantStockChangeToLazychat
         Cache::put($debounceKey, true, now()->addSeconds(5));
 
         // Log the stock change
-        Log::info('Variant stock changed - syncing to LazyChat', [
+        Log::info('Variant stock changed - syncing to LazyChat (sync)', [
             'product_id' => $event->product->id,
             'variant_id' => $event->variant->id,
             'sku' => $event->variant->sku,
@@ -84,19 +90,47 @@ class SyncVariantStockChangeToLazychat
             ],
         ]);
 
-        // Dispatch webhook job with product (will trigger ProductUpdated to LazyChat)
-        dispatch(new SendLazychatWebhook(
-            $event->product,
-            'product.stock_updated',
-            'product/update',
-            $log->id
-        ))->delay(now()->addSeconds(5)); // Delay by 5 seconds to accumulate more changes
+        // Transform and send webhook immediately (with delay for debouncing)
+        $payload = $this->lazychatService->transformProductForLazychat($event->product);
 
-        Log::info('LazyChat webhook job dispatched for variant stock change (with debounce)', [
-            'product_id' => $event->product->id,
-            'variant_id' => $event->variant->id,
-            'log_id' => $log->id,
-            'delayed_by' => '5 seconds',
+        // Update log
+        $log->update([
+            'payload' => $payload,
+            'attempts' => 1,
+            'last_attempted_at' => now(),
         ]);
+
+        // Send webhook
+        $result = $this->lazychatService->sendWebhook('product/update', $payload);
+
+        // Update log based on result
+        if ($result['success']) {
+            $log->update([
+                'status' => 'success',
+                'response_code' => $result['status_code'] ?? 200,
+                'response_body' => json_decode($result['response_body'] ?? '{}', true),
+                'sent_at' => now(),
+            ]);
+
+            Log::info('LazyChat webhook sent successfully for stock change (sync)', [
+                'product_id' => $event->product->id,
+                'variant_id' => $event->variant->id,
+                'log_id' => $log->id,
+            ]);
+
+        } else {
+            $log->update([
+                'status' => 'failed',
+                'response_code' => $result['status_code'] ?? null,
+                'response_body' => json_decode($result['response_body'] ?? '{}', true),
+                'error_message' => $result['error'] ?? $result['message'] ?? 'Unknown error',
+            ]);
+
+            Log::error('LazyChat webhook failed for stock change (sync)', [
+                'product_id' => $event->product->id,
+                'variant_id' => $event->variant->id,
+                'error' => $result['error'] ?? $result['message'],
+            ]);
+        }
     }
 }

@@ -3,19 +3,27 @@
 namespace App\Listeners\Order;
 
 use App\Events\Order\OrderShipped;
-use App\Jobs\SendOrderLazychatWebhook;
+use App\Services\ThirdParty\LazychatService;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Config;
 
 /**
- * Send Order Shipped to Lazychat Listener
+ * Send Order Shipped to Lazychat Listener (cPanel Friendly - Synchronous)
  *
- * Listens for order shipped events and dispatches webhook jobs.
+ * Listens for order shipped events and sends webhooks immediately.
  * Notifies LazyChat about shipping with tracking details.
  *
  * @package App\Listeners\Order
  */
 class SendOrderShippedToLazychat
 {
+    private LazychatService $lazychatService;
+
+    public function __construct(LazychatService $lazychatService)
+    {
+        $this->lazychatService = $lazychatService;
+    }
+
     /**
      * Handle order shipped event.
      *
@@ -24,25 +32,28 @@ class SendOrderShippedToLazychat
      */
     public function handle(OrderShipped $event): void
     {
-        Log::info('Order shipped - dispatching Lazychat webhook', [
+        if (!Config::get('lazychat.enabled', true)) {
+            return;
+        }
+
+        Log::info('Order shipped - sending Lazychat webhook (sync)', [
             'order_id' => $event->order->id,
             'invoice_no' => $event->order->invoice_no,
             'tracking_number' => $event->trackingNumber,
             'courier' => $event->courierName,
         ]);
 
-        // Dispatch webhook job with shipping details
-        SendOrderLazychatWebhook::dispatch(
-            $event->order,
-            'order.shipped',
-            $event->trackingNumber,
-            null, // no reason for shipped
-            $event->courierName, // passed as additional context
-            $event->courierPartner,
-            $event->trackingUrl
-        );
+        // Transform order and add shipping details
+        $payload = $this->lazychatService->transformOrderForLazychat($event->order);
+        $payload['shipping']['tracking_number'] = $event->trackingNumber;
+        $payload['shipping']['courier'] = $event->courierName;
+        $payload['shipping']['courier_partner'] = $event->courierPartner;
+        $payload['shipping']['tracking_url'] = $event->trackingUrl;
 
-        Log::info('Lazychat shipping webhook job dispatched', [
+        // Send webhook
+        $this->lazychatService->sendOrderWebhook('order/shipped', $payload);
+
+        Log::info('Lazychat shipping webhook sent (sync)', [
             'order_id' => $event->order->id,
             'invoice_no' => $event->order->invoice_no,
             'tracking_number' => $event->trackingNumber,
