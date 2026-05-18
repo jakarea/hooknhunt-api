@@ -87,11 +87,13 @@ class SendLazychatWebhook implements ShouldQueue
         try {
             // For delete operations, use minimal payload
             if ($this->isDelete) {
-                $payload = ['product_id' => (string) $this->product->id];
+                $webhookPayload = ['product_id' => (string) $this->product->id];
+                $payload = ['payload' => $webhookPayload];
                 $result = $lazychatService->sendWebhook($this->webhookTopic, $payload);
             } else {
                 // Transform product to Lazychat format
-                $payload = $lazychatService->transformProductForLazychat($this->product);
+                $productData = $lazychatService->transformProductForLazychat($this->product);
+                $payload = ['payload' => $productData];
                 $result = $lazychatService->sendWebhook($this->webhookTopic, $payload);
             }
 
@@ -102,9 +104,6 @@ class SendLazychatWebhook implements ShouldQueue
                 'attempts' => $log->attempts + 1,
                 'job_id' => $this->job?->getJobId(),
             ]);
-
-            // Send webhook
-            $result = $lazychatService->sendWebhook($this->webhookTopic, $payload);
 
             // Check if skipped (integration disabled)
             if (!empty($result['skipped'])) {

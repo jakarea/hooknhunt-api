@@ -361,16 +361,16 @@ export default function EditProductPage() {
       const cost = defaultValues.purchaseCost
 
       // Purchase Cost → Wholesale Price
-      const wholesalePrice = cost * (1 + pricingSettings.wholesaleProfitPercentage / 100)
+      const wholesalePrice = Math.round(cost * (1 + pricingSettings.wholesaleProfitPercentage / 100))
 
       // Wholesale Price → Wholesale Offer Price
-      const wholesaleOfferPrice = wholesalePrice * (1 - pricingSettings.wholesaleOfferPercentage / 100)
+      const wholesaleOfferPrice = Math.round(wholesalePrice * (1 - pricingSettings.wholesaleOfferPercentage / 100))
 
       // Wholesale Offer → Retail Price
-      const retailPrice = wholesaleOfferPrice * (1 + pricingSettings.retailProfitPercentage / 100)
+      const retailPrice = Math.round(wholesaleOfferPrice * (1 + pricingSettings.retailProfitPercentage / 100))
 
       // Retail Price → Retail Offer Price
-      const retailOfferPrice = retailPrice * (1 - pricingSettings.retailOfferPercentage / 100)
+      const retailOfferPrice = Math.round(retailPrice * (1 - pricingSettings.retailOfferPercentage / 100))
 
       setDefaultValues(prev => ({
         ...prev,
@@ -2130,16 +2130,16 @@ export default function EditProductPage() {
           const cost = value
 
           // Purchase Cost → Wholesale Price
-          const wholesalePrice = cost * (1 + pricingSettings.wholesaleProfitPercentage / 100)
+          const wholesalePrice = Math.round(cost * (1 + pricingSettings.wholesaleProfitPercentage / 100))
 
           // Wholesale Price → Wholesale Offer Price
-          const wholesaleOfferPrice = wholesalePrice * (1 - pricingSettings.wholesaleOfferPercentage / 100)
+          const wholesaleOfferPrice = Math.round(wholesalePrice * (1 - pricingSettings.wholesaleOfferPercentage / 100))
 
           // Wholesale Offer → Retail Price
-          const retailPrice = wholesaleOfferPrice * (1 + pricingSettings.retailProfitPercentage / 100)
+          const retailPrice = Math.round(wholesaleOfferPrice * (1 + pricingSettings.retailProfitPercentage / 100))
 
           // Retail Price → Retail Offer Price
-          const retailOfferPrice = retailPrice * (1 - pricingSettings.retailOfferPercentage / 100)
+          const retailOfferPrice = Math.round(retailPrice * (1 - pricingSettings.retailOfferPercentage / 100))
 
           updated.price = retailPrice
           updated.wholesalePrice = wholesalePrice
@@ -3132,15 +3132,15 @@ export default function EditProductPage() {
                             <NumberInput
                               placeholder="0"
                               value={defaultValues.wholesalePrice}
-                              onChange={(value) => setDefaultValues(prev => ({ ...prev, wholesalePrice: typeof value === 'number' ? value : prev.wholesalePrice }))}
+                              onChange={(value) => setDefaultValues(prev => ({ ...prev, wholesalePrice: typeof value === 'number' ? Math.round(value) : prev.wholesalePrice }))}
                               onFocus={collapseSidebarIfNeeded}
                               min={0}
-                              step={0.01}
-                              decimalScale={2}
+                              step={1}
+                              decimalScale={0}
                               size="xs"
                             />
                             <Text size="xs" c={defaultValues.wholesalePrice - defaultValues.purchaseCost < 0 ? 'red' : 'green'}>
-                              {defaultValues.wholesalePrice - defaultValues.purchaseCost > 0 ? '+' : ''}{(defaultValues.wholesalePrice - defaultValues.purchaseCost).toFixed(2)} ({defaultValues.purchaseCost > 0 ? ((defaultValues.wholesalePrice - defaultValues.purchaseCost) / defaultValues.purchaseCost * 100).toFixed(0) : 0}%)
+                              {defaultValues.wholesalePrice - defaultValues.purchaseCost > 0 ? '+' : ''}{Math.round(defaultValues.wholesalePrice - defaultValues.purchaseCost)} ({defaultValues.purchaseCost > 0 ? ((defaultValues.wholesalePrice - defaultValues.purchaseCost) / defaultValues.purchaseCost * 100).toFixed(0) : 0}%)
                             </Text>
                           </Stack>
 
@@ -3150,17 +3150,17 @@ export default function EditProductPage() {
                             <NumberInput
                               placeholder="0"
                               value={defaultValues.wholesaleOfferPrice}
-                              onChange={(value) => setDefaultValues(prev => ({ ...prev, wholesaleOfferPrice: typeof value === 'number' ? value : prev.wholesaleOfferPrice }))}
+                              onChange={(value) => setDefaultValues(prev => ({ ...prev, wholesaleOfferPrice: typeof value === 'number' ? Math.round(value) : prev.wholesaleOfferPrice }))}
                               onBlur={() => setDefaultValues(prev => ({ ...prev, wholesaleOfferPrice: prev.wholesaleOfferPrice || undefined }))}
                               onFocus={collapseSidebarIfNeeded}
                               min={0}
-                              step={0.01}
-                              decimalScale={2}
+                              step={1}
+                              decimalScale={0}
                               size="xs"
                             />
                             {defaultValues.wholesaleOfferPrice !== undefined && defaultValues.wholesaleOfferPrice > 0 && (
                               <Text size="xs" c={(defaultValues.wholesaleOfferPrice - defaultValues.purchaseCost) < 0 ? 'red' : 'green'}>
-                                {(defaultValues.wholesaleOfferPrice - defaultValues.purchaseCost) > 0 ? '+' : ''}{(defaultValues.wholesaleOfferPrice - defaultValues.purchaseCost).toFixed(2)} ({defaultValues.purchaseCost > 0 ? ((defaultValues.wholesaleOfferPrice - defaultValues.purchaseCost) / defaultValues.purchaseCost * 100).toFixed(0) : 0}%)
+                                {(defaultValues.wholesaleOfferPrice - defaultValues.purchaseCost) > 0 ? '+' : ''}{Math.round(defaultValues.wholesaleOfferPrice - defaultValues.purchaseCost)} ({defaultValues.purchaseCost > 0 ? ((defaultValues.wholesaleOfferPrice - defaultValues.purchaseCost) / defaultValues.purchaseCost * 100).toFixed(0) : 0}%)
                               </Text>
                             )}
                           </Stack>
@@ -3171,15 +3171,15 @@ export default function EditProductPage() {
                             <NumberInput
                               placeholder="0"
                               value={defaultValues.price}
-                              onChange={(value) => setDefaultValues(prev => ({ ...prev, price: typeof value === 'number' ? value : prev.price }))}
+                              onChange={(value) => setDefaultValues(prev => ({ ...prev, price: typeof value === 'number' ? Math.round(value) : prev.price }))}
                               onFocus={collapseSidebarIfNeeded}
                               min={0}
-                              step={0.01}
-                              decimalScale={2}
+                              step={1}
+                              decimalScale={0}
                               size="xs"
                             />
                             <Text size="xs" c={defaultValues.price - defaultValues.purchaseCost < 0 ? 'red' : 'green'}>
-                              {defaultValues.price - defaultValues.purchaseCost > 0 ? '+' : ''}{(defaultValues.price - defaultValues.purchaseCost).toFixed(2)} ({defaultValues.purchaseCost > 0 ? ((defaultValues.price - defaultValues.purchaseCost) / defaultValues.purchaseCost * 100).toFixed(0) : 0}%)
+                              {defaultValues.price - defaultValues.purchaseCost > 0 ? '+' : ''}{Math.round(defaultValues.price - defaultValues.purchaseCost)} ({defaultValues.purchaseCost > 0 ? ((defaultValues.price - defaultValues.purchaseCost) / defaultValues.purchaseCost * 100).toFixed(0) : 0}%)
                             </Text>
                           </Stack>
 
@@ -3189,17 +3189,17 @@ export default function EditProductPage() {
                             <NumberInput
                               placeholder="0"
                               value={defaultValues.specialPrice}
-                              onChange={(value) => setDefaultValues(prev => ({ ...prev, specialPrice: typeof value === 'number' ? value : prev.specialPrice }))}
+                              onChange={(value) => setDefaultValues(prev => ({ ...prev, specialPrice: typeof value === 'number' ? Math.round(value) : prev.specialPrice }))}
                               onBlur={() => setDefaultValues(prev => ({ ...prev, specialPrice: prev.specialPrice || undefined }))}
                               onFocus={collapseSidebarIfNeeded}
                               min={0}
-                              step={0.01}
-                              decimalScale={2}
+                              step={1}
+                              decimalScale={0}
                               size="xs"
                             />
                             {defaultValues.specialPrice !== undefined && defaultValues.specialPrice > 0 && (
                               <Text size="xs" c={(defaultValues.specialPrice - defaultValues.purchaseCost) < 0 ? 'red' : 'green'}>
-                                {(defaultValues.specialPrice - defaultValues.purchaseCost) > 0 ? '+' : ''}{(defaultValues.specialPrice - defaultValues.purchaseCost).toFixed(2)} ({defaultValues.purchaseCost > 0 ? ((defaultValues.specialPrice - defaultValues.purchaseCost) / defaultValues.purchaseCost * 100).toFixed(0) : 0}%)
+                                {(defaultValues.specialPrice - defaultValues.purchaseCost) > 0 ? '+' : ''}{Math.round(defaultValues.specialPrice - defaultValues.purchaseCost)} ({defaultValues.purchaseCost > 0 ? ((defaultValues.specialPrice - defaultValues.purchaseCost) / defaultValues.purchaseCost * 100).toFixed(0) : 0}%)
                               </Text>
                             )}
                           </Stack>
@@ -3337,17 +3337,17 @@ export default function EditProductPage() {
                                   <NumberInput
                                     placeholder="0"
                                     value={variant.wholesalePrice}
-                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'wholesalePrice', value)}
+                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'wholesalePrice', Math.round(value))}
                                     onFocus={collapseSidebarIfNeeded}
                                     min={0}
-                                    step={0.01}
-                                    decimalScale={2}
+                                    step={1}
+                                    decimalScale={0}
                                     size="sm"
                                     error={errors[`variant.${index}.wholesalePrice`]}
                                   />
                                   {variant.wholesalePrice > 0 && (
                                     <Text size="xs" c={(variant.wholesalePrice - variant.purchaseCost) < 0 ? 'red' : 'green'}>
-                                      {(variant.wholesalePrice - variant.purchaseCost) > 0 ? '+' : ''}{(variant.wholesalePrice - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.wholesalePrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
+                                      {(variant.wholesalePrice - variant.purchaseCost) > 0 ? '+' : ''}{Math.round(variant.wholesalePrice - variant.purchaseCost)} ({variant.purchaseCost > 0 ? ((variant.wholesalePrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
                                     </Text>
                                   )}
                                 </Stack>
@@ -3357,18 +3357,18 @@ export default function EditProductPage() {
                                   <NumberInput
                                     placeholder="0"
                                     value={variant.wholesaleOfferPrice}
-                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'wholesaleOfferPrice', value)}
+                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'wholesaleOfferPrice', Math.round(value))}
                                     onBlur={(e) => { const v = variant.wholesaleOfferPrice; if (!v) handleUpdateVariant(variant.id, 'wholesaleOfferPrice', undefined) }}
                                     onFocus={collapseSidebarIfNeeded}
                                     min={0}
-                                    step={0.01}
-                                    decimalScale={2}
+                                    step={1}
+                                    decimalScale={0}
                                     size="sm"
                                     error={errors[`variant.${index}.wholesaleOfferPrice`]}
                                   />
                                   {variant.wholesaleOfferPrice > 0 && (
                                     <Text size="xs" c={(variant.wholesaleOfferPrice - variant.purchaseCost) < 0 ? 'red' : 'green'}>
-                                      {(variant.wholesaleOfferPrice - variant.purchaseCost) > 0 ? '+' : ''}{(variant.wholesaleOfferPrice - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.wholesaleOfferPrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
+                                      {(variant.wholesaleOfferPrice - variant.purchaseCost) > 0 ? '+' : ''}{Math.round(variant.wholesaleOfferPrice - variant.purchaseCost)} ({variant.purchaseCost > 0 ? ((variant.wholesaleOfferPrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
                                     </Text>
                                   )}
                                 </Stack>
@@ -3378,17 +3378,17 @@ export default function EditProductPage() {
                                   <NumberInput
                                     placeholder="0"
                                     value={variant.price}
-                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'price', value)}
+                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'price', Math.round(value))}
                                     onFocus={collapseSidebarIfNeeded}
                                     min={0}
-                                    step={0.01}
-                                    decimalScale={2}
+                                    step={1}
+                                    decimalScale={0}
                                     size="sm"
                                     error={errors[`variant.${index}.price`]}
                                   />
                                   {variant.price > 0 && (
                                     <Text size="xs" c={(variant.price - variant.purchaseCost) < 0 ? 'red' : 'green'}>
-                                      {(variant.price - variant.purchaseCost) > 0 ? '+' : ''}{(variant.price - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.price - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
+                                      {(variant.price - variant.purchaseCost) > 0 ? '+' : ''}{Math.round(variant.price - variant.purchaseCost)} ({variant.purchaseCost > 0 ? ((variant.price - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
                                     </Text>
                                   )}
                                 </Stack>
@@ -3398,18 +3398,18 @@ export default function EditProductPage() {
                                   <NumberInput
                                     placeholder="0"
                                     value={variant.specialPrice}
-                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'specialPrice', value)}
+                                    onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'specialPrice', Math.round(value))}
                                     onBlur={(e) => { const v = variant.specialPrice; if (!v) handleUpdateVariant(variant.id, 'specialPrice', undefined) }}
                                     onFocus={collapseSidebarIfNeeded}
                                     min={0}
-                                    step={0.01}
-                                    decimalScale={2}
+                                    step={1}
+                                    decimalScale={0}
                                     size="sm"
                                     error={errors[`variant.${index}.specialPrice`]}
                                   />
                                   {variant.specialPrice > 0 && (
                                     <Text size="xs" c={(variant.specialPrice - variant.purchaseCost) < 0 ? 'red' : 'green'}>
-                                      {(variant.specialPrice - variant.purchaseCost) > 0 ? '+' : ''}{(variant.specialPrice - variant.purchaseCost).toFixed(2)} ({variant.purchaseCost > 0 ? ((variant.specialPrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
+                                      {(variant.specialPrice - variant.purchaseCost) > 0 ? '+' : ''}{Math.round(variant.specialPrice - variant.purchaseCost)} ({variant.purchaseCost > 0 ? ((variant.specialPrice - variant.purchaseCost) / variant.purchaseCost * 100).toFixed(0) : 0}%)
                                     </Text>
                                   )}
                                 </Stack>

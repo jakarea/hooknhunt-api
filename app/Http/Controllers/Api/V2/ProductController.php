@@ -145,6 +145,11 @@ class ProductController extends Controller
                     $product->thumbnail_url = null;
                 }
             }
+            // Add currentStock to each variant for frontend compatibility
+            $product->variants->transform(function ($variant) {
+                $variant->currentStock = (int)($variant->stock ?? 0);
+                return $variant;
+            });
             // Add basic stock total
             $product->total_stock = $product->variants->sum('stock') ?? 0;
             // Add variant count
@@ -528,6 +533,7 @@ class ProductController extends Controller
                 'channel',
                 'variant_name',
                 'sku',
+                'purchase_cost',
                 'stock',
                 'price',
                 'offer_price',
@@ -549,6 +555,7 @@ class ProductController extends Controller
                 'wholesaleId' => $wholesale?->id,
                 'variantName' => $base->variant_name,
                 'sku' => $base->sku,
+                'purchaseCost' => (int)($base->purchase_cost ?? 0),
                 'stock' => (int)($base->stock ?? 0),
                 'currentStock' => (int)($base->stock ?? 0),
                 'retailPrice' => (float)($retail?->price ?? 0),
@@ -963,7 +970,7 @@ class ProductController extends Controller
                     // Common fields
                     $commonFields = [
                         'variant_name' => $variantData['name'],
-                        'purchase_cost' => ($variantData['purchaseCost'] ?? 0) * 100, // Convert to paisa/cents
+                        'purchase_cost' => $variantData['purchaseCost'] ?? 0,
                         'weight' => $variantData['weight'] ?? 0,
                         'stock' => $variantData['stock'] ?? 0,
                         'allow_preorder' => $validated['enablePreorder'] ?? false,
@@ -1498,7 +1505,7 @@ class ProductController extends Controller
                     'pattern'               => $base->pattern,
                     'unitId'                => $base->unit_id,
                     'unitValue'             => $base->unit_value,
-                    'purchaseCost'          => $base->purchase_cost ? (float) $base->purchase_cost : 0,
+                    'purchaseCost'          => $base->purchase_cost ? (int) $base->purchase_cost : 0,
                     'stock'                 => $stockValue,
                     'currentStock'          => $stockValue, // Use stock directly - no accessor overhead
                     'stockAlertLevel'       => (int)($base->stock_alert_level ?? 5),

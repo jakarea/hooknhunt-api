@@ -74,21 +74,7 @@ export function LoginQuotes() {
           />
         </Stack>
       </Paper>
-
-      {/* Motivational Message */}
-      <Text
-        size="lg"
-        fw={500}
-        c="white"
-        ta="center"
-        style={{
-          opacity: 0.95,
-          maxWidth: 500,
-          lineHeight: 1.6,
-        }}
-      >
-        {t('common.motivationalMessage')}
-      </Text>
+  
     </Stack>
   )
 }

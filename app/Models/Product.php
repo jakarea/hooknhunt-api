@@ -208,8 +208,8 @@ class Product extends Model
 
     public function getSeoTagsAttribute()
     {
-        // Use getAttribute to ensure casting is applied, but add fallback
-        $value = $this->getAttribute('seo_tags');
+        // Access raw attribute directly to avoid infinite recursion
+        $value = $this->attributes['seo_tags'] ?? null;
 
         // If it's already an array (from cast), return it
         if (is_array($value)) {
@@ -259,13 +259,13 @@ class Product extends Model
     // Array-type accessors - always return arrays, never null
     public function getHighlightsAttribute()
     {
-        $value = $this->getAttribute('highlights');
+        $value = $this->attributes['highlights'] ?? null;
         return is_array($value) ? $value : [];
     }
 
     public function getHighlightsBnAttribute()
     {
-        $value = $this->getAttribute('highlights_bn');
+        $value = $this->attributes['highlights_bn'] ?? null;
         return is_array($value) ? $value : [];
     }
 
@@ -274,19 +274,19 @@ class Product extends Model
 
     public function getAttributesBnAttribute()
     {
-        $value = $this->getAttribute('attributes_bn');
+        $value = $this->attributes['attributes_bn'] ?? null;
         return is_array($value) ? $value : [];
     }
 
     public function getIncludesInBoxAttribute()
     {
-        $value = $this->getAttribute('includes_in_box');
+        $value = $this->attributes['includes_in_box'] ?? null;
         return is_array($value) ? $value : [];
     }
 
     public function getIncludesInBoxBnAttribute()
     {
-        $value = $this->getAttribute('includes_in_box_bn');
+        $value = $this->attributes['includes_in_box_bn'] ?? null;
         return is_array($value) ? $value : [];
     }
 

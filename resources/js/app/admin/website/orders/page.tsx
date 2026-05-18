@@ -67,13 +67,14 @@ export default function WebsiteOrdersPage() {
     await fetchOrders(filters)
   }, [debouncedSearch, status, paymentStatus, channel, fromDate, toDate, page, perPage, fetchOrders])
 
+  // Fetch stats on mount
+  useEffect(() => {
+    fetchStats()
+  }, [])
+
   useEffect(() => {
     fetchOrdersData()
   }, [fetchOrdersData])
-
-  useEffect(() => {
-    fetchStats()
-  }, [fetchStats])
 
   // Handlers
   const handleBulkStatusChange = () => {
@@ -242,9 +243,16 @@ export default function WebsiteOrdersPage() {
               <Text c="dimmed" size="sm">Manage storefront orders</Text>
             </div>
           </Group>
-          <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => { fetchOrdersData(); fetchStats() }}>
-            Refresh
-          </Button>
+          <Group gap="sm">
+            {stats?.timestamp && (
+              <Text size="xs" c="dimmed">
+                Updated: {new Date(stats.timestamp).toLocaleTimeString()}
+              </Text>
+            )}
+            <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => { fetchOrdersData(); fetchStats() }}>
+              Refresh
+            </Button>
+          </Group>
         </Group>
 
         {/* Stats Cards */}
@@ -264,11 +272,11 @@ export default function WebsiteOrdersPage() {
             </Card>
             <Card withBorder p="sm">
               <Text size="xs" c="dimmed">In Transit</Text>
-              <Text fw={700} size="lg" c="cyan">{stats.in_transit}</Text>
+              <Text fw={700} size="lg" c="cyan">{stats.inTransit}</Text>
             </Card>
             <Card withBorder p="sm">
               <Text size="xs" c="dimmed">Revenue</Text>
-              <Text fw={700} size="lg" c="green">{formatCurrency(stats.total_revenue)}</Text>
+              <Text fw={700} size="lg" c="green">{formatCurrency(stats.totalRevenue)}</Text>
             </Card>
           </SimpleGrid>
         )}
@@ -281,14 +289,14 @@ export default function WebsiteOrdersPage() {
               <Tabs.Tab value="pending">Pending ({stats?.pending || 0})</Tabs.Tab>
               <Tabs.Tab value="processing">Processing ({stats?.processing || 0})</Tabs.Tab>
               <Tabs.Tab value="approved">Approved ({stats?.approved || 0})</Tabs.Tab>
-              <Tabs.Tab value="sent_to_steadfast">Sent to SteadFast ({stats?.sent_to_steadfast || 0})</Tabs.Tab>
-              <Tabs.Tab value="in_review">In Review ({stats?.in_review || 0})</Tabs.Tab>
-              <Tabs.Tab value="in_transit">In Transit ({stats?.in_transit || 0})</Tabs.Tab>
+              <Tabs.Tab value="sent_to_steadfast">Sent to SteadFast ({stats?.sentToSteadfast || 0})</Tabs.Tab>
+              <Tabs.Tab value="in_review">In Review ({stats?.inReview || 0})</Tabs.Tab>
+              <Tabs.Tab value="in_transit">In Transit ({stats?.inTransit || 0})</Tabs.Tab>
               <Tabs.Tab value="delivered">Delivered ({stats?.delivered || 0})</Tabs.Tab>
-              <Tabs.Tab value="partial_delivered">Partial Delivered ({stats?.partial_delivered || 0})</Tabs.Tab>
-              <Tabs.Tab value="delivery_failed_return">Delivery Failed & Return ({stats?.delivery_failed_return || 0})</Tabs.Tab>
-              <Tabs.Tab value="return_received">Return Received ({stats?.return_received || 0})</Tabs.Tab>
-              <Tabs.Tab value="refunded_completed">Refunded & Completed ({stats?.refunded_completed || 0})</Tabs.Tab>
+              <Tabs.Tab value="partial_delivered">Partial Delivered ({stats?.partialDelivered || 0})</Tabs.Tab>
+              <Tabs.Tab value="delivery_failed_return">Delivery Failed & Return ({stats?.deliveryFailedReturn || 0})</Tabs.Tab>
+              <Tabs.Tab value="return_received">Return Received ({stats?.returnReceived || 0})</Tabs.Tab>
+              <Tabs.Tab value="refunded_completed">Refunded & Completed ({stats?.refundedCompleted || 0})</Tabs.Tab>
               <Tabs.Tab value="completed">Completed ({stats?.completed || 0})</Tabs.Tab>
               <Tabs.Tab value="cancelled">Cancelled ({stats?.cancelled || 0})</Tabs.Tab>
             </Tabs.List>

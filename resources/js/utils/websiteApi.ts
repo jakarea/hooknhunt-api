@@ -158,26 +158,27 @@ export type WebsiteOrderFilters = {
 }
 
 export type WebsiteOrderStats = {
+  timestamp?: string
   total: number
   pending: number
   processing: number
-  on_hold: number
+  onHold: number
   approved: number
-  sent_to_steadfast: number
-  in_review: number
-  in_transit: number
+  sentToSteadfast: number
+  inReview: number
+  inTransit: number
   delivered: number
-  partial_delivered: number
-  delivery_failed_return: number
-  return_received: number
-  refunded_completed: number
+  partialDelivered: number
+  deliveryFailedReturn: number
+  returnReceived: number
+  refundedCompleted: number
   completed: number
   cancelled: number
   returned: number
-  total_revenue: number
-  total_pending_amount: number
-  today_orders: number
-  today_revenue: number
+  totalRevenue: number
+  totalPendingAmount: number
+  todayOrders: number
+  todayRevenue: number
 }
 
 // ============================================

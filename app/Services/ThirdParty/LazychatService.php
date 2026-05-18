@@ -3,7 +3,6 @@
 namespace App\Services\ThirdParty;
 
 use App\Models\Product;
-use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -22,8 +21,6 @@ class LazychatService
 {
     private bool $enabled;
     private int $timeout;
-    private int $maxRetries;
-    private int $retryDelay;
 
     /**
      * Create a new service instance.
@@ -33,8 +30,6 @@ class LazychatService
     {
         $this->enabled = Config::get('lazychat.enabled', true);
         $this->timeout = Config::get('lazychat.retry.timeout_seconds', 10);
-        $this->maxRetries = Config::get('lazychat.retry.max_attempts', 3);
-        $this->retryDelay = Config::get('lazychat.retry.delay_seconds', 30);
     }
 
     /**
@@ -125,7 +120,7 @@ class LazychatService
             ];
         }
 
-        // Build SEO tags (use empty array if null)
+        // Build SEO tags as array (use empty array if null)
         $tags = $product->seo_tags ?? [];
 
         // Map attributes from variant data
@@ -137,32 +132,30 @@ class LazychatService
             'slug' => $product->slug,
             'url' => $productUrl,
             'description' => $product->description ?? '',
-            'summary' => $product->short_description ?? '',
+            'summary' => '',
             'published' => $product->status === 'published',
             'is_draft' => $product->status === 'draft',
             'featured' => false,
-            'purchasable' => $product->status === 'published',
+            'purchasable' => $product->status === 'published' && $retailVariants->sum('stock') > 0,
             'sku' => $firstVariant ? $firstVariant->sku : '',
             'brand' => $product->brand?->name ?? '',
             'weight' => (string) ($firstVariant?->weight ?? 0),
-            'tags' => $tags,
+            'tags' => is_array($tags) ? $tags : [],
             'note' => null,
             'categories' => $categories,
             'images' => $images,
-            'attributes' => $attributes,
+            'attributes' => $attributes ?? [],
             'pricing' => [
                 'regular_price' => $firstVariant ? number_format($firstVariant->price, 2, '.', '') : '0.00',
                 'sale_prices' => $this->getSalePrices($retailVariants),
             ],
             'inventory' => [
                 'stock_status' => $retailVariants->sum('stock') > 0,
-                'stocks' => $this->getStockData($retailVariants),
+                'stocks' => [],
             ],
             'variations' => $this->transformVariants($retailVariants),
             'created_at' => $product->created_at?->toIso8601String(),
             'updated_at' => $product->updated_at?->toIso8601String(),
-            // Include deleted_at for soft deletes (null if not deleted)
-            'deleted_at' => $product->deleted_at?->toIso8601String(),
         ];
     }
 
@@ -213,7 +206,7 @@ class LazychatService
 
     /**
      * Get sale prices from variants.
-     * Returns array of prices that have active offers.
+     * Returns array of objects with sale_price, on_sale_from, on_sale_to.
      *
      * @param \Illuminate\Database\Eloquent\Collection $variants
      * @return array
@@ -224,7 +217,11 @@ class LazychatService
 
         foreach ($variants as $variant) {
             if ($variant->offer_price > 0 && $variant->offer_price < $variant->price) {
-                $salePrices[] = number_format($variant->offer_price, 2, '.', '');
+                $salePrices[] = [
+                    'sale_price' => number_format($variant->offer_price, 2, '.', ''),
+                    'on_sale_from' => null,
+                    'on_sale_to' => null,
+                ];
             }
         }
 
@@ -232,31 +229,8 @@ class LazychatService
     }
 
     /**
-     * Get stock data for inventory.
-     * Returns array of stock entries with quantity and date.
-     *
-     * @param \Illuminate\Database\Eloquent\Collection $variants
-     * @return array
-     */
-    private function getStockData($variants): array
-    {
-        $stocks = [];
-        $totalStock = $variants->sum('stock');
-
-        if ($totalStock > 0) {
-            $stocks[] = [
-                'quantity' => $totalStock,
-                'date' => now()->toDateString(),
-                'note' => 'Current stock',
-            ];
-        }
-
-        return $stocks;
-    }
-
-    /**
      * Transform variants to Lazychat format.
-     * Only includes retail-safe fields.
+     * Matches exact specification from Notion documentation.
      *
      * @param \Illuminate\Database\Eloquent\Collection $variants
      * @return array
@@ -266,66 +240,75 @@ class LazychatService
         $transformed = [];
 
         foreach ($variants as $variant) {
-            $variantData = [
-                'id' => $variant->id,
-                'title' => $variant->variant_name,
-                'sku' => $variant->sku,
-                'published' => $variant->is_active,
-                'weight' => (string) $variant->weight,
-                'pricing' => [
-                    'regular_price' => number_format($variant->price, 2, '.', ''),
-                    'sale_prices' => [],
-                ],
-                'inventory' => [
-                    'stock_status' => $variant->stock > 0,
-                    'stocks' => [],
-                ],
-                'images' => [],
-                'attributes' => [],
-                'created_at' => $variant->created_at?->toIso8601String(),
-                'updated_at' => $variant->updated_at?->toIso8601String(),
-            ];
-
-            // Add sale price if exists
-            if ($variant->offer_price > 0 && $variant->offer_price < $variant->price) {
-                $variantData['pricing']['sale_prices'][] = number_format($variant->offer_price, 2, '.', '');
-            }
-
-            // Add stock data
-            if ($variant->stock > 0) {
-                $variantData['inventory']['stocks'][] = [
-                    'quantity' => $variant->stock,
-                    'date' => now()->toDateString(),
-                    'note' => '',
-                ];
-            }
-
-            // Add variant image if exists
+            // Build images array
+            $variantImages = [];
             if ($variant->thumbnail) {
-                $variantData['images'][] = ['url' => $variant->thumbnail];
+                $variantImages[] = ['url' => $variant->thumbnail];
             }
 
-            // Add attributes
+            // Build attributes array
+            $variantAttributes = [];
             $attributeId = 1;
             if ($variant->size) {
-                $variantData['attributes'][] = [
+                $variantAttributes[] = [
                     'id' => $attributeId++,
                     'name' => 'Size',
                     'value' => $variant->size,
                 ];
             }
             if ($variant->color) {
-                $variantData['attributes'][] = [
+                $variantAttributes[] = [
                     'id' => $attributeId++,
                     'name' => 'Color',
                     'value' => $variant->color,
                 ];
             }
             if ($variant->material) {
-                $variantData['attributes'][] = [
+                $variantAttributes[] = [
                     'id' => $attributeId++,
                     'name' => 'Material',
                     'value' => $variant->material,
+                ];
+            }
+
+            // Build stock data
+            $stocks = [];
+            if ($variant->stock > 0) {
+                $stocks[] = [
+                    'quantity' => $variant->stock,
+                    'date' => now()->toDateString(),
+                    'note' => '',
+                ];
+            }
+
+            $variantData = [
+                'id' => $variant->id,
+                'title' => $variant->variant_name,
+                'sku' => $variant->sku ?? null,
+                'published' => $variant->is_active,
+                'weight' => $variant->weight != null ? (string) $variant->weight : null,
+                'pricing' => [
+                    'regular_price' => number_format($variant->price, 2, '.', ''),
+                    'sale_prices' => [],
+                ],
+                'inventory' => [
+                    'stock_status' => $variant->stock > 0,
+                    'stocks' => $stocks,
+                ],
+                'images' => $variantImages,
+                'attributes' => $variantAttributes,
+                'created_at' => $variant->created_at?->toIso8601String(),
+                'updated_at' => $variant->updated_at?->toIso8601String(),
+            ];
+
+            // Add sale price if exists
+            if ($variant->offer_price > 0 && $variant->offer_price < $variant->price) {
+                $variantData['pricing']['sale_prices'] = [
+                    [
+                        'sale_price' => number_format($variant->offer_price, 2, '.', ''),
+                        'on_sale_from' => null,
+                        'on_sale_to' => null,
+                    ]
                 ];
             }
 

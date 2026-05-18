@@ -211,7 +211,8 @@
       "status": "স্ট্যাটাস",
       "publish": "প্রকাশ",
       "actions": "পদক্ষেপ",
-      "noProducts": "কোনো পণ্য পাওয়া যায়নি"
+      "noProducts": "কোনো পণ্য পাওয়া যায়নি",
+      "productCode": "পণ্য কোড"
     },
     "status": {
       "draft": "খসড়া",

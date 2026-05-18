@@ -333,6 +333,7 @@ class OrderController extends Controller
         $baseQuery = WebsiteOrder::query();
 
         $stats = [
+            'timestamp' => now()->toIso8601String(),
             'total' => (clone $baseQuery)->count(),
             'pending' => (clone $baseQuery)->byStatus('pending')->count(),
             'processing' => (clone $baseQuery)->byStatus('processing')->count(),
@@ -355,7 +356,11 @@ class OrderController extends Controller
             'today_revenue' => (float) (clone $baseQuery)->whereDate('created_at', today())->byStatus('completed')->sum('total_amount'),
         ];
 
-        return response()->json(['success' => true, 'data' => $stats]);
+        return response()
+            ->json(['success' => true, 'data' => $stats])
+            ->header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0');
     }
 
     // -------------------------------------------------------

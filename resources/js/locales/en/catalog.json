@@ -211,7 +211,8 @@
       "status": "Status",
       "publish": "Publish",
       "actions": "Actions",
-      "noProducts": "No products found"
+      "noProducts": "No products found",
+      "productCode": "Product Code"
     },
     "status": {
       "draft": "Draft",
