@@ -1,0 +1,30 @@
+{
+    "name": "nwidart/cms",
+    "description": "",
+    "authors": [
+        {
+            "name": "Nicolas Widart",
+            "email": "n.widart@gmail.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\Modules\\CMS\\": "app/",
+            "App\\Modules\\CMS\\Database\\Factories\\": "database/factories/",
+            "App\\Modules\\CMS\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "App\\Modules\\CMS\\Tests\\": "tests/"
+        }
+    }
+}

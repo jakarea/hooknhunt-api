@@ -416,7 +416,7 @@ export default function CreateProductPage() {
         setCategoriesLoading(true)
         try {
           const categoriesResponse = await getCategories({ per_page: 100 })
-          const categoriesData = categoriesResponse?.data?.data || []
+          const categoriesData = categoriesResponse?.data?.categories || []
           setCategories(Array.isArray(categoriesData) ? categoriesData : [])
         } catch (catError) {
           console.error('❌ Failed to fetch categories:', catError)
@@ -427,7 +427,7 @@ export default function CreateProductPage() {
         setBrandsLoading(true)
         try {
           const brandsResponse = await getBrands({ per_page: 100 })
-          const brandsData = brandsResponse?.data?.data || []
+          const brandsData = brandsResponse?.data?.brands || []
           setBrands(Array.isArray(brandsData) ? brandsData : [])
         } catch (brandError) {
           console.error('❌ Failed to fetch brands:', brandError)
@@ -2057,8 +2057,8 @@ export default function CreateProductPage() {
         highlightsBn: highlightsBn.filter(h => h.trim()).length > 0 ? highlightsBn : undefined,
         attributes: attributesList.filter(a => a.trim()).length > 0 ? attributesList : null,
         attributesBn: attributesBn.filter(a => a.trim()).length > 0 ? attributesBn : undefined,
-        includesInTheBox: includesInTheBox.trim() || null,
-        includesInTheBoxBn: includesInTheBoxBn.trim() || undefined,
+        includesInTheBox: includesInTheBox.trim() ? includesInTheBox.trim().split('\n').map(item => item.trim()).filter(item => item.length > 0) : null,
+        includesInTheBoxBn: includesInTheBoxBn.trim() ? includesInTheBoxBn.trim().split('\n').map(item => item.trim()).filter(item => item.length > 0) : null,
         seoTitle,
         seoDescription,
         seoTags: seoTags.length > 0 ? seoTags.join(', ') : null,

@@ -1,0 +1,30 @@
+{
+    "name": "nwidart/hrm",
+    "description": "",
+    "authors": [
+        {
+            "name": "Nicolas Widart",
+            "email": "n.widart@gmail.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\Modules\\HRM\\": "app/",
+            "App\\Modules\\HRM\\Database\\Factories\\": "database/factories/",
+            "App\\Modules\\HRM\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "App\\Modules\\HRM\\Tests\\": "tests/"
+        }
+    }
+}

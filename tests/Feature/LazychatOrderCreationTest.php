@@ -2,11 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Models\Customer;
-use App\Models\Product;
-use App\Models\ProductVariant;
-use App\Models\SalesOrder;
-use App\Models\SalesOrderItem;
+use App\Modules\CRM\Models\Customer;
+use App\Modules\Catalog\Models\Product;
+use App\Modules\Catalog\Models\ProductVariant;
+use App\Modules\Website\Models\SalesOrder;
+use App\Modules\Website\Models\SalesOrderItem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use App\Events\Order\OrderCreated;

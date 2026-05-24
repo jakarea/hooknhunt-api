@@ -1,0 +1,30 @@
+{
+    "name": "nwidart/system",
+    "description": "System Module - Authentication, Authorization, Settings",
+    "authors": [
+        {
+            "name": "Nicolas Widart",
+            "email": "n.widart@gmail.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\Modules\\System\\": "app/",
+            "App\\Modules\\System\\Database\\Factories\\": "database/factories/",
+            "App\\Modules\\System\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "App\\Modules\\System\\Tests\\": "tests/"
+        }
+    }
+}

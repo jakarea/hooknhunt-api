@@ -28,7 +28,7 @@ import { notifications } from '@mantine/notifications'
 import { usePermissions } from '@/hooks/usePermissions'
 import { getSuppliers, updateSupplier } from '@/utils/api'
 import { validateSupplierForm, showValidationErrors, handleApiValidationErrors, transformToApiFormat, type SupplierFormData } from '@/utils/supplierValidation'
-import { useSuppliersStore } from '@/stores/suppliersStore'
+import { useSuppliersStore } from '@/modules/procurement/stores/suppliersStore'
 import type { Supplier } from '@/types/supplier'
 
 // ============================================================================

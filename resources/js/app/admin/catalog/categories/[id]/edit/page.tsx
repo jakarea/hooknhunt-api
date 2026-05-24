@@ -6,7 +6,7 @@ import {
 } from '@mantine/core'
 import { IconChevronRight, IconArrowLeft, IconPhoto } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
-import { useCategoriesStore } from '@/stores/categoriesStore'
+import { useCategoriesStore } from '@/modules/catalog/stores/categoriesStore'
 import { useMediaSelector } from '@/hooks/useMediaSelector'
 import { getCategory } from '@/utils/api'
 

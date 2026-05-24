@@ -7,7 +7,7 @@ import {
 import { IconChevronRight, IconArrowLeft, IconEdit, IconTrash, IconPhoto, IconLink } from '@tabler/icons-react'
 import { modals } from '@mantine/modals'
 import { notifications } from '@mantine/notifications'
-import { useCategoriesStore } from '@/stores/categoriesStore'
+import { useCategoriesStore } from '@/modules/catalog/stores/categoriesStore'
 import { getCategory, deleteCategory } from '@/utils/api'
 import type { Category } from '@/utils/api'
 

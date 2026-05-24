@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type {
   PurchaseOrderStatusPayload,
   PurchaseOrderStatus
-} from '@/stores/procurementStore'
+} from '@/modules/procurement/stores/procurementStore'
 
 // Translation key mappings for validation errors
 export const getFieldTranslationKeys = {

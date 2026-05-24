@@ -57,12 +57,13 @@ import {
   IconDiscount,
   IconTrendingUp,
   IconHeart,
+  IconEyeOff,
   IconExternalLink,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
-import { getProduct, updateProduct, getProducts } from '@/utils/api'
-import { useCrossSaleStore } from '@/stores/crossSaleStore'
-import { useUpSaleStore } from '@/stores/upSaleStore'
+import { getProduct, updateProduct, getProducts, deleteProduct } from '@/utils/api'
+import { useCrossSaleStore } from '@/modules/catalog/stores/crossSaleStore'
+import { useUpSaleStore } from '@/modules/catalog/stores/upSaleStore'
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -91,6 +92,7 @@ const decodeHTMLEntities = (text: string): string => {
 interface MediaFile {
   id: number
   fullUrl: string
+  url: string
   fileName: string
   mimeType: string
   size: number
@@ -123,6 +125,7 @@ interface ProductVariant {
   sku: string
   customSku?: string | null
   thumbnail?: string | null
+  thumbnailUrl?: string | null
   color?: string | null
   size?: string | null
   material?: string | null
@@ -171,13 +174,14 @@ interface ProductDetail {
   highlightsBn?: string[] | null
   attributes?: string[] | null
   attributesBn?: string[] | null
-  includesInTheBox?: string[] | string | null
-  includesInTheBoxBn?: string | null
+  includesInBox?: string[] | string | null
+  includesInBoxBn?: string[] | null
   videoUrl?: string | null
   seoTitle?: string | null
   seoDescription?: string | null
   seoTags?: string[] | null
   thumbnail?: MediaFile | null
+  thumbnailUrl?: string | null
   category?: Category | null
   brand?: Brand | null
   variants?: ProductVariant[] | null
@@ -186,6 +190,7 @@ interface ProductDetail {
   crossSaleProducts?: Array<{ id: number; name: string; slug: string; thumbnailUrl?: string | null }>
   upSaleProducts?: Array<{ id: number; name: string; slug: string; thumbnailUrl?: string | null }>
   thankYou?: boolean
+  hideFromWebsite?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -201,6 +206,10 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<ProductDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+
+  // Get the slug or id from URL params
+  const slugOrId = id || ''
 
   // Cross-sale store
   const {
@@ -263,12 +272,13 @@ export default function ProductDetailPage() {
 
   // PERFORMANCE: Memoized callback for fetchProduct
   const fetchProduct = useCallback(async () => {
-    if (!id) return
+    if (!slugOrId) return
 
     try {
       setLoading(true)
       setError(null)
-      const response = await getProduct(Number(id))
+      // Use slug for API call - backend accepts both ID and slug
+      const response = await getProduct(slugOrId)
 
       // Handle different response structures
       // getProduct returns { status: true, message: "...", data: {...product...} }
@@ -299,7 +309,35 @@ export default function ProductDetailPage() {
     } finally {
       setLoading(false)
     }
-  }, [id, t])
+  }, [slugOrId, t])
+
+  // Delete product - open confirmation modal
+  const handleDeleteProduct = useCallback(() => {
+    setDeleteModalOpen(true)
+  }, [])
+
+  // Confirm and execute delete
+  const confirmDeleteProduct = useCallback(async () => {
+    if (!product) return
+
+    try {
+      await deleteProduct(product.id)
+      notifications.show({
+        title: t('common.success') || 'Success',
+        message: 'Product deleted successfully',
+        color: 'green',
+      })
+      setDeleteModalOpen(false)
+      navigate('/catalog/products')
+    } catch (error: any) {
+      console.error('Failed to delete product:', error)
+      notifications.show({
+        title: t('common.error') || 'Error',
+        message: error.response?.data?.message || 'Failed to delete product',
+        color: 'red',
+      })
+    }
+  }, [product, navigate, t])
 
   // useEffect for data fetching
   useEffect(() => {
@@ -316,6 +354,20 @@ export default function ProductDetailPage() {
       notifications.show({ title: 'Updated', message: checked ? 'Marked as thank-you product' : 'Removed thank-you flag', color: 'green' })
     } catch {
       setProduct({ ...product, thankYou: previous })
+      notifications.show({ title: 'Error', message: 'Failed to update', color: 'red' })
+    }
+  }, [product])
+
+  // Toggle hide from website status
+  const handleToggleHideFromWebsite = useCallback(async (checked: boolean) => {
+    if (!product) return
+    const previous = product.hideFromWebsite
+    setProduct({ ...product, hideFromWebsite: checked })
+    try {
+      await updateProduct(product.id, { hideFromWebsite: checked })
+      notifications.show({ title: 'Updated', message: checked ? 'Hidden from website' : 'Visible on website', color: 'green' })
+    } catch {
+      setProduct({ ...product, hideFromWebsite: previous })
       notifications.show({ title: 'Error', message: 'Failed to update', color: 'red' })
     }
   }, [product])
@@ -398,8 +450,8 @@ export default function ProductDetailPage() {
   const getStockBadge = useCallback((stock: number, alertLevel: number) => {
     if (stock === 0) {
       return (
-        <Badge color="red" leftSection={<IconX size={12} />}>
-          {t('catalog.productsDetail.variants.outOfStock')}
+        <Badge color="red">
+          0
         </Badge>
       )
     }
@@ -450,7 +502,7 @@ export default function ProductDetailPage() {
       { title: t('catalog.productsDetail.breadcrumbs.dashboard'), href: '/dashboard' },
       { title: t('catalog.productsDetail.breadcrumbs.catalog'), href: '/catalog' },
       { title: t('catalog.productsDetail.breadcrumbs.products'), href: '/catalog/products' },
-      { title: decodeHTMLEntities(product.name), href: `/catalog/products/${product.id}` },
+      { title: decodeHTMLEntities(product.name), href: `/catalog/products/${product.slug}` },
     ].map((item, index) => (
       <Anchor href={item.href} key={index} className="text-sm md:text-base">
         {item.title}
@@ -463,12 +515,17 @@ export default function ProductDetailPage() {
     if (!product?.variants || product.variants.length === 0) return null
 
     return product.variants.map((variant) => (
-      <Table.Tr key={variant.id}>
+      <Table.Tr
+        key={variant.id}
+        style={{
+          backgroundColor: ((variant.currentStock ?? variant.stock ?? 0) === 0) ? 'rgba(253, 186, 116, 0.12)' : undefined
+        }}
+      >
         <Table.Td>
-          {variant.thumbnail ? (
-            <Image src={variant.thumbnail} width={30} height={30} fit="cover" radius="md" style={{ width: 30, height: 30, minWidth: 30, minHeight: 30 }} />
+          {variant.thumbnail || variant.thumbnailUrl ? (
+            <Image src={variant.thumbnail || variant.thumbnailUrl} width={30} height={30} fit="cover" radius="md" style={{ width: 30, height: 30, minWidth: 30, minHeight: 30 }} />
           ) : (
-            <Box w={30} h={30} display="flex" alignItems="center" justifyContent="center" bg="gray.0" style={{ border: '1px dashed #ced4da', borderRadius: '6px', minWidth: 30, minHeight: 30 }}>
+            <Box w={30} h={30} display="flex" bg="gray.0" style={{ border: '1px dashed #ced4da', borderRadius: '6px', minWidth: 30, minHeight: 30, alignItems: 'center', justifyContent: 'center' }}>
               <IconPhoto size={14} c="gray.4" />
             </Box>
           )}
@@ -510,61 +567,6 @@ export default function ProductDetailPage() {
             <Text className="text-xs" c="dimmed">
               {variant.variantSlug}
             </Text>
-          </Stack>
-        </Table.Td>
-        <Table.Td>
-          <Stack gap={0}>
-            {variant.color && (
-              <Text className="text-xs md:text-sm">
-                <Text span c="dimmed">
-                  {t('catalog.productsDetail.variants.color')}:
-                </Text>{' '}
-                {variant.color}
-              </Text>
-            )}
-            {variant.size && (
-              <Text className="text-xs md:text-sm">
-                <Text span c="dimmed">
-                  {t('catalog.productsDetail.variants.size')}:
-                </Text>{' '}
-                {variant.size}
-              </Text>
-            )}
-            {variant.material && (
-              <Text className="text-xs md:text-sm">
-                <Text span c="dimmed">
-                  {t('catalog.productsDetail.variants.material')}:
-                </Text>{' '}
-                {variant.material}
-              </Text>
-            )}
-            {variant.pattern && (
-              <Text className="text-xs md:text-sm">
-                <Text span c="dimmed">
-                  {t('catalog.productsDetail.variants.pattern') || 'Pattern'}:
-                </Text>{' '}
-                {variant.pattern}
-              </Text>
-            )}
-            {variant.weight && (
-              <Group gap="xs" align="center">
-                <IconWeight size={12} className="text-gray-500" />
-                <Text className="text-xs" c="dimmed">
-                  {Number(variant.weight) > 1000
-                    ? `${(Number(variant.weight) / 1000).toFixed(2)} kg`
-                    : `${variant.weight} g`
-                  }
-                </Text>
-              </Group>
-            )}
-            {variant.unitValue && variant.unitValue !== 1 && (
-              <Group gap="xs" align="center">
-                <IconScale size={12} className="text-gray-500" />
-                <Text className="text-xs" c="dimmed">
-                  {variant.unitValue} {variant.unitId ? `unit` : ''}
-                </Text>
-              </Group>
-            )}
           </Stack>
         </Table.Td>
         <Table.Td ta="right">
@@ -648,10 +650,10 @@ export default function ProductDetailPage() {
         <Stack gap="sm">
           <Group justify="space-between" align="flex-start">
             <Group gap="sm" align="flex-start" className="flex-1">
-              {variant.thumbnail ? (
-                <Image src={variant.thumbnail} width={30} height={30} fit="cover" radius="md" style={{ width: 30, height: 30, minWidth: 30, minHeight: 30 }} />
+              {variant.thumbnail || variant.thumbnailUrl ? (
+                <Image src={variant.thumbnail || variant.thumbnailUrl} width={30} height={30} fit="cover" radius="md" style={{ width: 30, height: 30, minWidth: 30, minHeight: 30 }} />
               ) : (
-                <Box w={30} h={30} display="flex" alignItems="center" justifyContent="center" bg="gray.0" style={{ border: '1px dashed #ced4da', borderRadius: '6px', flexShrink: 0, minWidth: 30, minHeight: 30 }}>
+                <Box w={30} h={30} display="flex" bg="gray.0" style={{ border: '1px dashed #ced4da', borderRadius: '6px', flexShrink: 0, minWidth: 30, minHeight: 30, alignItems: 'center', justifyContent: 'center' }}>
                   <IconPhoto size={14} c="gray.4" />
                 </Box>
               )}
@@ -945,9 +947,18 @@ export default function ProductDetailPage() {
                   size="xs"
                   variant="default"
                   leftSection={<IconEdit size={14} />}
-                  onClick={() => navigate(`/catalog/products/${product.id}/edit`)}
+                  onClick={() => navigate(`/catalog/products/${product.slug}/edit`)}
                 >
                   Edit
+                </Button>
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="red"
+                  leftSection={<IconTrash size={14} />}
+                  onClick={() => handleDeleteProduct()}
+                >
+                  Delete
                 </Button>
               </Group>
             </Group>
@@ -955,10 +966,10 @@ export default function ProductDetailPage() {
         </Paper>
 
         {/* Warranty & Package Information */}
-        {(product.warrantyEnabled && product.warrantyDetails) || (product.includesInTheBox && (Array.isArray(product.includesInTheBox) ? product.includesInTheBox.length > 0 : product.includesInTheBox.trim())) ? (
-          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
+        {(product.warrantyEnabled === true && product.warrantyDetails) || (product.includesInBox && (Array.isArray(product.includesInBox) ? product.includesInBox.length > 0 : product.includesInBox.trim())) ? (
+          <>
             {/* Warranty Card */}
-            {product.warrantyEnabled && product.warrantyDetails && (
+            {product.warrantyEnabled === true && product.warrantyDetails && (
               <Paper withBorder p="sm" radius="sm">
                 <Group gap="sm" align="flex-start">
                   <IconShield size={20} style={{ color: '#16a34a' }} />
@@ -976,7 +987,7 @@ export default function ProductDetailPage() {
             )}
 
             {/* What's in the Box Card */}
-            {(product.includesInTheBox && (Array.isArray(product.includesInTheBox) ? product.includesInTheBox.length > 0 : product.includesInTheBox.trim())) && (
+            {((Array.isArray(product.includesInBox) && product.includesInBox.length > 0) || (Array.isArray(product.includesInBoxBn) && product.includesInBoxBn.length > 0)) && (
               <Paper withBorder p="sm" radius="sm">
                 <Group gap="sm" align="flex-start">
                   <IconBox size={20} style={{ color: '#2563eb' }} />
@@ -984,36 +995,39 @@ export default function ProductDetailPage() {
                     <Text size="xs" fw={500} c="dimmed">
                       {t('catalog.productsDetail.package.label') || "What's in the Box"}
                     </Text>
-                    <Stack gap={4}>
-                      {Array.isArray(product.includesInTheBox)
-                        ? product.includesInTheBox.map((item, index) => (
-                            <Group key={index} gap={6} align="center">
-                              <IconCheck size={12} style={{ color: '#2563eb' }} />
-                              <Text size="sm">{item}</Text>
-                            </Group>
-                          ))
-                        : product.includesInTheBox.split(',').map((item, index) => (
-                            <Group key={index} gap={6} align="center">
-                              <IconCheck size={12} style={{ color: '#2563eb' }} />
-                              <Text size="sm">{item.trim()}</Text>
-                            </Group>
-                          ))
-                      }
-                    </Stack>
-                    {product.includesInTheBoxBn && (
-                      <>
-                        <Divider my={4} />
-                        <Text size="xs" fw={500} c="dimmed">
-                          What's in the Box (Bangla)
-                        </Text>
-                        <Text size="sm">{product.includesInTheBoxBn}</Text>
-                      </>
-                    )}
+                    <Grid>
+                      {/* English */}
+                      {Array.isArray(product.includesInBox) && product.includesInBox.length > 0 && (
+                        <Grid.Col span={{ base: 12, md: 6 }}>
+                          <Stack gap="xs">
+                            {product.includesInBox.map((item, index) => (
+                              <Group key={`en-${index}`} gap={6} align="flex-start">
+                                <IconCheck size={12} style={{ color: '#2563eb' }} />
+                                <Text size="sm">{item}</Text>
+                              </Group>
+                            ))}
+                          </Stack>
+                        </Grid.Col>
+                      )}
+                      {/* Bangla */}
+                      {Array.isArray(product.includesInBoxBn) && product.includesInBoxBn.length > 0 && (
+                        <Grid.Col span={{ base: 12, md: 6 }}>
+                          <Stack gap="xs">
+                            {product.includesInBoxBn.map((item, index) => (
+                              <Group key={`bn-${index}`} gap={6} align="flex-start">
+                                <IconCheck size={12} style={{ color: '#2563eb' }} />
+                                <Text size="sm">{item}</Text>
+                              </Group>
+                            ))}
+                          </Stack>
+                        </Grid.Col>
+                      )}
+                    </Grid>
                   </Stack>
                 </Group>
               </Paper>
             )}
-          </SimpleGrid>
+          </>
         ) : null}
 
         {/* Product Information Card */}
@@ -1030,14 +1044,14 @@ export default function ProductDetailPage() {
                 <Text size="xs" c="dimmed">
                   {t('catalog.productsDetail.productInformation.thumbnail')}
                 </Text>
-                {product.thumbnail && (
+                {product.thumbnailUrl && (
                   <Box
                     w={80}
                     h={80}
                     style={{ backgroundColor: '#f3f4f6', borderRadius: '6px', overflow: 'hidden' }}
                   >
                     <Image
-                      src={product.thumbnail.fullUrl}
+                      src={product.thumbnailUrl}
                       alt={product.name}
                       w="100%"
                       h="100%"
@@ -1170,7 +1184,6 @@ export default function ProductDetailPage() {
                     <Table.Th>{t('catalog.productsDetail.variants.image') || 'Image'}</Table.Th>
                     <Table.Th>{t('catalog.productsDetail.variants.variant') || 'Variant'}</Table.Th>
                     <Table.Th>{t('catalog.productsDetail.variants.sku') || 'SKU'}</Table.Th>
-                    <Table.Th>{t('catalog.productsDetail.variants.attributes') || 'Attributes'}</Table.Th>
                     <Table.Th ta="right">Retail / Wholesale Price</Table.Th>
                     <Table.Th ta="right">{t('catalog.productsDetail.variants.cost') || 'Cost'}</Table.Th>
                     <Table.Th ta="right">{t('catalog.productsDetail.variants.profit') || 'Profit'}</Table.Th>
@@ -1202,48 +1215,6 @@ export default function ProductDetailPage() {
             <SimpleGrid cols={{ base: 2, sm: 3, md: 4, lg: 6 }} spacing="xs">
               {galleryImages}
             </SimpleGrid>
-          </Paper>
-        )}
-
-        {/* Product Highlights */}
-        {((Array.isArray(product.highlights) && product.highlights.length > 0) || (Array.isArray(product.highlightsBn) && product.highlightsBn.length > 0)) && (
-          <Paper withBorder p="sm" radius="sm">
-            <Group gap="sm" align="center" mb="xs">
-              <IconBulb size={18} style={{ color: '#ca8a04' }} />
-              <Text fw={600} size="sm">
-                {t('catalog.productsDetail.highlights.title') || 'Product Highlights'}
-              </Text>
-            </Group>
-            <Grid>
-              {/* English Highlights */}
-              {Array.isArray(product.highlights) && product.highlights.length > 0 && (
-                <Grid.Col span={{ base: 12, md: 6 }}>
-                  <Stack gap="xs">
-                    <Text size="xs" fw={500} c="dimmed">{t('catalog.productsDetail.highlightsEnglish') || 'Highlights (English)'}</Text>
-                    {product.highlights.map((highlight, index) => (
-                      <Group key={`en-${index}`} gap={6} align="flex-start">
-                        <IconCheck size={12} style={{ color: '#16a34a' }} />
-                        <Text size="sm">{highlight}</Text>
-                      </Group>
-                    ))}
-                  </Stack>
-                </Grid.Col>
-              )}
-              {/* Bangla Highlights */}
-              {Array.isArray(product.highlightsBn) && product.highlightsBn.length > 0 && (
-                <Grid.Col span={{ base: 12, md: 6 }}>
-                  <Stack gap="xs">
-                    <Text size="xs" fw={500} c="dimmed">{t('catalog.productsDetail.highlightsBangla') || 'Highlights (বাংলা)'}</Text>
-                    {product.highlightsBn.map((highlight, index) => (
-                      <Group key={`bn-${index}`} gap={6} align="flex-start">
-                        <IconCheck size={12} style={{ color: '#16a34a' }} />
-                        <Text size="sm">{highlight}</Text>
-                      </Group>
-                    ))}
-                  </Stack>
-                </Grid.Col>
-              )}
-            </Grid>
           </Paper>
         )}
 
@@ -1280,6 +1251,48 @@ export default function ProductDetailPage() {
                       <Group key={`bn-${index}`} gap={6} align="flex-start">
                         <IconCheck size={12} style={{ color: '#2563eb' }} />
                         <Text size="sm">{attribute}</Text>
+                      </Group>
+                    ))}
+                  </Stack>
+                </Grid.Col>
+              )}
+            </Grid>
+          </Paper>
+        )}
+
+        {/* Product Highlights */}
+        {((Array.isArray(product.highlights) && product.highlights.length > 0) || (Array.isArray(product.highlightsBn) && product.highlightsBn.length > 0)) && (
+          <Paper withBorder p="sm" radius="sm">
+            <Group gap="sm" align="center" mb="xs">
+              <IconBulb size={18} style={{ color: '#ca8a04' }} />
+              <Text fw={600} size="sm">
+                {t('catalog.productsDetail.highlights.title') || 'Product Highlights'}
+              </Text>
+            </Group>
+            <Grid>
+              {/* English Highlights */}
+              {Array.isArray(product.highlights) && product.highlights.length > 0 && (
+                <Grid.Col span={{ base: 12, md: 6 }}>
+                  <Stack gap="xs">
+                    <Text size="xs" fw={500} c="dimmed">{t('catalog.productsDetail.highlightsEnglish') || 'Highlights (English)'}</Text>
+                    {product.highlights.map((highlight, index) => (
+                      <Group key={`en-${index}`} gap={6} align="flex-start">
+                        <IconCheck size={12} style={{ color: '#16a34a' }} />
+                        <Text size="sm">{highlight}</Text>
+                      </Group>
+                    ))}
+                  </Stack>
+                </Grid.Col>
+              )}
+              {/* Bangla Highlights */}
+              {Array.isArray(product.highlightsBn) && product.highlightsBn.length > 0 && (
+                <Grid.Col span={{ base: 12, md: 6 }}>
+                  <Stack gap="xs">
+                    <Text size="xs" fw={500} c="dimmed">{t('catalog.productsDetail.highlightsBangla') || 'Highlights (বাংলা)'}</Text>
+                    {product.highlightsBn.map((highlight, index) => (
+                      <Group key={`bn-${index}`} gap={6} align="flex-start">
+                        <IconCheck size={12} style={{ color: '#16a34a' }} />
+                        <Text size="sm">{highlight}</Text>
                       </Group>
                     ))}
                   </Stack>
@@ -1377,10 +1390,10 @@ export default function ProductDetailPage() {
                     <Anchor
                       size="xs"
                       c="dimmed"
-                      href={`/catalog/products/${cs.id}`}
+                      href={`/catalog/products/${cs.slug}`}
                       onClick={(e) => {
                         e.preventDefault()
-                        navigate(`/catalog/products/${cs.id}`)
+                        navigate(`/catalog/products/${cs.slug}`)
                       }}
                     >
                       View product
@@ -1487,9 +1500,9 @@ export default function ProductDetailPage() {
                             h={52}
                             style={{ backgroundColor: '#f3f4f6', borderRadius: '6px', overflow: 'hidden', flexShrink: 0 }}
                           >
-                            {p.thumbnail?.fullUrl ? (
+                            {p.thumbnailUrl ? (
                               <Image
-                                src={p.thumbnail.fullUrl}
+                                src={p.thumbnailUrl}
                                 alt={p.name}
                                 w="100%"
                                 h="100%"
@@ -1605,10 +1618,10 @@ export default function ProductDetailPage() {
                     <Anchor
                       size="xs"
                       c="dimmed"
-                      href={`/catalog/products/${us.id}`}
+                      href={`/catalog/products/${us.slug}`}
                       onClick={(e) => {
                         e.preventDefault()
-                        navigate(`/catalog/products/${us.id}`)
+                        navigate(`/catalog/products/${us.slug}`)
                       }}
                     >
                       View product
@@ -1715,9 +1728,9 @@ export default function ProductDetailPage() {
                             h={52}
                             style={{ backgroundColor: '#f3f4f6', borderRadius: '6px', overflow: 'hidden', flexShrink: 0 }}
                           >
-                            {p.thumbnail?.fullUrl ? (
+                            {p.thumbnailUrl ? (
                               <Image
-                                src={p.thumbnail.fullUrl}
+                                src={p.thumbnailUrl}
                                 alt={p.name}
                                 w="100%"
                                 h="100%"
@@ -1780,27 +1793,88 @@ export default function ProductDetailPage() {
           </Stack>
         </Modal>
 
-        {/* Thank You Product Toggle */}
-        <Paper withBorder p="sm" radius="sm">
-          <Group justify="space-between" align="center">
-            <Group gap="xs" align="center">
-              <IconHeart size={18} style={{ color: '#db2777' }} />
-              <div>
-                <Text fw={600} size="sm">
-                  {t('catalog.productsDetail.thankYou.title')}
-                </Text>
-                <Text c="dimmed" size="xs">
-                  {t('catalog.productsDetail.thankYou.description')}
-                </Text>
-              </div>
+        {/* Thank You Product & Hide From Website Toggles - Side by Side */}
+        <Group grow>
+          {/* Thank You Product Toggle */}
+          <Paper withBorder p="sm" radius="sm">
+            <Group justify="space-between" align="center" gap="xs">
+              <Group gap="xs" align="center">
+                <IconHeart size={16} style={{ color: '#db2777' }} />
+                <div>
+                  <Text fw={600} size="sm">
+                    {t('catalog.productsDetail.thankYou.title')}
+                  </Text>
+                  <Text c="dimmed" size="xs">
+                    {t('catalog.productsDetail.thankYou.description')}
+                  </Text>
+                </div>
+              </Group>
+              <Switch
+                checked={product.thankYou ?? false}
+                onChange={(event) => handleToggleThankYou(event.currentTarget.checked)}
+                size="sm"
+              />
             </Group>
-            <Switch
-              checked={product.thankYou ?? false}
-              onChange={(event) => handleToggleThankYou(event.currentTarget.checked)}
-              size="sm"
-            />
-          </Group>
-        </Paper>
+          </Paper>
+
+          {/* Hide From Website Toggle */}
+          <Paper withBorder p="sm" radius="sm">
+            <Group justify="space-between" align="center" gap="xs">
+              <Group gap="xs" align="center">
+                <IconEyeOff size={16} style={{ color: '#6366f1' }} />
+                <div>
+                  <Text fw={600} size="sm">
+                    {t('catalog.productsDetail.hideFromWebsite.title')}
+                  </Text>
+                  <Text c="dimmed" size="xs">
+                    {t('catalog.productsDetail.hideFromWebsite.description')}
+                  </Text>
+                </div>
+              </Group>
+              <Switch
+                checked={product.hideFromWebsite ?? false}
+                onChange={(event) => handleToggleHideFromWebsite(event.currentTarget.checked)}
+                size="sm"
+              />
+            </Group>
+          </Paper>
+        </Group>
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          opened={deleteModalOpen}
+          onClose={() => setDeleteModalOpen(false)}
+          title={
+            <Group gap="xs" align="center">
+              <IconTrash size={20} color="red" />
+              <Text fw={600}>Delete Product</Text>
+            </Group>
+          }
+          centered
+        >
+          <Stack gap="md">
+            <Text size="sm">
+              Are you sure you want to delete <Text fw={600} span>{product?.name}</Text>? This action cannot be undone.
+            </Text>
+            <Text size="xs" c="dimmed">
+              This will permanently delete the product and all its variants. This action cannot be undone.
+            </Text>
+            <Group justify="flex-end" gap="xs">
+              <Button
+                variant="default"
+                onClick={() => setDeleteModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                color="red"
+                onClick={confirmDeleteProduct}
+              >
+                Delete Product
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
       </Stack>
     </Box>
   )

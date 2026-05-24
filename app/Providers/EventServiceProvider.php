@@ -7,30 +7,31 @@ use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Event;
 
-use App\Events\Supplier\SupplierCreated;
-use App\Events\Supplier\SupplierUpdated;
-use App\Events\Supplier\SupplierDeleted;
-use App\Listeners\Supplier\LogSupplierCreated;
-use App\Listeners\Supplier\LogSupplierUpdated;
-use App\Listeners\Supplier\LogSupplierDeleted;
-use App\Listeners\Supplier\SendSupplierCreatedNotification;
+// Procurement Module - Supplier Events & Listeners
+use App\Modules\Procurement\Events\Supplier\SupplierCreated;
+use App\Modules\Procurement\Events\Supplier\SupplierUpdated;
+use App\Modules\Procurement\Events\Supplier\SupplierDeleted;
+use App\Modules\Procurement\Listeners\Supplier\LogSupplierCreated;
+use App\Modules\Procurement\Listeners\Supplier\LogSupplierUpdated;
+use App\Modules\Procurement\Listeners\Supplier\LogSupplierDeleted;
+use App\Modules\Procurement\Listeners\Supplier\SendSupplierCreatedNotification;
 
-// Lazychat Integration Events
-use App\Events\Product\ProductCreated;
-use App\Events\Product\ProductUpdated;
-use App\Events\Product\ProductDeleted;
-use App\Events\Product\VariantStockChanged;
-use App\Listeners\Product\SyncProductToLazychat;
-use App\Listeners\Product\SyncVariantStockChangeToLazychat;
+// Catalog Module - Product Events & Listeners
+use App\Modules\Catalog\Events\Product\ProductCreated;
+use App\Modules\Catalog\Events\Product\ProductUpdated;
+use App\Modules\Catalog\Events\Product\ProductDeleted;
+use App\Modules\Catalog\Events\Product\VariantStockChanged;
+use App\Modules\Catalog\Listeners\Product\SyncProductToLazychat;
+use App\Modules\Catalog\Listeners\Product\SyncVariantStockChangeToLazychat;
 
-// Lazychat Integration - Order Events
-use App\Events\Order\OrderCreated;
-use App\Events\Order\OrderPaid;
-use App\Events\Order\OrderFailed;
-use App\Events\Order\OrderCancelled;
-use App\Events\Order\OrderShipped;
-use App\Listeners\Order\SendOrderToLazychat;
-use App\Listeners\Order\SendOrderShippedToLazychat;
+// Website Module - Order Events & Listeners
+use App\Modules\Website\Events\Order\OrderCreated;
+use App\Modules\Website\Events\Order\OrderPaid;
+use App\Modules\Website\Events\Order\OrderFailed;
+use App\Modules\Website\Events\Order\OrderCancelled;
+use App\Modules\Website\Events\Order\OrderShipped;
+use App\Modules\Website\Listeners\Order\SendOrderToLazychat;
+use App\Modules\Website\Listeners\Order\SendOrderShippedToLazychat;
 
 /**
  * Event Service Provider
@@ -63,7 +64,7 @@ class EventServiceProvider extends ServiceProvider
             LogSupplierDeleted::class,
         ],
 
-        // Lazychat Integration - Product Sync Events
+        // Product Sync Events
         ProductCreated::class => [
             SyncProductToLazychat::class . '@handleProductCreated',
         ],
@@ -76,12 +77,12 @@ class EventServiceProvider extends ServiceProvider
             SyncProductToLazychat::class . '@handleProductDeleted',
         ],
 
-        // Lazychat Integration - Variant Stock Events
+        // Variant Stock Events
         VariantStockChanged::class => [
             SyncVariantStockChangeToLazychat::class,
         ],
 
-        // Lazychat Integration - Order Events
+        // Order Events
         OrderCreated::class => [
             SendOrderToLazychat::class . '@handleOrderCreated',
         ],

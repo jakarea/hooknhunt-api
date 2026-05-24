@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\SalesOrder;
-use App\Models\Customer;
+use App\Modules\Website\Models\SalesOrder;
+use App\Modules\CRM\Models\Customer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use App\Events\Order\OrderShipped;

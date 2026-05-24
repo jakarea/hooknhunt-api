@@ -33,7 +33,7 @@ import {
 import { showNotification } from '@mantine/notifications'
 import { modals } from '@mantine/modals'
 import { useTranslation } from 'react-i18next'
-import { useMediaStore, formatFileSize, filterFilesBySearch, filterFoldersByParent, getFolderPath, isImageFile } from '@/stores/mediaStore'
+import { useMediaStore, formatFileSize, filterFilesBySearch, filterFoldersByParent, getFolderPath, isImageFile } from '@/modules/cms/stores/mediaStore'
 import { MediaFileCard } from '@/components/media-file-card'
 import { deleteMediaFolder, updateMediaFolder } from '@/utils/api'
 import type { MediaFile } from '@/utils/api'

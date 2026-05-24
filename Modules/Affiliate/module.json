@@ -1,0 +1,11 @@
+{
+    "name": "Affiliate",
+    "alias": "affiliate",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "App\\Modules\\Affiliate\\Providers\\AffiliateServiceProvider"
+    ],
+    "files": []
+}

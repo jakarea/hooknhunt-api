@@ -17,30 +17,23 @@ import {
   TextInput,
   Select,
   Skeleton,
-  Alert,
   Card,
   SimpleGrid,
   Flex,
   Image,
   Tooltip,
-  Menu,
   Switch,
   Anchor,
   Pagination,
 } from '@mantine/core'
 import {
   IconSearch,
-  IconRefresh,
   IconPlus,
   IconPhoto,
   IconCopy,
   IconTrash,
   IconEdit,
-  IconEye,
   IconPackages,
-  IconAlertCircle,
-  IconDots,
-  IconCube,
   IconGripVertical,
   IconExternalLink,
 } from '@tabler/icons-react'
@@ -113,7 +106,7 @@ export default function ProductsPage() {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
-  const [perPage, setPerPage] = useState(100)
+  const [perPage, setPerPage] = useState(50)
   const [duplicatedProductId, setDuplicatedProductId] = useState<number | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
@@ -133,7 +126,7 @@ export default function ProductsPage() {
     })
   )
 
-  // Fetch products
+  // Fetch products - consolidated to avoid duplicate API calls
   const fetchProducts = useCallback(async (showLoading = true) => {
     try {
       if (showLoading) setLoading(true)
@@ -168,7 +161,7 @@ export default function ProductsPage() {
     } finally {
       if (showLoading) setLoading(false)
     }
-  }, [debouncedSearch, categoryFilter, brandFilter, statusFilter, sortBy])
+  }, [debouncedSearch, categoryFilter, brandFilter, statusFilter, sortBy, page, perPage])
 
   // Fetch dropdown data
   const fetchDropdownData = async () => {
@@ -190,14 +183,10 @@ export default function ProductsPage() {
     }
   }
 
+  // Single consolidated useEffect for products
   useEffect(() => {
     fetchProducts()
   }, [fetchProducts])
-
-  // Fetch without loading when page/perPage changes (pagination)
-  useEffect(() => {
-    fetchProducts(false)
-  }, [page, perPage])
 
   useEffect(() => {
     fetchDropdownData()
@@ -260,28 +249,28 @@ export default function ProductsPage() {
 
   // Stock indicator helper
   const getStockBadge = (product: Product) => {
-    const totalStock = product.variants?.reduce((sum, v) => sum + (v.currentStock || 0), 0) || 0
+    const totalStock = product.variants?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0
     const lowStockThreshold = 10
 
     if (totalStock === 0) {
       return (
-        <Badge color="red" leftSection={<IconAlertCircle size={12} />}>
-          {t('catalog.productsPage.stock.outOfStock') || 'Out of Stock'}
+        <Badge color="red">
+          0
         </Badge>
       )
     }
 
     if (totalStock <= lowStockThreshold) {
       return (
-        <Badge color="orange" leftSection={<IconAlertCircle size={12} />}>
-          {t('catalog.productsPage.stock.lowStock', { count: totalStock }) || `${totalStock} left`}
+        <Badge color="orange">
+          {totalStock}
         </Badge>
       )
     }
 
     return (
-      <Badge color="teal" leftSection={<IconCube size={12} />}>
-        {t('catalog.productsPage.stock.inStock', { count: totalStock }) || `${totalStock} in stock`}
+      <Badge color="teal">
+        {totalStock}
       </Badge>
     )
   }
@@ -461,11 +450,17 @@ export default function ProductsPage() {
       opacity: isDragging ? 0.5 : 1,
     }
 
+    // Calculate total stock for background color
+    const totalStock = product.variants?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0
+    const isOutOfStock = totalStock === 0
+
     return (
       <Table.Tr
         ref={setNodeRef}
-        style={style}
-        bg={duplicatedProductId === product.id ? 'teal.0' : undefined}
+        style={{
+          ...style,
+          backgroundColor: isOutOfStock ? 'rgba(253, 186, 116, 0.12)' : (duplicatedProductId === product.id ? '#ccfbf1' : undefined)
+        }}
       >
         <Table.Td style={{ width: '50px' }}>
           <ActionIcon
@@ -502,10 +497,10 @@ export default function ProductsPage() {
               <Anchor
                 className="text-sm md:text-base fw={500}"
                 lineClamp={1}
-                href={`/catalog/products/${product.id}`}
+                href={`/catalog/products/${product.slug}`}
                 onClick={(e: React.MouseEvent) => {
                   e.preventDefault()
-                  onNavigate(`/catalog/products/${product.id}`)
+                  onNavigate(`/catalog/products/${product.slug}`)
                 }}
               >
                 {product.name?.length > 66
@@ -563,7 +558,7 @@ export default function ProductsPage() {
                 size="lg"
                 variant="light"
                 color="blue"
-                onClick={() => onNavigate(`/catalog/products/${product.id}/edit`)}
+                onClick={() => onNavigate(`/catalog/products/${product.slug}/edit`)}
               >
                 <IconEdit size={18} />
               </ActionIcon>
@@ -591,31 +586,6 @@ export default function ProductsPage() {
                 <IconExternalLink size={18} />
               </ActionIcon>
             </Tooltip>
-            <Menu shadow="md" width={160} position="bottom-end">
-              <Menu.Target>
-                <ActionIcon size="lg" variant="light">
-                  <IconDots size={18} />
-                </ActionIcon>
-              </Menu.Target>
-
-              <Menu.Dropdown>
-                <Menu.Label>{t('catalog.productsPage.menu.actions') || 'Actions'}</Menu.Label>
-                <Menu.Item
-                  leftSection={<IconEye size={16} />}
-                  onClick={() => onNavigate(`/catalog/products/${product.id}`)}
-                >
-                  {t('catalog.productsPage.menu.viewDetails') || 'View Details'}
-                </Menu.Item>
-                <Menu.Divider />
-                <Menu.Item
-                  leftSection={<IconTrash size={16} />}
-                  c="red"
-                  onClick={() => onDelete(product)}
-                >
-                  {t('common.delete') || 'Delete'}
-                </Menu.Item>
-              </Menu.Dropdown>
-            </Menu>
           </Group>
         </Table.Td>
       </Table.Tr>
@@ -634,6 +604,12 @@ export default function ProductsPage() {
         style={{
           transition: 'background-color 0.3s ease',
           border: duplicatedProductId === product.id ? '2px solid #20c997' : undefined,
+          backgroundColor: (() => {
+            const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0
+            if (totalStock === 0) return 'rgba(253, 186, 116, 0.12)'
+            if (duplicatedProductId === product.id) return '#ccfbf1'
+            return undefined
+          })(),
         }}
       >
         <Stack gap="sm">
@@ -662,10 +638,10 @@ export default function ProductsPage() {
                 <Anchor
                   className="text-sm md:text-base fw={500}"
                   lineClamp={1}
-                  href={`/catalog/products/${product.id}`}
+                  href={`/catalog/products/${product.slug}`}
                   onClick={(e: React.MouseEvent) => {
                     e.preventDefault()
-                    navigate(`/catalog/products/${product.id}`)
+                    navigate(`/catalog/products/${product.slug}`)
                   }}
                 >
                   {product.name?.length > 66
@@ -730,11 +706,19 @@ export default function ProductsPage() {
               size="xs"
               radius="xl"
               leftSection={<IconEdit size={14} />}
-              onClick={() => navigate(`/catalog/products/${product.id}/edit`)}
+              onClick={() => navigate(`/catalog/products/${product.slug}/edit`)}
               className="flex-1"
             >
               {t('common.edit') || 'Edit'}
             </Button>
+            <ActionIcon
+              variant="light"
+              color="gray"
+              size="lg"
+              onClick={() => handleDuplicate(product)}
+            >
+              <IconCopy size={18} />
+            </ActionIcon>
             <ActionIcon
               variant="light"
               color="teal"
@@ -746,37 +730,6 @@ export default function ProductsPage() {
             >
               <IconExternalLink size={18} />
             </ActionIcon>
-            <Menu shadow="md" width={160} position="bottom-end">
-              <Menu.Target>
-                <ActionIcon variant="light" size="lg">
-                  <IconDots size={18} />
-                </ActionIcon>
-              </Menu.Target>
-
-              <Menu.Dropdown>
-                <Menu.Label>{t('catalog.productsPage.menu.actions') || 'Actions'}</Menu.Label>
-                <Menu.Item
-                  leftSection={<IconCopy size={16} />}
-                  onClick={() => handleDuplicate(product)}
-                >
-                  {t('catalog.productsPage.menu.duplicate') || 'Duplicate'}
-                </Menu.Item>
-                <Menu.Item
-                  leftSection={<IconEye size={16} />}
-                  onClick={() => navigate(`/catalog/products/${product.id}`)}
-                >
-                  {t('catalog.productsPage.menu.viewDetails') || 'View Details'}
-                </Menu.Item>
-                <Menu.Divider />
-                <Menu.Item
-                  leftSection={<IconTrash size={16} />}
-                  c="red"
-                  onClick={() => handleDelete(product)}
-                >
-                  {t('common.delete') || 'Delete'}
-                </Menu.Item>
-              </Menu.Dropdown>
-            </Menu>
           </Group>
         </Stack>
       </Card>
@@ -897,24 +850,24 @@ export default function ProductsPage() {
         {/* Desktop Table View */}
         <div className="hidden md:block">
           <Paper withBorder p="0">
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th style={{ width: '50px' }}></Table.Th>
-                  <Table.Th>{t('catalog.productsPage.table.product') || 'Product'}</Table.Th>
-                  <Table.Th>{t('catalog.productsPage.table.category') || 'Category'}</Table.Th>
-                  <Table.Th>{t('catalog.productsPage.table.brand') || 'Brand'}</Table.Th>
-                  <Table.Th>{t('catalog.productsPage.table.productCode') || 'Product Code'}</Table.Th>
-                  <Table.Th>{t('catalog.productsPage.table.stock') || 'Stock'}</Table.Th>
-                  <Table.Th>{t('catalog.productsPage.table.publish') || 'Publish'}</Table.Th>
-                  <Table.Th ta="center">{t('catalog.productsPage.table.actions') || 'Actions'}</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th style={{ width: '50px' }}></Table.Th>
+                    <Table.Th>{t('catalog.productsPage.table.product') || 'Product'}</Table.Th>
+                    <Table.Th>{t('catalog.productsPage.table.category') || 'Category'}</Table.Th>
+                    <Table.Th>{t('catalog.productsPage.table.brand') || 'Brand'}</Table.Th>
+                    <Table.Th>{t('catalog.productsPage.table.productCode') || 'Product Code'}</Table.Th>
+                    <Table.Th>{t('catalog.productsPage.table.stock') || 'Stock'}</Table.Th>
+                    <Table.Th>{t('catalog.productsPage.table.publish') || 'Publish'}</Table.Th>
+                    <Table.Th ta="center">{t('catalog.productsPage.table.actions') || 'Actions'}</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
                 <Table.Tbody>
                   {products.length === 0 ? (
                     <Table.Tr>
@@ -950,8 +903,8 @@ export default function ProductsPage() {
                     </SortableContext>
                   )}
                 </Table.Tbody>
-              </DndContext>
-            </Table>
+              </Table>
+            </DndContext>
           </Paper>
         </div>
 

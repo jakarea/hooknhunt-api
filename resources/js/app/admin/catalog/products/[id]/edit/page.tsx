@@ -195,6 +195,8 @@ interface ProductVariant {
   sellerSku: string
   sellerSkuManuallyEdited?: boolean
   thumbnail?: string | null
+  thumbnailUrl?: string | null
+  thumbnailId?: number | null
 }
 
 // ============================================================================
@@ -219,6 +221,9 @@ export default function EditProductPage() {
   const navigate = useNavigate()
   const { openSingleSelect, openMultipleSelect } = useMediaSelector()
   const { colorScheme } = useMantineColorScheme()
+
+  // Get the slug or id from URL params
+  const slugOrId = id || ''
 
   // Loading states
   const [isLoading, setIsLoading] = useState(true)
@@ -1640,27 +1645,23 @@ export default function EditProductPage() {
         // Handle categories response
         if (Array.isArray(categoriesData)) {
           setCategories(categoriesData)
+        } else if (categoriesData?.data?.categories && Array.isArray(categoriesData.data.categories)) {
+          // Handle paginated response with nested categories array
+          setCategories(categoriesData.data.categories)
         } else if (categoriesData?.data && Array.isArray(categoriesData.data)) {
+          // Handle direct array in data
           setCategories(categoriesData.data)
-        } else if (categoriesData?.data && typeof categoriesData.data === 'object') {
-          // Handle paginated response
-          const { data: categoriesArray } = categoriesData.data
-          if (Array.isArray(categoriesArray)) {
-            setCategories(categoriesArray)
-          }
         }
 
         // Handle brands response
         if (Array.isArray(brandsData)) {
           setBrands(brandsData)
+        } else if (brandsData?.data?.brands && Array.isArray(brandsData.data.brands)) {
+          // Handle paginated response with nested brands array
+          setBrands(brandsData.data.brands)
         } else if (brandsData?.data && Array.isArray(brandsData.data)) {
+          // Handle direct array in data
           setBrands(brandsData.data)
-        } else if (brandsData?.data && typeof brandsData.data === 'object') {
-          // Handle paginated response
-          const { data: brandsArray } = brandsData.data
-          if (Array.isArray(brandsArray)) {
-            setBrands(brandsArray)
-          }
         }
 
         // Fetch pricing settings
@@ -1717,12 +1718,13 @@ export default function EditProductPage() {
   // Fetch product data
   useEffect(() => {
     const fetchProduct = async () => {
-      if (!id) return
+      if (!slugOrId) return
 
       try {
         setIsLoading(true)
         setInitialDataLoaded(false)
-        const response = await getProduct(Number(id))
+        // Use slug for API call - backend accepts both ID and slug
+        const response = await getProduct(slugOrId)
 
         // Handle different response structures
         const productData = response?.data || response
@@ -1838,11 +1840,11 @@ export default function EditProductPage() {
         setAffiliateCommission(productData.affiliate_commission || productData.affiliateCommission || 5)
 
         // Featured image
-        if (productData.thumbnail || productData.featuredImage) {
-          const thumb = productData.thumbnail || productData.featuredImage
+        if (productData.thumbnailUrl || productData.thumbnail || productData.featuredImage) {
+          const url = productData.thumbnailUrl || productData.thumbnail?.url || productData.featuredImage?.url
           setFeaturedImage({
-            mediaId: thumb.id,
-            url: thumb.full_url || thumb.url
+            mediaId: productData.thumbnailId,
+            url: url
           })
         }
 
@@ -1901,7 +1903,8 @@ export default function EditProductPage() {
                 wholesaleMoq: variant.moq || variant.wholesaleMoq || variant.wholesale_moq || 6,
                 weight: variant.weight || 0,
                 stock: variant.stock || variant.currentStock || variant.current_stock || 0,
-                thumbnail: variant.thumbnail || null
+                thumbnail: variant.thumbnail || null,
+                thumbnailUrl: variant.thumbnailUrl || variant.thumbnail || null
               }
             })
             console.log('🔄 Mapped variants:', mappedVariants)
@@ -1979,7 +1982,8 @@ export default function EditProductPage() {
                 wholesaleMoq: variant.wholesaleMoq || variant.moq || variant.wholesale_moq || 6,
                 weight: variant.weight || 0,
                 stock: variant.stock || variant.current_stock || 0,
-                thumbnail: variant.thumbnail || null
+                thumbnail: variant.thumbnail || null,
+                thumbnailUrl: variant.thumbnailUrl || variant.thumbnail || null
               }
             })
             setVariants(mappedVariants)
@@ -2220,6 +2224,8 @@ export default function EditProductPage() {
   const handleSubmit = useCallback(async (event: React.FormEvent) => {
     event.preventDefault()
 
+    console.log('handleSubmit called', { productName, category, brand, description, variantsCount: variants?.length })
+
     // Clear previous errors
     setErrors({})
 
@@ -2262,6 +2268,8 @@ export default function EditProductPage() {
         `Variant names must be unique. Duplicate(s): ${uniqueDuplicates.join(', ')}`
     }
 
+    console.log('Validation errors:', newErrors)
+
     // If there are errors, set them and stop
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
@@ -2282,55 +2290,39 @@ export default function EditProductPage() {
       const currentAttributes = getAttributesFromQuill()
       const currentAttributesBn = getAttributesBnFromQuill()
 
-      // Prepare data for API
+      // Transform payload to match backend expectations (snake_case)
       const payload = {
-        productName,
-        retailName: productName,
-        wholesaleName,
-        retailNameBn: retailNameBn || undefined,
-        wholesaleNameBn: wholesaleNameBn || undefined,
-        category: parseInt(category!),
-        brand: parseInt(brand!),
-        productCode: productCode ?? undefined,
+        name: productName,
+        retail_name: productName || undefined,
+        wholesale_name: wholesaleName || undefined,
+        retail_name_bn: retailNameBn || undefined,
+        wholesale_name_bn: wholesaleNameBn || undefined,
+        category_id: parseInt(category!),
+        brand_id: parseInt(brand!),
+        product_code: productCode ?? undefined,
         status,
-        videoUrl,
-        enableWarranty,
-        warrantyDetails,
-        enablePreorder,
-        expectedDeliveryDate,
+        video_url: videoUrl || undefined,
+        warranty_enabled: enableWarranty ?? undefined,
+        warranty_details: warrantyDetails || undefined,
         description,
-        descriptionBn: descriptionBn || undefined,
-        highlights: currentHighlights.filter(h => h.trim()).length > 0 ? currentHighlights : null,
-        highlightsBn: currentHighlightsBn.filter(h => h.trim()).length > 0 ? currentHighlightsBn : null,
-        attributes: currentAttributes.filter(a => a.trim()).length > 0 ? currentAttributes : null,
-        attributesBn: currentAttributesBn.filter(a => a.trim()).length > 0 ? currentAttributesBn : null,
-        includesInTheBox: includesInTheBox.trim() ? includesInTheBox.trim() : null,
-        includesInTheBoxBn: includesInTheBoxBn.trim() ? includesInTheBoxBn.trim() : null,
-        seoTitle,
-        seoDescription,
-        seoTags: seoTags.length > 0 ? seoTags.join(', ') : null,
-        affiliateCommission,
-        featuredImage: featuredImage?.mediaId ?? null,
-        galleryImages: galleryImages.map(img => img.mediaId),
-        variants: variants.map(v => ({
-          retail_id: v.retail_id ?? null,
-          wholesale_id: v.wholesale_id ?? null,
-          name: v.name,
-          sellerSku: v.sellerSku || null,
-          purchaseCost: parseFloat(v.purchaseCost.toString()),
-          retailPrice: parseFloat(v.price.toString()),
-          wholesalePrice: parseFloat(v.wholesalePrice.toString()),
-          retailOfferPrice: v.specialPrice ? parseFloat(v.specialPrice.toString()) : null,
-          wholesaleOfferPrice: v.wholesaleOfferPrice ? parseFloat(v.wholesaleOfferPrice.toString()) : null,
-          wholesaleMoq: parseInt(v.wholesaleMoq.toString()),
-          weight: parseFloat(v.weight.toString()),
-          stock: parseInt(v.stock.toString()),
-          thumbnail: v.thumbnail || null
-        }))
+        description_bn: descriptionBn || undefined,
+        highlights: currentHighlights.filter(h => h.trim()).length > 0 ? currentHighlights : undefined,
+        highlights_bn: currentHighlightsBn.filter(h => h.trim()).length > 0 ? currentHighlightsBn : undefined,
+        attributes: currentAttributes.filter(a => a.trim()).length > 0 ? currentAttributes : undefined,
+        attributes_bn: currentAttributesBn.filter(a => a.trim()).length > 0 ? currentAttributesBn : undefined,
+        includes_in_box: includesInTheBox.trim() ? includesInTheBox.trim().split('\n').map(item => item.trim()).filter(item => item.length > 0) : undefined,
+        includes_in_box_bn: includesInTheBoxBn.trim() ? includesInTheBoxBn.trim().split('\n').map(item => item.trim()).filter(item => item.length > 0) : undefined,
+        seo_title: seoTitle || undefined,
+        seo_description: seoDescription || undefined,
+        seo_tags: seoTags.length > 0 ? seoTags : undefined,
+        thumbnail_id: featuredImage?.mediaId ?? undefined,
+        gallery_images: galleryImages.map(img => img.mediaId),
+        // Note: Variants are sent separately to variant endpoints
+        // The backend ProductController doesn't handle variants in the update method
       }
 
       // Call API - PUT for update
-      const response = await apiMethods.put(`/catalog/products/${id}`, payload)
+      const response = await apiMethods.put(`catalog/products/${id}`, payload)
 
       // Success
       notifications.show({
@@ -2496,8 +2488,8 @@ export default function EditProductPage() {
         highlightsBn: currentHighlightsBn.filter(h => h.trim()).length > 0 ? currentHighlightsBn : null,
         attributes: currentAttributes.filter(a => a.trim()).length > 0 ? currentAttributes : null,
         attributesBn: currentAttributesBn.filter(a => a.trim()).length > 0 ? currentAttributesBn : null,
-        includesInTheBox: includesInTheBox.trim() ? includesInTheBox.trim() : null,
-        includesInTheBoxBn: includesInTheBoxBn.trim() ? includesInTheBoxBn.trim() : null,
+        includesInTheBox: includesInTheBox.trim() ? includesInTheBox.trim().split('\n').map(item => item.trim()).filter(item => item.length > 0) : null,
+        includesInTheBoxBn: includesInTheBoxBn.trim() ? includesInTheBoxBn.trim().split('\n').map(item => item.trim()).filter(item => item.length > 0) : null,
         seoTitle,
         seoDescription,
         seoTags: seoTags.length > 0 ? seoTags.join(', ') : null,
@@ -2517,12 +2509,12 @@ export default function EditProductPage() {
           wholesaleMoq: parseInt(v.wholesaleMoq.toString()),
           weight: parseFloat(v.weight.toString()),
           stock: parseInt(v.stock.toString()),
-          thumbnail: v.thumbnail || null
+          thumbnail: v.thumbnail || v.thumbnailUrl || null
         }))
       }
 
       // Call API - PUT for update
-      const response = await apiMethods.put(`/catalog/products/${id}`, payload)
+      const response = await apiMethods.put(`catalog/products/${id}`, payload)
 
       // Success - update the status state
       setStatus(overrideStatus)
@@ -3284,13 +3276,13 @@ export default function EditProductPage() {
                               <Box style={{ display: 'grid', gridTemplateColumns: '48px 2.2fr 1.4fr 1.4fr 1.4fr 1.4fr 1.4fr 1.4fr 1.1fr 1.1fr 1.4fr 36px', gap: '6px', alignItems: 'start' }}>
                                 {/* Thumbnail */}
                                 <Box
-                                  style={{ width: 44, height: 44, cursor: 'pointer', borderRadius: 4, overflow: 'hidden', border: '1px dashed var(--mantine-color-gray-4)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: variant.thumbnail ? 'transparent' : 'var(--mantine-color-gray-0)' }}
+                                  style={{ width: 44, height: 44, cursor: 'pointer', borderRadius: 4, overflow: 'hidden', border: '1px dashed var(--mantine-color-gray-4)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: (variant.thumbnail || variant.thumbnailUrl) ? 'transparent' : 'var(--mantine-color-gray-0)' }}
                                   onClick={() => openSingleSelect((mediaFile: MediaFile) => {
                                     handleUpdateVariant(variant.id, 'thumbnail', mediaFile.url)
                                   })}
                                 >
-                                  {variant.thumbnail ? (
-                                    <Image src={variant.thumbnail} w={44} h={44} fit="cover" radius={4} />
+                                  {variant.thumbnail || variant.thumbnailUrl ? (
+                                    <Image src={variant.thumbnail || variant.thumbnailUrl} w={44} h={44} fit="cover" radius={4} />
                                   ) : (
                                     <IconPhoto size={18} color="var(--mantine-color-gray-5)" />
                                   )}
@@ -3916,6 +3908,7 @@ export default function EditProductPage() {
                 <Card withBorder p="md" shadow="sm">
                   <Group justify="flex-end" gap="sm">
                     <Button
+                      type="button"
                       variant="light"
                       onClick={() => navigate(`/catalog/products/${id}`)}
                       disabled={isSubmitting}
@@ -3923,6 +3916,7 @@ export default function EditProductPage() {
                       {t('common.cancel') || 'Cancel'}
                     </Button>
                     <Button
+                      type="button"
                       variant="light"
                       color="blue"
                       leftSection={isSubmitting ? <IconLoader size={16} className="animate-spin" /> : <IconDeviceFloppy size={16} />}
@@ -3935,16 +3929,31 @@ export default function EditProductPage() {
                         : (t('catalog.productsCreate.saveAsDraft') || 'Save as Draft')
                       }
                     </Button>
+                    {status === 'draft' && (
+                      <Button
+                        type="button"
+                        color="green"
+                        leftSection={isSubmitting ? <IconLoader size={16} className="animate-spin" /> : <IconCheck size={16} />}
+                        disabled={isSubmitting}
+                        loading={isSubmitting}
+                        onClick={handlePublish}
+                      >
+                        {isSubmitting
+                          ? (t('catalog.productsCreate.publishing') || 'Publishing...')
+                          : (t('catalog.productsCreate.publishProduct') || 'Publish Product')
+                        }
+                      </Button>
+                    )}
                     <Button
-                      color="green"
-                      leftSection={isSubmitting ? <IconLoader size={16} className="animate-spin" /> : <IconCheck size={16} />}
+                      type="submit"
+                      color="blue"
+                      leftSection={isSubmitting ? <IconLoader size={16} className="animate-spin" /> : <IconDeviceFloppy size={16} />}
                       disabled={isSubmitting}
                       loading={isSubmitting}
-                      onClick={handlePublish}
                     >
                       {isSubmitting
-                        ? (t('catalog.productsCreate.publishing') || 'Publishing...')
-                        : (t('catalog.productsCreate.publishProduct') || 'Publish Product')
+                        ? (t('catalog.productsCreate.updating') || 'Updating...')
+                        : (t('catalog.productsCreate.update') || 'Update')
                       }
                     </Button>
                   </Group>

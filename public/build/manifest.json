@@ -1,6 +1,6 @@
 {
-  "_mantine-vendor-Ddfmil7r.js": {
-    "file": "assets/mantine-vendor-Ddfmil7r.js",
+  "_mantine-vendor-DEzZ8Kfd.js": {
+    "file": "assets/mantine-vendor-DEzZ8Kfd.js",
     "name": "mantine-vendor",
     "imports": [
       "_react-vendor-DCNV_QY_.js"
@@ -28,12 +28,12 @@
     "isDynamicEntry": true
   },
   "resources/js/main.tsx": {
-    "file": "assets/main-B4Ptuk7l.js",
+    "file": "assets/main-B3CL__AX.js",
     "name": "main",
     "src": "resources/js/main.tsx",
     "isEntry": true,
     "imports": [
-      "_mantine-vendor-Ddfmil7r.js",
+      "_mantine-vendor-DEzZ8Kfd.js",
       "_react-vendor-DCNV_QY_.js",
       "_other-vendor-C0Zqfgkc.js",
       "_zustand-vendor-Bb1ROlG7.js"
@@ -42,7 +42,7 @@
       "node_modules/workbox-window/build/workbox-window.prod.es5.mjs"
     ],
     "css": [
-      "assets/main-B5-8FFpZ.css"
+      "assets/main-uc24eVrA.css"
     ]
   }
 }

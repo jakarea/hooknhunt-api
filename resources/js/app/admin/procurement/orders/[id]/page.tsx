@@ -51,8 +51,8 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { getPurchaseOrder, updatePurchaseOrderStatus, updateStatusHistoryComments, getBanks } from '@/utils/api'
 import api from '@/lib/api'
 import ReceivingModal, { type ReceivingData } from '@/components/receiving-modal'
-import { getNextStatus } from '@/stores/procurementStore'
-import { usePurchaseOrderDetailStore } from '@/stores/purchaseOrderDetailStore'
+import { getNextStatus } from '@/modules/procurement/stores/procurementStore'
+import { usePurchaseOrderDetailStore } from '@/modules/procurement/stores/purchaseOrderDetailStore'
 import {
   validateAndShowErrors,
   buildStatusUpdatePayload,

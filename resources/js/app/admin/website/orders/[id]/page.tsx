@@ -29,7 +29,7 @@ import {
   type ProductSearchResult,
 } from '@/utils/websiteApi'
 import { useCourierStore } from '@/stores/courierStore'
-import { useWebsiteOrdersStore } from '@/stores/websiteOrdersStore'
+import { useWebsiteOrdersStore } from '@/modules/website/stores/websiteOrdersStore'
 
 type OrderData = WebsiteOrderDetail & {
   channel?: string

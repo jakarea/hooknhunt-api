@@ -1,8 +1,8 @@
 <?php
 
 use App\Repositories\SupplierRepository;
-use App\Models\Supplier;
-use App\Models\Shipment;
+use App\Modules\Procurement\Models\Supplier;
+use App\Modules\Shipping\Models\Shipment;
 use App\DTOs\SupplierSearchDTO;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use function Pest\Laravel\assertDatabaseHas;

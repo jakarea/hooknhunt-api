@@ -59,7 +59,15 @@ return [
             'strict' => true,
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
-                class_exists(PDO\Mysql::class) ? PDO\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                class_exists(PDO\Mysql::class) ? PDO\Mysql::ATTR_SSL_CA : null => env('MYSQL_ATTR_SSL_CA'),
+                // Fix "MySQL server has gone away" errors
+                PDO::ATTR_TIMEOUT => env('DB_TIMEOUT', 300),
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_PERSISTENT => true,
+                PDO::ATTR_EMULATE_PREPARES => false,
+                class_exists(PDO\Mysql::class) ? PDO\Mysql::ATTR_USE_BUFFERED_QUERY : null => true,
+                // MySQL specific options
+                (class_exists(PDO\Mysql::class) ? PDO\Mysql::ATTR_INIT_COMMAND : PDO::MYSQL_ATTR_INIT_COMMAND) => "SET SESSION sql_mode='STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ZERO_DATE,NO_ENGINE_SUBSTITUTION'",
             ]) : [],
         ],
 

@@ -6,7 +6,7 @@ use App\Events\Supplier\SupplierDeleted;
 use App\Listeners\Supplier\LogSupplierCreated;
 use App\Listeners\Supplier\LogSupplierUpdated;
 use App\Listeners\Supplier\LogSupplierDeleted;
-use App\Models\Supplier;
+use App\Modules\Procurement\Models\Supplier;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Foundation\Testing\RefreshDatabase;

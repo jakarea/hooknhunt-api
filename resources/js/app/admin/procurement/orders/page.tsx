@@ -50,7 +50,7 @@ import {
   useOrdersPagination,
   useDeleteModal,
   type PurchaseOrder,
-} from '@/stores/procurementOrdersStore'
+} from '@/modules/procurement/stores/procurementOrdersStore'
 
 // ============================================================================
 // CONSTANTS

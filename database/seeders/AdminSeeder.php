@@ -2,10 +2,10 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use App\Models\StaffProfile;
-use App\Models\Role;
-use App\Models\Department;
+use App\Modules\System\Models\User;
+use App\Modules\HRM\Models\StaffProfile;
+use App\Modules\Admin\Models\Role;
+use App\Modules\HRM\Models\Department;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;

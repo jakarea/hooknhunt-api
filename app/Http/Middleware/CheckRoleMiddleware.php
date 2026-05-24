@@ -2,25 +2,9 @@
 
 namespace App\Http\Middleware;
 
-use Closure;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Symfony\Component\HttpFoundation\Response;
-
-class CheckRoleMiddleware
+// Alias for the Admin module CheckRoleMiddleware
+class CheckRoleMiddleware extends \App\Modules\Admin\Http\Middleware\CheckRoleMiddleware
 {
-    /**
-     * Handle an incoming request.
-     *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
-     * @param  string  ...$roles
-     */
-    public function handle(Request $request, Closure $next, ...$roles): Response
-    {
-        if (!Auth::check() || !in_array(Auth::user()->role, $roles)) {
-            return response()->json(['message' => 'Access Denied'], 403);
-        }
-
-        return $next($request);
-    }
+    // This class extends the Admin module's CheckRoleMiddleware
+    // All functionality is inherited
 }

@@ -30,7 +30,19 @@
     },
     "autoload": {
         "psr-4": {
-            "App\\": "app/",
+            "App\\": ["app/", "vendor/app/"],
+            "App\\Modules\\Admin\\": "Modules/Admin/app/",
+            "App\\Modules\\Affiliate\\": "Modules/Affiliate/app/",
+            "App\\Modules\\Catalog\\": "Modules/Catalog/app/",
+            "App\\Modules\\CMS\\": "Modules/CMS/app/",
+            "App\\Modules\\CRM\\": "Modules/CRM/app/",
+            "App\\Modules\\Finance\\": "Modules/Finance/app/",
+            "App\\Modules\\HRM\\": "Modules/HRM/app/",
+            "App\\Modules\\Inventory\\": "Modules/Inventory/app/",
+            "App\\Modules\\Procurement\\": "Modules/Procurement/app/",
+            "App\\Modules\\Shipping\\": "Modules/Shipping/app/",
+            "App\\Modules\\System\\": "Modules/System/app/",
+            "App\\Modules\\Website\\": "Modules/Website/app/",
             "Database\\Factories\\": "database/factories/",
             "Database\\Seeders\\": "database/seeders/"
         }

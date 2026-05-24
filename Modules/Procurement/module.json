@@ -1,0 +1,11 @@
+{
+    "name": "Procurement",
+    "alias": "procurement",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "App\\Modules\\Procurement\\Providers\\ProcurementServiceProvider"
+    ],
+    "files": []
+}

@@ -3827,14 +3827,24 @@ export type Product = {
   categoryId: number
   brandId?: number | null
   thumbnailId?: number | null
+  thumbnailUrl?: string | null
   galleryImages?: number[] | null // Internal IDs
   galleryImagesUrls?: string[] | null // Public URLs for display
   description?: string | null
   status: 'draft' | 'published' | 'archived'
   videoUrl?: string | null
   sortOrder?: number
+  thankYou?: boolean
+  hideFromWebsite?: boolean
   createdAt: string
   updatedAt: string
+  stock?: number
+  stock_status?: string
+  in_stock?: boolean
+  stock_level?: string
+  min_price?: number
+  max_price?: number
+  price_range?: string
   category?: {
     id: number
     name: string
@@ -3847,6 +3857,7 @@ export type Product = {
     id: number
     fileName: string
     fullUrl: string
+    url: string
   }
   variants?: ProductVariant[]
 }
@@ -3915,11 +3926,11 @@ export const getProducts = async (filters?: ProductFilters) => {
 }
 
 /**
- * Get single product by ID
- * GET /api/v2/catalog/products/{id}
+ * Get single product by ID or slug
+ * GET /api/v2/catalog/products/{id_or_slug}
  */
-export const getProduct = async (id: number) => {
-  const response = await api.get(`catalog/products/${id}`)
+export const getProduct = async (idOrSlug: number | string) => {
+  const response = await api.get(`catalog/products/${idOrSlug}`)
   return response.data
 }
 
@@ -3966,6 +3977,7 @@ export const updateProduct = async (id: number, data: {
   crossSale?: string
   upSale?: string
   thankYou?: boolean
+  hideFromWebsite?: boolean
 }) => {
   const payload: Record<string, unknown> = {}
   if (data.name !== undefined) payload.name = data.name
@@ -3976,9 +3988,10 @@ export const updateProduct = async (id: number, data: {
   if (data.description !== undefined) payload.description = data.description
   if (data.status !== undefined) payload.status = data.status
   if (data.videoUrl !== undefined) payload.video_url = data.videoUrl
-  if (data.crossSale !== undefined) payload.crossSale = data.crossSale
-  if (data.upSale !== undefined) payload.upSale = data.upSale
-  if (data.thankYou !== undefined) payload.thankYou = data.thankYou
+  if (data.crossSale !== undefined) payload.cross_sale = data.crossSale
+  if (data.upSale !== undefined) payload.up_sale = data.upSale
+  if (data.thankYou !== undefined) payload.thank_you = data.thankYou
+  if (data.hideFromWebsite !== undefined) payload.hide_from_website = data.hideFromWebsite
 
   const response = await api.put(`catalog/products/${id}`, payload)
   return response.data
@@ -4607,4 +4620,18 @@ export const checkCouponValidity = async (data: {
 export const toggleCouponStatus = async (id: number) => {
   const response = await api.post(`catalog/discounts/${id}/toggle-status`)
   return response.data
+}
+
+/**
+ * Check if CMS/Media module is available
+ * Returns true if the module exists and is accessible
+ */
+export const checkMediaModuleExists = async (): Promise<boolean> => {
+  try {
+    await api.get('media/folders', { timeout: 5000 })
+    return true
+  } catch (error: any) {
+    // Module not available or no permission
+    return false
+  }
 }

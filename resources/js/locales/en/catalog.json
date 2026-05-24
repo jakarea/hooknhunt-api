@@ -339,6 +339,10 @@
     "thankYou": {
       "title": "Thank You Product",
       "description": "Mark this product to be shown on order confirmation page"
+    },
+    "hideFromWebsite": {
+      "title": "Hide from Website",
+      "description": "Hide this product from website listings (will still be accessible via direct link)"
     }
   },
   "productsCreate": {

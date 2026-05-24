@@ -2,8 +2,8 @@
 
 namespace App\Providers;
 
-use App\Repositories\Contracts\SupplierRepositoryInterface;
-use App\Repositories\SupplierRepository;
+use App\Modules\Procurement\Repositories\Contracts\SupplierRepositoryInterface;
+use App\Modules\Procurement\Repositories\SupplierRepository;
 use Illuminate\Support\ServiceProvider;
 
 /**

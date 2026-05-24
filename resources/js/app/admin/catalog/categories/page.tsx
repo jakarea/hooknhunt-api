@@ -10,7 +10,7 @@ import {
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { useDebouncedValue } from '@mantine/hooks'
-import { useCategoriesStore } from '@/stores/categoriesStore'
+import { useCategoriesStore } from '@/modules/catalog/stores/categoriesStore'
 import type { Category } from '@/utils/api'
 
 // Helper to decode HTML entities
@@ -42,15 +42,10 @@ export default function CategoriesPage() {
   const loading = useCategoriesStore((s) => s.loading)
   const fetchCategories = useCategoriesStore((s) => s.fetchCategories)
 
-  // Fetch categories on search change
+  // Consolidated fetch - handles both initial load and search
   useEffect(() => {
     fetchCategories({ search: debouncedSearch || undefined, page: 1, per_page: 50 })
   }, [debouncedSearch, fetchCategories])
-
-  // Initial load
-  useEffect(() => {
-    fetchCategories({ page: 1, per_page: 50 })
-  }, [fetchCategories])
 
   // Handle refresh
   const handleRefresh = useCallback(() => {

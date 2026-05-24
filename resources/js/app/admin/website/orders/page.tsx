@@ -14,10 +14,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import {
   formatCurrency, statusColors, statusLabels, paymentStatusColors, channelLabels,
   bulkUpdateOrderStatus, bulkSendToCourier,
-  type WebsiteOrderFilters,
   type WebsiteOrderStatus, type PaymentStatus, type OrderChannel,
 } from '@/utils/websiteApi'
-import { useWebsiteOrdersStore } from '@/stores/websiteOrdersStore'
+import { useWebsiteOrdersStore, type WebsiteOrderFilters } from '@/modules/website/stores/websiteOrdersStore'
 
 export default function WebsiteOrdersPage() {
   const navigate = useNavigate()

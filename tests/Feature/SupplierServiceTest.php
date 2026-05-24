@@ -2,8 +2,8 @@
 
 use App\Services\SupplierService;
 use App\Services\Result;
-use App\Models\Supplier;
-use App\Models\Shipment;
+use App\Modules\Procurement\Models\Supplier;
+use App\Modules\Shipping\Models\Shipment;
 use App\DTOs\CreateSupplierDTO;
 use App\DTOs\UpdateSupplierDTO;
 use App\DTOs\SupplierSearchDTO;

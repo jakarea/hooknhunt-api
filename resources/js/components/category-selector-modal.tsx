@@ -5,7 +5,7 @@ import {
   Breadcrumbs, Skeleton, ScrollArea, ActionIcon, Tooltip,
 } from '@mantine/core'
 import { IconChevronRight, IconPhoto } from '@tabler/icons-react'
-import { useCategoriesStore } from '@/stores/categoriesStore'
+import { useCategoriesStore } from '@/modules/catalog/stores/categoriesStore'
 import type { Category } from '@/utils/api'
 
 interface CategorySelectorModalProps {

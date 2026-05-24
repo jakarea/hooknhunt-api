@@ -16,8 +16,8 @@ import { useNavigate } from 'react-router-dom'
 import { IconPhoto } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 import { useMediaSelector } from '@/hooks/useMediaSelector'
-import { useSliderStore } from '@/stores/sliderStore'
-import type { SliderFormData, SliderMediaType } from '@/utils/websiteApi'
+import { useSliderStore, type SliderFormData } from '@/modules/website/stores/sliderStore'
+import type { SliderMediaType } from '@/utils/websiteApi'
 
 // ─── Form Defaults ───────────────────────────────
 export const emptyForm: SliderFormData = {

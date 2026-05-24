@@ -29,7 +29,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useMediaSelector } from '@/hooks/useMediaSelector'
 import { createSupplier } from '@/utils/api'
 import { validateSupplierForm, showValidationErrors, handleApiValidationErrors, transformToApiFormat } from '@/utils/supplierValidation'
-import { useSuppliersStore } from '@/stores/suppliersStore'
+import { useSuppliersStore } from '@/modules/procurement/stores/suppliersStore'
 import type { Supplier } from '@/types/supplier'
 
 // ============================================================================

@@ -4,7 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use App\Models\MediaFolder;
+use App\Modules\CMS\Models\MediaFolder;
 
 class StaffDocumentsFolderSeeder extends Seeder
 {

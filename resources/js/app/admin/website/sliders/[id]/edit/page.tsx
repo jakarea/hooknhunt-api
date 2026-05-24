@@ -2,9 +2,8 @@ import * as React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Box, Text, LoadingOverlay } from '@mantine/core'
 import { useTranslation } from 'react-i18next'
-import { useSliderStore } from '@/stores/sliderStore'
+import { useSliderStore, type SliderFormData } from '@/modules/website/stores/sliderStore'
 import { SliderForm } from '../../slider-form'
-import type { SliderFormData } from '@/utils/websiteApi'
 
 export default function EditSliderPage() {
   const { t } = useTranslation()

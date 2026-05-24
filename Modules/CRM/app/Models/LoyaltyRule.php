@@ -1,0 +1,14 @@
+<?php
+
+namespace App\Modules\CRM\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class LoyaltyRule extends Model
+{
+    protected $guarded = ['id'];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+    ];
+}

@@ -1,0 +1,16 @@
+<?php
+
+namespace App\Modules\System\Http\Requests\Auth;
+
+use App\Modules\System\Http\Requests\ApiRequest;
+
+class VerifyOtpRequest extends ApiRequest
+{
+    public function rules(): array
+    {
+        return [
+            'phone' => 'required|string|exists:users,phone',
+            'otp' => 'required|string|digits:5', // 5 Digit Code
+        ];
+    }
+}

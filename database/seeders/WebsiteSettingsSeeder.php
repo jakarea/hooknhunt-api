@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\Setting;
+use App\Modules\System\Models\Setting;
 
 class WebsiteSettingsSeeder extends Seeder
 {

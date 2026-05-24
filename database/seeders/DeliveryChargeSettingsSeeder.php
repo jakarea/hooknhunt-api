@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Setting;
+use App\Modules\System\Models\Setting;
 use Illuminate\Database\Seeder;
 
 class DeliveryChargeSettingsSeeder extends Seeder

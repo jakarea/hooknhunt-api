@@ -1,6 +1,6 @@
 import { notifications } from '@mantine/notifications'
 import api from '@/lib/api'
-import { usePurchaseOrderDetailStore } from '@/stores/purchaseOrderDetailStore'
+import { usePurchaseOrderDetailStore } from '@/modules/procurement/stores/purchaseOrderDetailStore'
 
 /**
  * Types for timeline edit functionality

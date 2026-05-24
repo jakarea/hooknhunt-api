@@ -75,10 +75,15 @@ export function AppSidebarMantine({
   const fetchStats = useWebsiteOrdersStore((s) => s.fetchStats)
   const pendingCount = stats?.pending || 0
 
-  // Fetch stats on mount to show pending count in sidebar
+  // Only fetch stats when on orders-related pages to avoid unnecessary API calls
   useEffect(() => {
-    fetchStats()
-  }, [fetchStats])
+    const isOrdersPage = location.pathname.includes('/orders') ||
+                         location.pathname.includes('/website-admin/orders')
+
+    if (isOrdersPage && !stats) {
+      fetchStats()
+    }
+  }, [location.pathname, stats, fetchStats])
 
   const toggleSection = (label: string) => {
     setOpened((prev) => ({
@@ -338,11 +343,22 @@ export function AppSidebarMantine({
         ],
       },
       {
-        label: t("nav.settings"),
+        label: t("nav.system"),
+        icon: IconShield,
         items: [
           {
+            title: t("settings.users"),
+            url: "/system/users",
+            icon: IconUsers,
+          },
+          {
+            title: t("settings.roles"),
+            url: "/system/roles",
+            icon: IconUsersGroup,
+          },
+          {
             title: t("settings.permissions"),
-            url: "/settings/permissions",
+            url: "/system/permissions",
             icon: IconShield,
           },
           {

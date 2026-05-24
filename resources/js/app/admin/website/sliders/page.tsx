@@ -22,8 +22,7 @@ import {
   IconPlayerPlay,
 } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
-import { useSliderStore } from '@/stores/sliderStore'
-import type { Slider } from '@/utils/websiteApi'
+import { useSliderStore, type Slider } from '@/modules/website/stores/sliderStore'
 
 export default function SlidersPage() {
   const { t } = useTranslation()
