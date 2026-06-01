@@ -51,5 +51,16 @@ Route::prefix('v2/catalog')->group(function () {
         Route::post('/brands', [BrandController::class, 'store'])->middleware('permission:catalog.brands.create');
         Route::put('/brands/{id}', [BrandController::class, 'update'])->middleware('permission:catalog.brands.edit');
         Route::delete('/brands/{id}', [BrandController::class, 'destroy'])->middleware('permission:catalog.brands.delete');
+
+        // Discount/Coupon Management (Admin)
+        Route::post('/discounts/bulk-generate', [\App\Modules\Catalog\Http\Controllers\Api\V2\Catalog\DiscountController::class, 'bulkGenerate'])->middleware('permission:catalog.discounts.bulk-generate');
+        Route::post('/discounts/check-validity', [\App\Modules\Catalog\Http\Controllers\Api\V2\Catalog\DiscountController::class, 'checkValidity'])->middleware('permission:catalog.discounts.check-validity');
+        Route::post('/discounts/{id}/toggle-status', [\App\Modules\Catalog\Http\Controllers\Api\V2\Catalog\DiscountController::class, 'toggleStatus'])->middleware('permission:catalog.discounts.toggle-status');
+        Route::apiResource('/discounts', \App\Modules\Catalog\Http\Controllers\Api\V2\Catalog\DiscountController::class)
+            ->middleware([
+                'store' => 'permission:catalog.discounts.create',
+                'update' => 'permission:catalog.discounts.edit',
+                'destroy' => 'permission:catalog.discounts.delete',
+            ]);
     });
 });

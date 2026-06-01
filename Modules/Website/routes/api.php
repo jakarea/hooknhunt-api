@@ -142,7 +142,7 @@ Route::prefix('api/v2/store')->group(function () {
 
     // Coupons (public - for cart)
     Route::post('/coupons/validate', [CouponController::class, 'checkCoupon']);
-    Route::get('/coupons/auto-apply', [CouponController::class, 'autoApply']);
+    Route::post('/coupons/auto-apply', [CouponController::class, 'autoApply']);
 
     // Public Sliders (Storefront)
     Route::get('/sliders', [StorefrontSliderController::class, 'index']);

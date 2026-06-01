@@ -287,7 +287,7 @@ export default function VariantsPage() {
               {variant.productThumbnail ? (
                 <Box
                   component="img"
-                  src={variant.productThumbnail.fullUrl}
+                  src={variant.productThumbnail.full_url || variant.productThumbnail.url}
                   alt={variant.productName}
                   w={60}
                   h={60}
@@ -470,7 +470,7 @@ export default function VariantsPage() {
                             {variant.productThumbnail ? (
                               <Box
                                 component="img"
-                                src={variant.productThumbnail.fullUrl}
+                                src={variant.productThumbnail.full_url || variant.productThumbnail.url}
                                 alt={variant.productName}
                                 w={40}
                                 h={40}

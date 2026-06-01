@@ -76,7 +76,16 @@ class ProductController extends Controller
 
                 $query->orderBy($sortField, $sortDirection);
 
-                return $query->paginate($perPage);
+                // Paginate and append full_url to thumbnails
+                $paginatedProducts = $query->paginate($perPage);
+                $paginatedProducts->getCollection()->transform(function ($product) {
+                    if ($product->thumbnail) {
+                        $product->thumbnail->append('full_url');
+                    }
+                    return $product;
+                });
+
+                return $paginatedProducts;
             });
 
             return response()->json([

@@ -3,8 +3,6 @@
 namespace App\Modules\Website\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Str;
 
 class Discount extends Model
 {
@@ -41,11 +39,6 @@ class Discount extends Model
         'category_ids' => 'array',
         'customer_ids' => 'array',
     ];
-
-    public function usages(): HasMany
-    {
-        return $this->hasMany(CouponUsage::class);
-    }
 
     /**
      * Check remaining global uses. Null = unlimited.

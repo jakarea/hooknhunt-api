@@ -27,6 +27,8 @@ import Attributes from "@/app/admin/catalog/attributes/page"
 import Units from "@/app/admin/catalog/units/page"
 import PrintLabels from "@/app/admin/catalog/print-labels/page"
 import Coupons from "@/app/admin/catalog/coupons/page"
+import CreateCoupon from "@/app/admin/catalog/coupons/create/page"
+import EditCoupon from "@/app/admin/catalog/coupons/[id]/edit/page"
 import PurchaseOrders from "@/app/admin/procurement/orders/page"
 import CreatePO from "@/app/admin/procurement/create/page"
 import PurchaseOrderDetails from "@/app/admin/procurement/orders/[id]/page"
@@ -211,6 +213,8 @@ function App() {
               <Route path="catalog/units" element={<Units />} />
               <Route path="catalog/print-labels" element={<PrintLabels />} />
               <Route path="catalog/coupons" element={<Coupons />} />
+              <Route path="catalog/coupons/create" element={<CreateCoupon />} />
+              <Route path="catalog/coupons/:id/edit" element={<EditCoupon />} />
               <Route path="procurement/orders" element={<PurchaseOrders />} />
               <Route path="procurement/create" element={<CreatePO />} />
               <Route path="procurement/orders/:id" element={<PurchaseOrderDetails />} />

@@ -200,22 +200,22 @@ class PublicController extends Controller
     public function searchSuggestions(Request $request): JsonResponse
     {
         try {
-            $query = $request->get('q', '');
-            $limit = min((int) $request->get('limit', 10), 50);
+            $query = $request->input('q', '');
+            $limit = min((int) $request->input('limit', 10), 50);
 
             if (strlen($query) < 2) {
-                return $this->sendSuccess(['suggestions' => []], 'Query too short.');
+                return $this->sendSuccess([], 'Query too short.');
             }
 
             $suggestions = DB::table('products as p')
                 ->join('product_variants as pv', 'p.id', '=', 'pv.product_id')
                 ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
-                ->where('p.is_active', true)
+                ->where('p.status', 'published')
                 ->where('pv.is_active', true)
                 ->where('pv.stock', '>', 0)
                 ->where(function ($q) use ($query) {
                     $q->where('p.name', 'like', "%{$query}%")
-                      ->orWhere('p.search_keywords', 'like', "%{$query}%");
+                      ->orWhere('p.product_code', 'like', "%{$query}%");
                 })
                 ->select([
                     'p.id',
@@ -229,23 +229,35 @@ class PublicController extends Controller
                         WHERE pc.product_id = p.id
                         LIMIT 1) as category')
                 ])
-                ->groupBy('p.id', 'p.name', 'p.slug', 'pv.price', 'm.path')
+                ->groupBy('p.id', 'p.name', 'p.slug', 'pv.price', 'm.path', 'category')
                 ->limit($limit)
                 ->get();
 
-            return $this->sendSuccess([
-                'suggestions' => $suggestions->map(function ($product) {
-                    $imageUrl = $this->getImageUrl($product->image);
-                    return [
-                        'id' => $product->id,
-                        'name' => $product->name,
-                        'slug' => $product->slug,
-                        'image_url' => $imageUrl,
-                        'category' => $product->category,
-                        'price' => (float) $product->price,
-                    ];
-                })
-            ], 'Search suggestions retrieved successfully.');
+            // Transform suggestions for response
+            $suggestionsData = $suggestions->map(function ($product) {
+                $imagePath = $product->image;
+                $imageUrl = null;
+
+                if ($imagePath) {
+                    $imageUrl = $this->getImageUrl($imagePath);
+                }
+
+                // Fallback to placeholder if no image
+                if (!$imageUrl) {
+                    $imageUrl = config('app.url') . '/storage/placeholder.jpg';
+                }
+
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'slug' => $product->slug,
+                    'image_url' => $imageUrl,
+                    'category' => $product->category,
+                    'price' => (float) $product->price,
+                ];
+            });
+
+            return $this->sendSuccess($suggestionsData, 'Search suggestions retrieved successfully.');
 
         } catch (\Exception $e) {
             Log::error('Error getting search suggestions', ['error' => $e->getMessage()]);
@@ -273,24 +285,23 @@ class PublicController extends Controller
             $productsQuery = DB::table('products as p')
                 ->join('product_variants as pv', 'p.id', '=', 'pv.product_id')
                 ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
-                ->where('p.is_active', true)
+                ->where('p.status', 'published')
                 ->where('pv.is_active', true)
                 ->where('pv.stock', '>', 0)
                 ->where(function ($q) use ($query) {
                     $q->where('p.name', 'like', "%{$query}%")
                       ->orWhere('p.description', 'like', "%{$query}%")
-                      ->orWhere('p.search_keywords', 'like', "%{$query}%");
+                      ->orWhere('p.product_code', 'like', "%{$query}%");
                 })
                 ->select([
                     'p.id',
                     'p.name',
                     'p.slug',
-                    'p.short_description',
+                    'p.description',
                     'pv.price',
-                    'pv.compare_at_price as original_price',
                     'm.path as thumbnail_path'
                 ])
-                ->groupBy('p.id', 'p.name', 'p.slug', 'p.short_description', 'pv.price', 'pv.compare_at_price', 'm.path');
+                ->groupBy('p.id', 'p.name', 'p.slug', 'p.description', 'pv.price', 'm.path');
 
             if (!empty($validated['category_id'])) {
                 $productsQuery->join('product_category as pc', 'p.id', '=', 'pc.product_id')
@@ -306,23 +317,39 @@ class PublicController extends Controller
 
             $lastPage = (int) ceil($total / $perPage);
 
-            return $this->sendSuccess([
-                'data' => $products->map(function ($product) {
-                    $imageUrl = $this->getImageUrl($product->thumbnail_path);
-                    return [
-                        'id' => $product->id,
-                        'name' => $product->name,
-                        'slug' => $product->slug,
-                        'short_description' => $product->short_description,
-                        'price' => (float) $product->price,
-                        'original_price' => (float) ($product->original_price ?? 0),
-                        'image_url' => $imageUrl,
-                    ];
-                }),
+            // Transform products for response
+            $productsData = $products->map(function ($product) {
+                $thumbnailPath = $product->thumbnail_path;
+                $imageUrl = null;
+
+                if ($thumbnailPath) {
+                    $imageUrl = $this->getImageUrl($thumbnailPath);
+                }
+
+                // Fallback to placeholder if no image
+                if (!$imageUrl) {
+                    $imageUrl = config('app.url') . '/storage/placeholder.jpg';
+                }
+
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'slug' => $product->slug,
+                    'short_description' => $product->description,
+                    'description' => $product->description,
+                    'price' => (float) $product->price,
+                    'image_url' => $imageUrl,
+                ];
+            });
+
+            $response = [
+                'data' => $productsData,
                 'total' => $total,
                 'current_page' => $page,
                 'last_page' => $lastPage,
-            ], 'Products retrieved successfully.');
+            ];
+
+            return $this->sendSuccess($response, 'Products retrieved successfully.');
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             return $this->sendError('Validation failed.', $e->errors(), 422);
