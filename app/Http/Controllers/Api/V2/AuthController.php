@@ -53,6 +53,10 @@ class AuthController extends Controller
                 'role_id' => config('roles.customer.retail_id', 10), // Default to retail customer
             ]);
 
+            // Load role with permissions for the frontend
+            // This is required for the sidebar navigation and permission checking
+            $user->load(['role.permissions']);
+
             // Generate OTP for verification
             $otp = $this->generateOtp($user->phone, 'registration', $user->id);
 
@@ -116,6 +120,10 @@ class AuthController extends Controller
 
             // Create new token using the correct user model
             $token = $userForToken->createToken('auth-token')->plainTextToken;
+
+            // Load role with permissions for the frontend
+            // This is required for the sidebar navigation and permission checking
+            $user->load(['role.permissions']);
 
             // Create response
             $response = $this->sendSuccess([
@@ -247,6 +255,10 @@ class AuthController extends Controller
 
             // Create new token using the correct user model
             $token = $userForToken->createToken('auth-token')->plainTextToken;
+
+            // Load role with permissions for the frontend
+            // This is required for the sidebar navigation and permission checking
+            $user->load(['role.permissions']);
 
             return $this->sendSuccess([
                 'user' => $user->makeHidden(['password']),
