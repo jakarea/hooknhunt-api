@@ -411,6 +411,101 @@ class AuthController extends Controller
     }
 
     /**
+     * Get authenticated user profile with permissions.
+     * Used by frontend usePermissions hook to refresh permissions.
+     */
+    public function profile(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            if (!$user) {
+                return $this->sendError('User not found.', null, 404);
+            }
+
+            // Load role with permissions for the frontend
+            // This is required for the sidebar navigation and permission checking
+            $user->load(['role.permissions']);
+
+            return $this->sendSuccess([
+                'user' => $user->makeHidden(['password']),
+            ], 'Profile retrieved successfully.');
+        } catch (\Exception $e) {
+            Log::error('Profile error', ['error' => $e->getMessage()]);
+            return $this->sendError('Failed to retrieve profile. Please try again.', null, 500);
+        }
+    }
+
+    /**
+     * Update user profile.
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            if (!$user) {
+                return $this->sendError('User not found.', null, 404);
+            }
+
+            $validated = $request->validate([
+                'name' => 'sometimes|required|string|max:255',
+                'email' => 'sometimes|required|email|unique:users,email,' . $user->id,
+                'phone' => 'sometimes|required|string|regex:/^[0-9]{11}$/|unique:users,phone,' . $user->id,
+                'whatsapp_number' => 'nullable|string|regex:/^[0-9]{11}$/',
+            ]);
+
+            $user->update($validated);
+
+            // Load role with permissions for the frontend
+            $user->load(['role.permissions']);
+
+            return $this->sendSuccess([
+                'user' => $user->makeHidden(['password']),
+            ], 'Profile updated successfully.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->sendError('Validation failed.', $e->errors(), 422);
+        } catch (\Exception $e) {
+            Log::error('Update profile error', ['error' => $e->getMessage()]);
+            return $this->sendError('Failed to update profile. Please try again.', null, 500);
+        }
+    }
+
+    /**
+     * Change user password.
+     */
+    public function changePassword(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            if (!$user) {
+                return $this->sendError('User not found.', null, 404);
+            }
+
+            $validated = $request->validate([
+                'current_password' => 'required|string',
+                'password' => 'required|string|min:6|confirmed',
+            ]);
+
+            if (!Hash::check($validated['current_password'], $user->password)) {
+                return $this->sendError('Current password is incorrect.', null, 422);
+            }
+
+            $user->update([
+                'password' => Hash::make($validated['password'])
+            ]);
+
+            return $this->sendSuccess(null, 'Password changed successfully.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->sendError('Validation failed.', $e->errors(), 422);
+        } catch (\Exception $e) {
+            Log::error('Change password error', ['error' => $e->getMessage()]);
+            return $this->sendError('Failed to change password. Please try again.', null, 500);
+        }
+    }
+
+    /**
      * Test SMS balance (development only).
      */
     public function testSmsBalance(Request $request): JsonResponse

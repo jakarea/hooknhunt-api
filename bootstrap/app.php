@@ -12,6 +12,7 @@ use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use App\Http\Middleware\XssSanitization;
 use App\Http\Middleware\CamelCaseResponse;
 use App\Http\Middleware\LazychatAuth;
+use App\Http\Middleware\SanitizeInput;
 use Illuminate\Console\Scheduling\Schedule;
 
 
@@ -43,6 +44,8 @@ return Application::configure(basePath: dirname(__DIR__))
             //     \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             // ]);
 
+            // Apply SanitizeInput BEFORE XssSanitization
+            $middleware->prepend(SanitizeInput::class);
             $middleware->append(XssSanitization::class);
             $middleware->append(\App\Http\Middleware\AuditLogMiddleware::class);
 

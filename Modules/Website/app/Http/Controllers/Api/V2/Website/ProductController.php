@@ -23,8 +23,13 @@ class ProductController extends Controller
     public function index(Request $request): JsonResponse
     {
         // Build query with direct SQL - only select what's needed
+        // Use COALESCE to check both catalog_product_images and media_files
         $query = DB::table('products as p')
-            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->leftJoin('catalog_product_images as cp', 'p.thumbnail_id', '=', 'cp.id')
+            ->leftJoin('media_files as mf', function($join) {
+                $join->on('p.thumbnail_id', '=', 'mf.id')
+                     ->whereNull('cp.id'); // Only join media_files if catalog_product_images not found
+            })
             ->where('p.status', 'published')
             ->whereExists(function ($q) {
                 $q->select(DB::raw(1))
@@ -41,8 +46,8 @@ class ProductController extends Controller
                 'p.retail_name_bn',
                 'p.slug',
                 'p.thumbnail_id',
-                'm.path as thumbnail_path',
-                'm.url as thumbnail_url',
+                DB::raw('COALESCE(cp.path, mf.path) as thumbnail_path'),
+                DB::raw('COALESCE(cp.url, mf.url) as thumbnail_url'),
                 'p.created_at',
             ]);
 
@@ -130,7 +135,7 @@ class ProductController extends Controller
                 'nameBn' => $product->retail_name_bn ?? $product->name,
 
                 // Images - standardized format
-                'image_url' => $imageData['image_url'],
+                'imageUrl' => $imageData['image_url'],
                 'image_id' => $imageData['image_id'],
 
                 // Pricing - ProductCard needs these
@@ -176,10 +181,15 @@ class ProductController extends Controller
     public function show(string $slug): JsonResponse
     {
         // Use direct SQL to avoid model serialization overhead
+        // Use COALESCE to check both catalog_product_images and media_files
         $product = DB::table('products as p')
             ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
             ->leftJoin('brands as b', 'p.brand_id', '=', 'b.id')
-            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->leftJoin('catalog_product_images as cp', 'p.thumbnail_id', '=', 'cp.id')
+            ->leftJoin('media_files as mf', function($join) {
+                $join->on('p.thumbnail_id', '=', 'mf.id')
+                     ->whereNull('cp.id'); // Only join media_files if catalog_product_images not found
+            })
             ->where('p.slug', $slug)
             ->where('p.status', 'published')
             ->select([
@@ -219,11 +229,11 @@ class ProductController extends Controller
                 'b.id as brand_id',
                 'b.name as brand_name',
                 'b.slug as brand_slug',
-                'm.id as thumbnail_id',
-                'm.path as thumbnail_path',
-                'm.url as thumbnail_url',
-                'm.disk as thumbnail_disk',
-                'm.original_filename',
+                DB::raw('COALESCE(cp.id, mf.id) as thumbnail_join_id'),
+                DB::raw('COALESCE(cp.path, mf.path) as thumbnail_path'),
+                DB::raw('COALESCE(cp.url, mf.url) as thumbnail_url'),
+                DB::raw('COALESCE(cp.disk, mf.disk) as thumbnail_disk'),
+                DB::raw('COALESCE(cp.original_filename, mf.original_filename) as original_filename'),
             ])
             ->first();
 
@@ -341,10 +351,10 @@ class ProductController extends Controller
             'seoTitle' => $product->seo_title,
             'seoDescription' => $product->seo_description,
             'seoTags' => $seoTags ?: [],
-            // Image fields - standardized format
-            'image_url' => $thumbnailUrl,
+            // Image fields - standardized format (camelCase to match catalog API)
+            'imageUrl' => $thumbnailUrl,
             'image_id' => $imageData['image_id'],
-            'gallery_images' => collect($galleryUrls)->map(fn($url) => ['image_url' => $url])->values()->toArray(),
+            'galleryImages' => collect($galleryUrls)->map(fn($url) => ['imageUrl' => $url])->values()->toArray(),
             // Price fields
             'price' => $price,
             'actual_price' => $price,
@@ -378,7 +388,7 @@ class ProductController extends Controller
                 'size' => $v->size,
                 'color' => $v->color,
                 'isActive' => true,
-                'image_url' => $this->formatVariantThumbnail($v->thumbnail),
+                'image_url' => $this->formatVariantThumbnail($v->thumbnail, $thumbnailUrl),
             ])->values()->toArray(),
             'crossSaleProducts' => [],
             'upSaleProducts' => [],
@@ -392,34 +402,6 @@ class ProductController extends Controller
     }
 
     /**
-     * Get gallery image URLs using direct SQL - no models
-     */
-    private function getGalleryImagesUrlsDirect($galleryIds): array
-    {
-        if (empty($galleryIds) || !is_array($galleryIds)) {
-            return [];
-        }
-
-        $results = DB::table('media_files')
-            ->whereIn('id', $galleryIds)
-            ->select('id', 'path', 'url')
-            ->get()
-            ->keyBy('id');
-
-        $urls = [];
-        foreach ($galleryIds as $id) {
-            if (isset($results[$id])) {
-                $file = $results[$id];
-                $urls[] = ($file->url && str_starts_with($file->url, 'http'))
-                    ? $file->url
-                    : url($file->path ?? '');
-            }
-        }
-
-        return $urls;
-    }
-
-    /**
      * Get featured/published products for homepage (retail only).
      * GET /api/v2/store/products/featured
      *
@@ -430,7 +412,11 @@ class ProductController extends Controller
         $limit = min((int) $request->input('limit', 12), 100);
 
         $products = DB::table('products as p')
-            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->leftJoin('catalog_product_images as cp', 'p.thumbnail_id', '=', 'cp.id')
+            ->leftJoin('media_files as mf', function($join) {
+                $join->on('p.thumbnail_id', '=', 'mf.id')
+                     ->whereNull('cp.id');
+            })
             ->where('p.status', 'published')
             ->whereExists(function ($query) {
                 $query->select(DB::raw(1))
@@ -449,8 +435,8 @@ class ProductController extends Controller
                 'p.retail_name_bn',
                 'p.slug',
                 'p.thumbnail_id',
-                'm.path as thumbnail_path',
-                'm.url as thumbnail_url',
+                DB::raw('COALESCE(cp.path, mf.path) as thumbnail_path'),
+                DB::raw('COALESCE(cp.url, mf.url) as thumbnail_url'),
                 'p.created_at',
             ])
             ->get();
@@ -496,7 +482,7 @@ class ProductController extends Controller
                 'title' => $product->retail_name ?? $product->name,
                 'nameBn' => $product->retail_name_bn ?? $product->name,
                 // Images - standardized format
-                'image_url' => $imageData['image_url'],
+                'imageUrl' => $imageData['image_url'],
                 'image_id' => $imageData['image_id'],
                 // Pricing - ProductCard needs these
                 'price' => $price,
@@ -525,7 +511,11 @@ class ProductController extends Controller
         $limit = min((int) $request->input('limit', 12), 100);
 
         $products = DB::table('products as p')
-            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->leftJoin('catalog_product_images as cp', 'p.thumbnail_id', '=', 'cp.id')
+            ->leftJoin('media_files as mf', function($join) {
+                $join->on('p.thumbnail_id', '=', 'mf.id')
+                     ->whereNull('cp.id');
+            })
             ->where('p.status', 'published')
             ->whereExists(function ($query) {
                 $query->select(DB::raw(1))
@@ -546,8 +536,8 @@ class ProductController extends Controller
                 'p.retail_name_bn',
                 'p.slug',
                 'p.thumbnail_id',
-                'm.path as thumbnail_path',
-                'm.url as thumbnail_url',
+                DB::raw('COALESCE(cp.path, mf.path) as thumbnail_path'),
+                DB::raw('COALESCE(cp.url, mf.url) as thumbnail_url'),
                 'p.created_at',
             ])
             ->get();
@@ -593,7 +583,7 @@ class ProductController extends Controller
                 'title' => $product->retail_name ?? $product->name,
                 'nameBn' => $product->retail_name_bn ?? $product->name,
                 // Images - standardized format
-                'image_url' => $imageData['image_url'],
+                'imageUrl' => $imageData['image_url'],
                 'image_id' => $imageData['image_id'],
                 // Pricing - ProductCard needs these
                 'price' => $price,
@@ -635,7 +625,11 @@ class ProductController extends Controller
         }
 
         $products = DB::table('products as p')
-            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->leftJoin('catalog_product_images as cp', 'p.thumbnail_id', '=', 'cp.id')
+            ->leftJoin('media_files as mf', function($join) {
+                $join->on('p.thumbnail_id', '=', 'mf.id')
+                     ->whereNull('cp.id');
+            })
             ->whereIn('p.id', $uniqueIds)
             ->where('p.status', 'published')
             ->select([
@@ -644,8 +638,8 @@ class ProductController extends Controller
                 'p.retail_name',
                 'p.slug',
                 'p.thumbnail_id',
-                'm.path as thumbnail_path',
-                'm.url as thumbnail_url',
+                DB::raw('COALESCE(cp.path, mf.path) as thumbnail_path'),
+                DB::raw('COALESCE(cp.url, mf.url) as thumbnail_url'),
             ])
             ->get()
             ->sortBy(fn($p) => array_search($p->id, $uniqueIds))
@@ -690,7 +684,11 @@ class ProductController extends Controller
         $products = DB::table('products as p')
             ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
             ->leftJoin('brands as b', 'p.brand_id', '=', 'b.id')
-            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->leftJoin('catalog_product_images as cp', 'p.thumbnail_id', '=', 'cp.id')
+            ->leftJoin('media_files as mf', function($join) {
+                $join->on('p.thumbnail_id', '=', 'mf.id')
+                     ->whereNull('cp.id');
+            })
             ->where('p.status', 'published')
             ->where('p.thank_you', true)
             ->whereExists(function ($query) {
@@ -710,9 +708,9 @@ class ProductController extends Controller
                 'p.slug',
                 'p.status',
                 'p.thumbnail_id',
-                'm.path as thumbnail_path',
-                'm.url as thumbnail_url',
-                'm.original_filename',
+                DB::raw('COALESCE(cp.path, mf.path) as thumbnail_path'),
+                DB::raw('COALESCE(cp.url, mf.url) as thumbnail_url'),
+                'cp.original_filename',
                 'c.id as category_id',
                 'c.name as category_name',
                 'c.slug as category_slug',
@@ -733,7 +731,7 @@ class ProductController extends Controller
                 'name' => $product->retail_name ?? $product->name,
                 'slug' => $product->slug,
                 'shortDescription' => null,
-                'image_url' => $imageData['image_url'],
+                'imageUrl' => $imageData['image_url'],
                 'image_id' => $imageData['image_id'],
                 'category' => $product->category_id ? [
                     'id' => $product->category_id,
@@ -774,7 +772,11 @@ class ProductController extends Controller
         $related = DB::table('products as p')
             ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
             ->leftJoin('brands as b', 'p.brand_id', '=', 'b.id')
-            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->leftJoin('catalog_product_images as cp', 'p.thumbnail_id', '=', 'cp.id')
+            ->leftJoin('media_files as mf', function($join) {
+                $join->on('p.thumbnail_id', '=', 'mf.id')
+                     ->whereNull('cp.id');
+            })
             ->where('p.status', 'published')
             ->where('p.id', '!=', $product->id)
             ->where('p.category_id', $product->category_id)
@@ -795,9 +797,9 @@ class ProductController extends Controller
                 'p.slug',
                 'p.status',
                 'p.thumbnail_id',
-                'm.path as thumbnail_path',
-                'm.url as thumbnail_url',
-                'm.original_filename',
+                DB::raw('COALESCE(cp.path, mf.path) as thumbnail_path'),
+                DB::raw('COALESCE(cp.url, mf.url) as thumbnail_url'),
+                'cp.original_filename',
                 'c.id as category_id',
                 'c.name as category_name',
                 'c.slug as category_slug',
@@ -895,7 +897,11 @@ class ProductController extends Controller
 
         $products = DB::table('products as p')
             ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
-            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->leftJoin('catalog_product_images as cp', 'p.thumbnail_id', '=', 'cp.id')
+            ->leftJoin('media_files as mf', function($join) {
+                $join->on('p.thumbnail_id', '=', 'mf.id')
+                     ->whereNull('cp.id');
+            })
             ->where('p.status', 'published')
             ->whereExists(function ($q) {
                 $q->select(DB::raw(1))
@@ -917,8 +923,8 @@ class ProductController extends Controller
                 'p.retail_name',
                 'p.slug',
                 'p.thumbnail_id',
-                'm.path as thumbnail_path',
-                'm.url as thumbnail_url',
+                DB::raw('COALESCE(cp.path, mf.path) as thumbnail_path'),
+                DB::raw('COALESCE(cp.url, mf.url) as thumbnail_url'),
                 'c.name as category_name',
             ])
             ->get();
@@ -934,7 +940,7 @@ class ProductController extends Controller
                 'id' => $product->id,
                 'name' => $product->name,
                 'slug' => $product->slug,
-                'image_url' => $imageData['image_url'],
+                'imageUrl' => $imageData['image_url'],
                 'image_id' => $imageData['image_id'],
                 'category' => $product->category_name,
             ];
@@ -962,7 +968,11 @@ class ProductController extends Controller
         $query = DB::table('products as p')
             ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
             ->leftJoin('brands as b', 'p.brand_id', '=', 'b.id')
-            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->leftJoin('catalog_product_images as cp', 'p.thumbnail_id', '=', 'cp.id')
+            ->leftJoin('media_files as mf', function($join) {
+                $join->on('p.thumbnail_id', '=', 'mf.id')
+                     ->whereNull('cp.id');
+            })
             ->where('p.status', 'published')
             ->whereExists(function ($q) {
                 $q->select(DB::raw(1))
@@ -986,9 +996,9 @@ class ProductController extends Controller
                 'p.thumbnail_id',
                 'p.category_id',
                 'p.brand_id',
-                'm.path as thumbnail_path',
-                'm.url as thumbnail_url',
-                'm.original_filename',
+                DB::raw('COALESCE(cp.path, mf.path) as thumbnail_path'),
+                DB::raw('COALESCE(cp.url, mf.url) as thumbnail_url'),
+                'cp.original_filename',
                 'c.id as category_id',
                 'c.name as category_name',
                 'c.slug as category_slug',
@@ -1040,7 +1050,7 @@ class ProductController extends Controller
                 'name' => $product->retail_name ?? $product->name,
                 'slug' => $product->slug,
                 'shortDescription' => null,
-                'image_url' => $imageData['image_url'],
+                'imageUrl' => $imageData['image_url'],
                 'image_id' => $imageData['image_id'],
                 'category' => $product->category_id ? [
                     'id' => $product->category_id,

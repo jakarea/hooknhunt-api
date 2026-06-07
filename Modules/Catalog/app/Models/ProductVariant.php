@@ -114,13 +114,13 @@ class ProductVariant extends Model
 
         // Fall back to product thumbnail if product relationship is loaded
         if ($this->relationLoaded('product') && $this->product) {
-            return $this->product->thumbnail_url ?? null;
+            return $this->product->thumbnailUrl ?? null;
         }
 
         // Otherwise, load the product and get its thumbnail
         if ($this->product_id) {
             $product = Product::find($this->product_id);
-            return $product?->thumbnail_url ?? null;
+            return $product?->thumbnailUrl ?? null;
         }
 
         return null;

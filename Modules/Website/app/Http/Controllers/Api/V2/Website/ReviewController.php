@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Log;
  */
 class ReviewController extends Controller
 {
-    use ApiResponse;
+    use ApiResponse, ImageHelper;
     /**
      * Display a listing of reviews with pagination.
      *
@@ -56,8 +56,23 @@ class ReviewController extends Controller
 
         return response()->json([
             'data' => collect($reviews->items())->map(function ($review) {
-                // Format screenshot image URL
-                $imageData = $this->formatScreenshotImage($review->screenshot_id, null);
+                // Query screenshot from database to get the path
+                $imageData = ['image_url' => null, 'image_id' => null];
+
+                if ($review->screenshot_id) {
+                    $screenshot = DB::table('media_files')->where('id', $review->screenshot_id)->first();
+                    if ($screenshot) {
+                        $imageData = $this->formatScreenshotImage(
+                            $screenshot->id,
+                            $screenshot->path
+                        );
+                    }
+                }
+
+                // If no screenshot, use placeholder
+                if (!$imageData['image_url']) {
+                    $imageData = $this->formatScreenshotImage(null, null);
+                }
 
                 return [
                     'id' => $review->id,
@@ -65,8 +80,11 @@ class ReviewController extends Controller
                     'review_text' => $review->review_text,
                     'is_featured' => $review->is_featured,
                     'created_at' => $review->created_at,
-                    'image_url' => $imageData['image_url'],
-                    'image_id' => $imageData['image_id'],
+                    'screenshot_url' => $imageData['image_url'],
+                    'screenshot' => [
+                        'full_url' => $imageData['image_url'],
+                        'id' => $imageData['image_id'],
+                    ],
                 ];
             })->toArray(),
             'meta' => [
@@ -98,11 +116,12 @@ class ReviewController extends Controller
             ], 404);
         }
 
-        $query = Review::whereHas('products', function ($q) use ($product) {
-            $q->where('products.id', $product->id);
-        })->with(['screenshot', 'products' => function ($q) {
-            $q->select('products.id', 'products.name', 'products.slug');
-        }]);
+        $query = Review::whereExists(function ($q) use ($product) {
+            $q->select(DB::raw(1))
+              ->from('review_product as rp')
+              ->whereColumn('reviews.id', 'rp.review_id')
+              ->where('rp.product_id', $product->id);
+        });
 
         // Filter by rating if provided
         if ($request->has('rating')) {
@@ -120,22 +139,26 @@ class ReviewController extends Controller
         $transformed = collect($reviews->items())->map(function ($review) {
             $reviewArray = $review->toArray();
 
-            // Format screenshot image URL
-            if (isset($reviewArray['screenshot']) && $reviewArray['screenshot']) {
+            // Format screenshot image URL - query screenshot directly
+            if ($review->screenshot_id) {
+                $screenshot = DB::table('media_files')->where('id', $review->screenshot_id)->first();
                 $imageData = $this->formatScreenshotImage(
-                    $reviewArray['screenshot']['id'] ?? null,
-                    $reviewArray['screenshot']['path'] ?? null
+                    $screenshot->id ?? null,
+                    $screenshot->path ?? null
                 );
-                $reviewArray['image_url'] = $imageData['image_url'];
-                $reviewArray['image_id'] = $imageData['image_id'];
+                $reviewArray['screenshot_url'] = $imageData['image_url'];
+                $reviewArray['screenshot'] = [
+                    'full_url' => $imageData['image_url'],
+                    'id' => $imageData['image_id'],
+                ];
             } else {
                 $imageData = $this->formatScreenshotImage(null, null);
-                $reviewArray['image_url'] = $imageData['image_url'];
-                $reviewArray['image_id'] = $imageData['image_id'];
+                $reviewArray['screenshot_url'] = $imageData['image_url'];
+                $reviewArray['screenshot'] = [
+                    'full_url' => $imageData['image_url'],
+                    'id' => $imageData['image_id'],
+                ];
             }
-
-            // Remove old screenshot reference
-            unset($reviewArray['screenshot']);
 
             return $reviewArray;
         });
@@ -161,9 +184,7 @@ class ReviewController extends Controller
     public function featured(Request $request): JsonResponse
     {
         $reviews = Review::featured()
-            ->with(['screenshot', 'products' => function ($q) {
-                $q->select('products.id', 'products.name', 'products.slug');
-            }])
+            ->with(['screenshot'])
             ->limit($request->input('limit', 6))
             ->get();
 
@@ -177,16 +198,17 @@ class ReviewController extends Controller
                     $review->screenshot->id ?? null,
                     $review->screenshot->path ?? null
                 );
-                $reviewArray['image_url'] = $imageData['image_url'];
-                $reviewArray['image_id'] = $imageData['image_id'];
+                $reviewArray['screenshot_url'] = $imageData['image_url'];
+                // Keep screenshot object but add full_url
+                $reviewArray['screenshot']['full_url'] = $imageData['image_url'];
             } else {
                 $imageData = $this->formatScreenshotImage(null, null);
-                $reviewArray['image_url'] = $imageData['image_url'];
-                $reviewArray['image_id'] = $imageData['image_id'];
+                $reviewArray['screenshot_url'] = $imageData['image_url'];
+                $reviewArray['screenshot'] = [
+                    'full_url' => $imageData['image_url'],
+                    'id' => $imageData['image_id'],
+                ];
             }
-
-            // Remove old screenshot reference
-            unset($reviewArray['screenshot']);
 
             return $reviewArray;
         });
@@ -209,13 +231,6 @@ class ReviewController extends Controller
                 $query->where('rating', $request->rating);
             }
 
-            // Filter by product
-            if ($request->has('product_id')) {
-                $query->whereHas('products', function ($q) use ($request) {
-                    $q->where('products.id', $request->product_id);
-                });
-            }
-
             // Search by review text
             if ($request->has('search')) {
                 $search = $request->search;
@@ -225,12 +240,92 @@ class ReviewController extends Controller
             $perPage = min((int) $request->input('per_page', 20), 100);
             $reviews = $query->latest()->paginate($perPage);
 
-            return $this->sendSuccess($reviews, 'Reviews retrieved successfully.');
+            // Format reviews to match frontend expectations
+            $formattedReviews = collect($reviews->items())->map(function ($review) {
+                // Get screenshot data if screenshot_id exists
+                $screenshot = null;
+                if ($review->screenshot_id) {
+                    $mediaFile = DB::table('media_files')->where('id', $review->screenshot_id)->first();
+                    if ($mediaFile) {
+                        $screenshot = [
+                            'id' => $mediaFile->id,
+                            'fullUrl' => $this->formatImageUrl($mediaFile->path),
+                            'path' => $mediaFile->path,
+                        ];
+                    }
+                }
+
+                // Get products from review_product pivot table
+                $productIds = DB::table('review_product')
+                    ->where('review_id', $review->id)
+                    ->pluck('product_id');
+
+                $products = [];
+                if ($productIds->isNotEmpty()) {
+                    $productData = DB::table('products')
+                        ->whereIn('id', $productIds)
+                        ->select('id', 'name', 'slug')
+                        ->get();
+
+                    $products = $productData->map(function ($product) {
+                        return [
+                            'id' => $product->id,
+                            'name' => $product->name,
+                            'slug' => $product->slug,
+                        ];
+                    })->toArray();
+                }
+
+                return [
+                    'id' => $review->id,
+                    'screenshot_id' => $review->screenshot_id,
+                    'review_text' => $review->review_text,
+                    'rating' => $review->rating,
+                    'is_featured' => $review->is_featured,
+                    'sort_order' => $review->sort_order,
+                    'created_at' => $review->created_at,
+                    'updated_at' => $review->updated_at,
+                    'screenshot' => $screenshot, // Frontend expects screenshot object
+                    'products' => $products, // Frontend expects products array
+                ];
+            })->toArray();
+
+            // Return data in format expected by frontend
+            return response()->json([
+                'status' => true,
+                'message' => 'Reviews retrieved successfully.',
+                'data' => $formattedReviews,
+                'meta' => [
+                    'current_page' => $reviews->currentPage(),
+                    'last_page' => $reviews->lastPage(),
+                    'per_page' => $reviews->perPage(),
+                    'total' => $reviews->total(),
+                ],
+            ], 200);
 
         } catch (\Exception $e) {
             Log::error('Error retrieving admin reviews', ['error' => $e->getMessage()]);
             return $this->sendError('Failed to retrieve reviews.', null, 500);
         }
+    }
+
+    /**
+     * Format image URL from path
+     */
+    private function formatImageUrl($path): string
+    {
+        if (!$path) {
+            return '';
+        }
+
+        // If already a full URL, return as is
+        if (filter_var($path, FILTER_VALIDATE_URL)) {
+            return $path;
+        }
+
+        // Build full URL from path
+        $baseUrl = config('app.url') . '/storage/' . $path;
+        return $baseUrl;
     }
 
     /**
@@ -260,10 +355,18 @@ class ReviewController extends Controller
 
             // Attach products if provided
             if (!empty($validated['product_ids'])) {
-                $review->products()->attach($validated['product_ids']);
+                $reviewId = $review->id;
+                foreach ($validated['product_ids'] as $productId) {
+                    DB::table('review_product')->insert([
+                        'review_id' => $reviewId,
+                        'product_id' => $productId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
             }
 
-            return $this->sendSuccess($review->load('products'), 'Review created successfully.', 201);
+            return $this->sendSuccess($review, 'Review created successfully.', 201);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             return $this->sendError('Validation failed.', $e->errors(), 422);
@@ -304,10 +407,21 @@ class ReviewController extends Controller
 
             // Update products if provided
             if (isset($validated['product_ids'])) {
-                $review->products()->sync($validated['product_ids']);
+                $reviewId = $review->id;
+                // Delete existing product associations
+                DB::table('review_product')->where('review_id', $reviewId)->delete();
+                // Add new product associations
+                foreach ($validated['product_ids'] as $productId) {
+                    DB::table('review_product')->insert([
+                        'review_id' => $reviewId,
+                        'product_id' => $productId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
             }
 
-            return $this->sendSuccess($review->load('products'), 'Review updated successfully.');
+            return $this->sendSuccess($review, 'Review updated successfully.');
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             return $this->sendError('Validation failed.', $e->errors(), 422);

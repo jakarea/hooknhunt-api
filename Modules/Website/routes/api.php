@@ -11,6 +11,8 @@ use App\Modules\Website\Http\Controllers\Api\V2\CategoryController;
 use App\Modules\Website\Http\Controllers\Api\V2\CouponController;
 use App\Modules\Website\Http\Controllers\Api\V2\WebsiteAdmin\OrderController as WebsiteAdminOrderController;
 use App\Modules\Website\Http\Controllers\Api\V2\WebsiteAdmin\SliderController;
+use App\Modules\Website\Http\Controllers\Api\V2\WebsiteAdmin\DeliverySettingController;
+use App\Modules\Website\Http\Controllers\Api\V2\WebsiteAdmin\SettingController;
 use App\Http\Controllers\Api\V2\AuthController;
 use App\Http\Controllers\Api\V2\PublicController;
 use App\Http\Controllers\Api\V2\SystemController;
@@ -30,6 +32,15 @@ Route::prefix('api/v2/auth')->group(function () {
 });
 
 Route::prefix('api/v2/website-admin')->group(function () {
+    // Admin settings routes
+    Route::get('/settings', [SystemController::class, 'getSettings']);
+    Route::put('/settings', [SettingController::class, 'update']);
+
+    // Admin delivery settings routes
+    Route::get('/delivery-settings', [DeliverySettingController::class, 'index']);
+    Route::put('/delivery-settings', [DeliverySettingController::class, 'update']);
+    Route::post('/delivery-settings/calculate', [DeliverySettingController::class, 'calculate']);
+
     // Admin slider management routes
     Route::get('/sliders', [SliderController::class, 'index']);
     Route::post('/sliders', [SliderController::class, 'store']);

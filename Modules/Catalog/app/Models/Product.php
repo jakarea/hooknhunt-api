@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class Product extends Model
 {
@@ -427,8 +428,8 @@ class Product extends Model
     }
 
     /**
-     * Get thumbnail URL (Catalog module - self-contained)
-     * Returns the URL from the loaded relationship or fetches from ProductImage
+     * Get thumbnail URL with fallback to catalog_product_images
+     * Returns the URL from the loaded relationship, media_files, or catalog_product_images
      */
     public function getThumbnailUrlAttribute(): ?string
     {
@@ -437,18 +438,28 @@ class Product extends Model
             return $this->thumbnail->url ?? null;
         }
 
-        // Otherwise, load the product image directly from Catalog module
+        // Otherwise, try media_files table first (post-migration)
         if ($this->thumbnail_id) {
-            $image = ProductImage::find($this->thumbnail_id);
-            return $image?->url ?? null;
+            $image = \DB::table('media_files')
+                ->where('id', $this->thumbnail_id)
+                ->value('url');
+
+            // If not found in media_files, fallback to catalog_product_images (pre-migration)
+            if (!$image) {
+                $image = \DB::table('catalog_product_images')
+                    ->where('id', $this->thumbnail_id)
+                    ->value('url');
+            }
+
+            return $image ?: null;
         }
 
         return null;
     }
 
     /**
-     * Get gallery images URLs (Catalog module - self-contained)
-     * Converts gallery_images array of ProductImage IDs to actual URLs
+     * Get gallery images URLs with fallback to catalog_product_images
+     * Converts gallery_images array of IDs to URLs from media_files or catalog_product_images
      */
     public function getGalleryImagesUrlsAttribute(): array
     {
@@ -456,21 +467,26 @@ class Product extends Model
             return [];
         }
 
-        // Use images relationship if already loaded
-        if ($this->relationLoaded('images')) {
-            return $this->images
-                ->where('is_thumbnail', false)
-                ->pluck('url')
-                ->toArray();
+        // Use catalog_product_images table only (migration complete)
+        // gallery_images stores catalog_product_images IDs
+        $results = \DB::table('catalog_product_images')
+            ->whereIn('id', $this->gallery_images)
+            ->select('id', 'url', 'path')
+            ->orderBy('id')
+            ->get()
+            ->keyBy('id');
+
+        $urls = [];
+        foreach ($this->gallery_images as $id) {
+            if (isset($results[$id])) {
+                $file = $results[$id];
+                // Use stored URL (probesh.hooknhunt.com) if available, otherwise build from path
+                $urls[] = ($file->url && str_starts_with($file->url, 'http'))
+                    ? $file->url
+                    : url($file->path ?? '');
+            }
         }
 
-        // Otherwise, query ProductImage from Catalog module directly
-        $urls = ProductImage::whereIn('id', $this->gallery_images)
-            ->where('is_thumbnail', false)
-            ->orderBy('sort_order')
-            ->pluck('url')
-            ->toArray();
-
-        return $urls ?: [];
+        return $urls;
     }
 }

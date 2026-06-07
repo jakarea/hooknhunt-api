@@ -11,6 +11,36 @@ use Illuminate\Support\Facades\DB;
 class SettingController extends Controller
 {
     /**
+     * Convert string "true"/"false"/"1"/"0" to boolean
+     */
+    private function convertToBoolean($value): ?bool
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            $lower = strtolower($value);
+            if ($lower === 'true' || $lower === '1' || $lower === 'yes') {
+                return true;
+            }
+            if ($lower === 'false' || $lower === '0' || $lower === 'no') {
+                return false;
+            }
+        }
+
+        if (is_numeric($value)) {
+            return (bool) $value;
+        }
+
+        return null;
+    }
+
+    /**
      * Get all website settings.
      * GET /api/v2/website-admin/settings
      */
@@ -40,6 +70,12 @@ class SettingController extends Controller
      */
     public function update(Request $request): JsonResponse
     {
+        // Convert string "true"/"false" to actual booleans before validation
+        $request->merge([
+            'serviceChargeEnabled' => $this->convertToBoolean($request->input('serviceChargeEnabled')),
+            'service_charge_enabled' => $this->convertToBoolean($request->input('service_charge_enabled')),
+        ]);
+
         $validated = $request->validate([
             // snake_case (legacy support)
             'facebook_pixel_id' => 'nullable|string|max:255',
@@ -61,6 +97,14 @@ class SettingController extends Controller
             'serviceChargeAmount' => 'nullable|numeric|min:0',
         ]);
 
+        // Only process allowed website settings fields
+        $allowedFields = [
+            'facebook_pixel_id', 'facebook_pixel_code',
+            'google_analytics_id', 'google_analytics_code',
+            'google_tag_manager_id', 'google_tag_manager_code',
+            'service_charge_enabled', 'service_charge_amount',
+        ];
+
         // Convert camelCase to snake_case for storage
         $camelToSnake = [
             'facebookPixelId' => 'facebook_pixel_id',
@@ -77,6 +121,11 @@ class SettingController extends Controller
         foreach ($validated as $key => $value) {
             // Convert camelCase to snake_case
             $snakeKey = $camelToSnake[$key] ?? $key;
+
+            // Only process allowed fields
+            if (!in_array($snakeKey, $allowedFields)) {
+                continue;
+            }
 
             // Convert boolean to string for storage
             if ($snakeKey === 'service_charge_enabled' && is_bool($value)) {
@@ -96,7 +145,11 @@ class SettingController extends Controller
             DB::table('settings')
                 ->updateOrInsert(
                     ['key' => 'website_' . $key],
-                    ['value' => $value, 'updated_at' => now()]
+                    [
+                        'value' => $value,
+                        'group' => 'website',
+                        'updated_at' => now()
+                    ]
                 );
         }
 

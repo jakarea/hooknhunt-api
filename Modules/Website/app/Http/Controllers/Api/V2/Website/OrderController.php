@@ -538,12 +538,19 @@ class OrderController extends Controller
                     $thumbnail = DB::table('sales_order_items as sgi')
                         ->leftJoin('product_variants as pv', 'sgi.product_variant_id', '=', 'pv.id')
                         ->leftJoin('products as p', 'pv.product_id', '=', 'p.id')
-                        ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+                        ->leftJoin('catalog_product_images as cp', 'p.thumbnail_id', '=', 'cp.id')
+                        ->leftJoin('media_files as mf', function($join) {
+                            $join->on('p.thumbnail_id', '=', 'mf.id')
+                                 ->whereNull('cp.id');
+                        })
                         ->where('sgi.id', $item->id)
                         ->select(
-                            'm.id as thumbnail_id',
-                            'm.path as thumbnail_path',
-                            'm.url as thumbnail_url'
+                            'p.id as product_id',
+                            'p.thumbnail_id as product_thumbnail_id',
+                            'p.gallery_images',
+                            DB::raw('COALESCE(cp.id, mf.id) as thumbnail_id'),
+                            DB::raw('COALESCE(cp.path, mf.path) as thumbnail_path'),
+                            DB::raw('COALESCE(cp.url, mf.url) as thumbnail_url')
                         )
                         ->first();
 
@@ -553,6 +560,19 @@ class OrderController extends Controller
                         $thumbnail ? $thumbnail->thumbnail_path : null,
                         $thumbnail ? $thumbnail->thumbnail_url : null
                     );
+
+                    // Fallback to first gallery image if no thumbnail
+                    if (!$imageData['image_url'] && $thumbnail && !$thumbnail->thumbnail_id && $thumbnail->gallery_images) {
+                        $galleryIds = json_decode($thumbnail->gallery_images, true);
+                        if (is_array($galleryIds) && !empty($galleryIds)) {
+                            $firstGalleryImage = DB::table('catalog_product_images')
+                                ->where('id', $galleryIds[0])
+                                ->value('url');
+                            if ($firstGalleryImage) {
+                                $imageData['image_url'] = $firstGalleryImage;
+                            }
+                        }
+                    }
 
                     $item->image_url = $imageData['image_url'];
                     $item->image_id = $imageData['image_id'];
@@ -661,19 +681,26 @@ class OrderController extends Controller
             }
 
             // Check if user owns this order
-            if (auth()->check() && $order->customer_id !== auth()->id()) {
-                $userRole = auth()->user()->role_id;
-                $adminRoles = [
-                    config('roles.staff.super_admin_id'),
-                    config('roles.staff.admin_id'),
-                ];
+            if (auth()->check()) {
+                // Get customer record for this user
+                $customer = DB::table('customers')->where('user_id', auth()->id())->first();
+                $customerId = $customer ? $customer->id : null;
 
-                if (!in_array($userRole, $adminRoles)) {
-                    return $this->sendError(
-                        'You do not have permission to view this order.',
-                        null,
-                        403
-                    );
+                // Check if order belongs to this customer or user is admin
+                if ($order->customer_id !== $customerId) {
+                    $userRole = auth()->user()->role_id;
+                    $adminRoles = [
+                        config('roles.staff.super_admin_id'),
+                        config('roles.staff.admin_id'),
+                    ];
+
+                    if (!in_array($userRole, $adminRoles)) {
+                        return $this->sendError(
+                            'You do not have permission to view this order.',
+                            null,
+                            403
+                        );
+                    }
                 }
             }
 
@@ -869,22 +896,71 @@ class OrderController extends Controller
         $orderArray['status_display'] = ucfirst(str_replace('_', ' ', $order->status));
         $orderArray['payment_status_display'] = ucfirst(str_replace('_', ' ', $order->payment_status));
 
-        // Transform items
+        // Create customer object for frontend
+        $orderArray['customer'] = [
+            'name' => $order->customer_name,
+            'phone' => $order->customer_phone,
+            'email' => $order->customer_email,
+        ];
+
+        // Create shipping object from external_data or denormalized fields
+        $externalData = is_array($order->external_data) ? $order->external_data : json_decode($order->external_data, true);
+        $shippingData = $externalData['shipping'] ?? [];
+
+        $orderArray['shipping'] = [
+            'address' => $order->shipping_address ?? $shippingData['address'] ?? '',
+            'city' => $order->shipping_city ?? $shippingData['city'] ?? null,
+            'district' => $order->shipping_city ?? $shippingData['district'] ?? '',
+            'division' => $order->shipping_country ?? $shippingData['division'] ?? '',
+            'thana' => $order->shipping_thana ?? $shippingData['thana'] ?? '',
+        ];
+
+        // Transform items - add thumbnail data using SQL join (same approach as myOrders)
         if (isset($orderArray['items'])) {
             $orderArray['items'] = collect($orderArray['items'])->map(function ($item) {
                 $item['total_price_formatted'] = number_format($item['total_price'], 2);
 
-                // Get thumbnail path from nested structure
-                $thumbnailPath = $item['variant']['product']['thumbnail']['url'] ?? null;
-                $thumbnailId = $item['variant']['product']['thumbnail_id'] ?? null;
+                // Add thumbnail using direct SQL join (module independence maintained)
+                $thumbnail = DB::table('sales_order_items as sgi')
+                    ->leftJoin('product_variants as pv', 'sgi.product_variant_id', '=', 'pv.id')
+                    ->leftJoin('products as p', 'pv.product_id', '=', 'p.id')
+                    ->leftJoin('catalog_product_images as cp', 'p.thumbnail_id', '=', 'cp.id')
+                    ->leftJoin('media_files as mf', function($join) {
+                        $join->on('p.thumbnail_id', '=', 'mf.id')
+                             ->whereNull('cp.id');
+                    })
+                    ->where('sgi.id', $item['id'])
+                    ->select(
+                        'p.id as product_id',
+                        'p.thumbnail_id as product_thumbnail_id',
+                        'p.gallery_images',
+                        DB::raw('COALESCE(cp.id, mf.id) as thumbnail_id'),
+                        DB::raw('COALESCE(cp.path, mf.path) as thumbnail_path'),
+                        DB::raw('COALESCE(cp.url, mf.url) as thumbnail_url')
+                    )
+                    ->first();
 
                 // Format image URL using ImageHelper
                 $imageData = $this->formatProductImage(
-                    $thumbnailId,
-                    $thumbnailPath,
-                    null
+                    $thumbnail ? $thumbnail->thumbnail_id : null,
+                    $thumbnail ? $thumbnail->thumbnail_path : null,
+                    $thumbnail ? $thumbnail->thumbnail_url : null
                 );
 
+                // Fallback to first gallery image if no thumbnail
+                if (!$imageData['image_url'] && $thumbnail && !$thumbnail->thumbnail_id && $thumbnail->gallery_images) {
+                    $galleryIds = json_decode($thumbnail->gallery_images, true);
+                    if (is_array($galleryIds) && !empty($galleryIds)) {
+                        $firstGalleryImage = DB::table('catalog_product_images')
+                            ->where('id', $galleryIds[0])
+                            ->value('url');
+                        if ($firstGalleryImage) {
+                            $imageData['image_url'] = $firstGalleryImage;
+                        }
+                    }
+                }
+
+                $item['imageUrl'] = $imageData['image_url'];
                 $item['image_url'] = $imageData['image_url'];
                 $item['image_id'] = $imageData['image_id'];
 

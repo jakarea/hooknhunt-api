@@ -3,6 +3,19 @@
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 
+// Load custom commands
+// Migrate product images command
+Artisan::command('migrate:images', function () {
+    $this->call(\App\Console\Commands\MigrateProductImages::class);
+})->purpose('Migrate product images from catalog_product_images to media_files');
+
+// Rollback migration
+Artisan::command('migrate:images-rollback', function () {
+    $this->call(\App\Console\Commands\MigrateProductImages::class, [
+        '--rollback' => true,
+    ]);
+})->purpose('Rollback product images migration');
+
 // Inspiring quote command
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());

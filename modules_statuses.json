@@ -1,15 +1,14 @@
 {
+    "Website": true,
+    "Catalog": true,
     "Admin": true,
-    "Affiliate": true,
+    "System": true,
+    "Inventory": true,
     "CMS": true,
     "CRM": true,
-    "Catalog": true,
-    "Core": false,
     "Finance": true,
     "HRM": true,
-    "Inventory": true,
     "Procurement": true,
     "Shipping": true,
-    "Website": true,
-    "System": true
+    "Affiliate": true
 }

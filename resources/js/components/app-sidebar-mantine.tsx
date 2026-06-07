@@ -378,9 +378,14 @@ export function AppSidebarMantine({
 
   // Filter navigation items based on search only
   const filteredNavItems = React.useMemo(() => {
+    // DEBUG: Log permission objects for troubleshooting
+    console.log('[Sidebar] Permission objects count:', permissionObjects.length)
+    console.log('[Sidebar] Permission objects:', permissionObjects)
+    console.log('[Sidebar] User:', user)
 
     // Super admins see everything - no permission filtering
     if (isSuperAdmin()) {
+      console.log('[Sidebar] User is super admin - showing all items')
       let items = data.navItems
 
       // Still apply search filtering for super admins
@@ -438,6 +443,8 @@ export function AppSidebarMantine({
       }
     });
 
+    console.log('[Sidebar] Nested permissions:', nestedPermissions)
+
 
     // Helper function to check if user has any permission for a given URL/path
     const hasPermissionForPath = (path: string): boolean => {
@@ -449,7 +456,7 @@ export function AppSidebarMantine({
 
       // Affiliates menu - check for specific permission or CRM module access
       if (path === '/marketing/affiliates' || path === '/marketing/product-commissions' || path === '/marketing/category-commissions' || path === '/marketing/payouts') {
-        return nestedPermissions['crm'] || nestedPermissions['affiliates']
+        return !!(nestedPermissions['crm'] || nestedPermissions['affiliates'])
       }
 
       // Remove leading slash and split
@@ -505,14 +512,16 @@ export function AppSidebarMantine({
 
     // Helper function to filter items based on permissions
     const filterItemsByPermissions = (items: NavItem[]): NavItem[] => {
-      return items.filter((item) => {
+      const filtered = items.filter((item) => {
         // If item has a URL, check permissions
         if ('url' in item && item.url) {
           // Always show dashboard, notifications, analytics (main section items)
           if (['/dashboard', '/notifications', '/dashboard/analytics'].includes(item.url)) {
             return true
           }
-          return hasPermissionForPath(item.url)
+          const hasPermission = hasPermissionForPath(item.url)
+          console.log('[Sidebar] Item:', item.title, 'URL:', item.url, 'Has permission:', hasPermission)
+          return hasPermission
         }
 
         // If item has children, filter children and check if any remain
@@ -535,6 +544,9 @@ export function AppSidebarMantine({
         }
         return item
       })
+
+      console.log('[Sidebar] Filtered items:', filtered)
+      return filtered
     }
 
     // Apply permission filtering to all sections
@@ -720,9 +732,9 @@ export function AppSidebarMantine({
               // Smart child matching (computed directly, no useMemo needed)
               const isChildActive = (() => {
                 // Exact match
-                if (location.pathname === child.url) return true
+                if (child.url && location.pathname === child.url) return true
                 // Child route match (e.g., /users/roles matches /users/roles/create)
-                if (location.pathname.startsWith(child.url + '/')) return true
+                if (child.url && location.pathname.startsWith(child.url + '/')) return true
                 return false
               })()
 

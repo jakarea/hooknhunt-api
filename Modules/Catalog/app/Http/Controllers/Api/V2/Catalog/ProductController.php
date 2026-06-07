@@ -7,6 +7,7 @@ use App\Modules\Catalog\Models\Product;
 use App\Modules\Catalog\Models\ProductVariant;
 use App\Modules\Catalog\Models\ProductImage;
 use App\Modules\Catalog\Models\Category;
+use App\Traits\ImageHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\DB;
  */
 class ProductController extends Controller
 {
+    use ImageHelper;
     private const CACHE_TTL = 300; // 5 minutes
     private const DEFAULT_PER_PAGE = 20;
     private const MAX_PER_PAGE = 50;
@@ -1112,7 +1114,7 @@ class ProductController extends Controller
                 'max_price' => $product->max_price,
                 'price_range' => $product->price_range,
                 'status' => $product->status,
-                'variants' => $product->variants->map(function ($variant) {
+                'variants' => $product->variants->map(function ($variant) use ($product) {
                     return [
                         'id' => $variant->id,
                         'variant_name' => $variant->variant_name,
@@ -1121,7 +1123,7 @@ class ProductController extends Controller
                         'offer_price' => $variant->offer_price ? (float) $variant->offer_price : null,
                         'stock' => $variant->stock,
                         'is_active' => $variant->is_active,
-                        'thumbnail' => $variant->thumbnail,
+                        'thumbnailUrl' => $variant->thumbnailUrl ?? $product->thumbnailUrl ?? null,
                     ];
                 })->toArray(),
                 'created_at' => $product->created_at,
@@ -1204,7 +1206,7 @@ class ProductController extends Controller
                     'min_price' => $product->min_price,
                     'max_price' => $product->max_price,
                     'price_range' => $product->price_range,
-                    'variants' => $product->variants->map(function ($variant) {
+                    'variants' => $product->variants->map(function ($variant) use ($product) {
                         return [
                             'id' => $variant->id,
                             'variant_name' => $variant->variant_name,
@@ -1213,7 +1215,7 @@ class ProductController extends Controller
                             'offer_price' => $variant->offer_price ? (float) $variant->offer_price : null,
                             'stock' => $variant->stock,
                             'is_active' => $variant->is_active,
-                            'thumbnail' => $variant->thumbnail,
+                            'thumbnailUrl' => $variant->thumbnailUrl ?? $product->thumbnailUrl ?? null,
                         ];
                     })->toArray(),
                 ];

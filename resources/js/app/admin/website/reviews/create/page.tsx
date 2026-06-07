@@ -4,9 +4,9 @@ import { useState, useCallback, useEffect } from 'react'
 import {
   Box, Stack, Group, Title, Text, Button, Textarea,
   Switch, MultiSelect, Image, Alert, Rating, AspectRatio,
-  Breadcrumbs, Anchor, Badge, NumberInput, Card, Divider,
+  Breadcrumbs, Anchor, Badge, NumberInput, Card, Divider, ActionIcon,
 } from '@mantine/core'
-import { IconSearch, IconStar, IconPhoto, IconUpload, IconArrowLeft, IconCheck } from '@tabler/icons-react'
+import { IconSearch, IconStar, IconPhoto, IconUpload, IconArrowLeft, IconCheck, IconX } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMediaSelector } from '@/hooks/useMediaSelector'
@@ -32,6 +32,8 @@ export default function CreateReviewPage() {
   // Product search
   const [productSearch, setProductSearch] = useState('')
   const [products, setProducts] = useState<Array<{ value: string; label: string }>>([])
+  // Track selected product details separately
+  const [selectedProductDetails, setSelectedProductDetails] = useState<Array<{ value: string; label: string }>>([])
 
   // Media selector
   const { openSingleSelect } = useMediaSelector()
@@ -69,11 +71,22 @@ export default function CreateReviewPage() {
     }
     try {
       const res = await searchProducts(query)
-      const productList = (res.data || []).map((p: any) => ({
+      const searchResults = (res.data || []).map((p: any) => ({
         value: String(p.id),
         label: p.name,
       }))
-      setProducts(productList)
+
+      // Combine search results with previously selected products to avoid losing labels
+      const allProducts = [...searchResults]
+
+      // Add any selected products that aren't in the search results
+      selectedProductDetails.forEach(selected => {
+        if (!searchResults.find(p => p.value === selected.value)) {
+          allProducts.push(selected)
+        }
+      })
+
+      setProducts(allProducts)
     } catch {
       setProducts([])
     }
@@ -252,7 +265,15 @@ export default function CreateReviewPage() {
                 nothingFoundMessage="No products found. Try a different search term."
                 data={products}
                 value={selectedProducts.map(String)}
-                onChange={(vals) => setSelectedProducts(vals.map(Number))}
+                onChange={(vals) => {
+                  setSelectedProducts(vals.map(Number))
+                  // Store selected product details
+                  const selectedDetails = vals.map((val) => {
+                    const product = products.find((p) => p.value === val)
+                    return product || { value: val, label: `Product #${val}` }
+                  })
+                  setSelectedProductDetails(selectedDetails)
+                }}
                 onSearchChange={(query) => {
                   setProductSearch(query)
                   fetchProducts(query)
@@ -260,16 +281,33 @@ export default function CreateReviewPage() {
                 getCreateLabel={(query) => `Search for "${query}"`}
                 creatable={false}
               />
-              {selectedProducts.length > 0 && (
+              {selectedProductDetails.length > 0 && (
                 <Group gap="xs" wrap>
-                  {selectedProducts.map((productId) => {
-                    const product = products.find((p) => p.value === String(productId))
-                    return product ? (
-                      <Badge key={productId} variant="light" radius="sm" leftSection={<IconCheck size={10} />}>
-                        {product.label}
-                      </Badge>
-                    ) : null
-                  })}
+                  {selectedProductDetails.map((product) => (
+                    <Badge
+                      key={product.value}
+                      variant="light"
+                      radius="sm"
+                      leftSection={<IconCheck size={10} />}
+                      rightSection={
+                        <ActionIcon
+                          size="xs"
+                          radius="xl"
+                          color="gray"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            // Remove product from selection
+                            setSelectedProducts(selectedProducts.filter(id => id !== Number(product.value)))
+                            setSelectedProductDetails(selectedProductDetails.filter(p => p.value !== product.value))
+                          }}
+                        >
+                          <IconX size={12} />
+                        </ActionIcon>
+                      }
+                    >
+                      {product.label}
+                    </Badge>
+                  ))}
                 </Group>
               )}
             </Stack>

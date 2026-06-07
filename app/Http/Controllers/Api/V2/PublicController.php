@@ -283,25 +283,33 @@ class PublicController extends Controller
             $page = (int) ($validated['page'] ?? 1);
 
             $productsQuery = DB::table('products as p')
-                ->join('product_variants as pv', 'p.id', '=', 'pv.product_id')
-                ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+                ->leftJoin('catalog_product_images as cp', 'p.thumbnail_id', '=', 'cp.id')
+                ->leftJoin('media_files as mf', function($join) {
+                    $join->on('p.thumbnail_id', '=', 'mf.id')
+                         ->whereNull('cp.id');
+                })
                 ->where('p.status', 'published')
-                ->where('pv.is_active', true)
-                ->where('pv.stock', '>', 0)
+                ->whereExists(function ($q) {
+                    $q->select(DB::raw(1))
+                        ->from('product_variants as pv')
+                        ->whereColumn('pv.product_id', '=', 'p.id')
+                        ->where('pv.is_active', true)
+                        ->where('pv.stock', '>', 0)
+                        ->limit(1);
+                })
                 ->where(function ($q) use ($query) {
                     $q->where('p.name', 'like', "%{$query}%")
-                      ->orWhere('p.description', 'like', "%{$query}%")
                       ->orWhere('p.product_code', 'like', "%{$query}%");
                 })
                 ->select([
                     'p.id',
                     'p.name',
                     'p.slug',
-                    'p.description',
-                    'pv.price',
-                    'm.path as thumbnail_path'
-                ])
-                ->groupBy('p.id', 'p.name', 'p.slug', 'p.description', 'pv.price', 'm.path');
+                    'p.thumbnail_id',
+                    DB::raw('(SELECT MIN(pv2.price) FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.is_active = 1 AND pv2.stock > 0) as price'),
+                    DB::raw('COALESCE(cp.path, mf.path) as thumbnail_path'),
+                    DB::raw('COALESCE(cp.url, mf.url) as thumbnail_url'),
+                ]);
 
             if (!empty($validated['category_id'])) {
                 $productsQuery->join('product_category as pc', 'p.id', '=', 'pc.product_id')
@@ -319,14 +327,32 @@ class PublicController extends Controller
 
             // Transform products for response
             $productsData = $products->map(function ($product) {
-                $thumbnailPath = $product->thumbnail_path;
+                // Use thumbnail_url first (COALESCE result), fallback to thumbnail_path
                 $imageUrl = null;
 
-                if ($thumbnailPath) {
-                    $imageUrl = $this->getImageUrl($thumbnailPath);
+                if ($product->thumbnail_url && (str_starts_with($product->thumbnail_url, 'http://') || str_starts_with($product->thumbnail_url, 'https://'))) {
+                    $imageUrl = $product->thumbnail_url;
+                } elseif ($product->thumbnail_path) {
+                    $imageUrl = $this->getImageUrl($product->thumbnail_path);
                 }
 
-                // Fallback to placeholder if no image
+                // Fallback to first gallery image if no thumbnail
+                if (!$imageUrl && !$product->thumbnail_id) {
+                    $galleryIds = DB::table('products')->where('id', $product->id)->value('gallery_images');
+                    if ($galleryIds) {
+                        $ids = json_decode($galleryIds, true);
+                        if (is_array($ids) && !empty($ids)) {
+                            $firstGalleryImage = DB::table('catalog_product_images')
+                                ->where('id', $ids[0])
+                                ->value('url');
+                            if ($firstGalleryImage) {
+                                $imageUrl = $firstGalleryImage;
+                            }
+                        }
+                    }
+                }
+
+                // Final fallback to placeholder if no image
                 if (!$imageUrl) {
                     $imageUrl = config('app.url') . '/storage/placeholder.jpg';
                 }
@@ -335,10 +361,8 @@ class PublicController extends Controller
                     'id' => $product->id,
                     'name' => $product->name,
                     'slug' => $product->slug,
-                    'short_description' => $product->description,
-                    'description' => $product->description,
                     'price' => (float) $product->price,
-                    'image_url' => $imageUrl,
+                    'imageUrl' => $imageUrl,
                 ];
             });
 
@@ -368,28 +392,24 @@ class PublicController extends Controller
             $settings = DB::table('settings')
                 ->whereIn('key', [
                     'facebook_pixel_id',
-                    'facebook_pixel_enabled',
+                    'facebook_pixel_code',
                     'google_analytics_id',
-                    'google_analytics_enabled',
+                    'google_analytics_code',
                     'google_tag_manager_id',
-                    'google_tag_manager_enabled'
+                    'google_tag_manager_code',
                 ])
                 ->pluck('value', 'key');
 
-            $fbEnabled = isset($settings['facebook_pixel_enabled']) && $settings['facebook_pixel_enabled'] === 'true';
-            $gaEnabled = isset($settings['google_analytics_enabled']) && $settings['google_analytics_enabled'] === 'true';
-            $gtmEnabled = isset($settings['google_tag_manager_enabled']) && $settings['google_tag_manager_enabled'] === 'true';
-
             return $this->sendSuccess([
                 'facebook' => [
-                    'pixelId' => $fbEnabled ? ($settings['facebook_pixel_id'] ?? null) : null,
-                    'pixelCode' => $fbEnabled ? ($settings['facebook_pixel_id'] ?? null) : null,
+                    'pixelId' => $settings['facebook_pixel_id'] ?? null,
+                    'pixelCode' => $settings['facebook_pixel_code'] ?? null,
                 ],
                 'google' => [
-                    'analyticsId' => $gaEnabled ? ($settings['google_analytics_id'] ?? null) : null,
-                    'analyticsCode' => $gaEnabled ? ($settings['google_analytics_id'] ?? null) : null,
-                    'tagManagerId' => $gtmEnabled ? ($settings['google_tag_manager_id'] ?? null) : null,
-                    'tagManagerCode' => $gtmEnabled ? ($settings['google_tag_manager_id'] ?? null) : null,
+                    'analyticsId' => $settings['google_analytics_id'] ?? null,
+                    'analyticsCode' => $settings['google_analytics_code'] ?? null,
+                    'tagManagerId' => $settings['google_tag_manager_id'] ?? null,
+                    'tagManagerCode' => $settings['google_tag_manager_code'] ?? null,
                 ],
             ], 'Tracking settings retrieved successfully.');
 

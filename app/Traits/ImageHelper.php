@@ -2,6 +2,8 @@
 
 namespace App\Traits;
 
+use Illuminate\Support\Facades\DB;
+
 trait ImageHelper
 {
     /**
@@ -22,7 +24,20 @@ trait ImageHelper
         if ($path) {
             // Remove leading 'storage/' if present to avoid duplication
             $cleanPath = str_starts_with($path, 'storage/') ? substr($path, 8) : $path;
-            return rtrim(config('app.url'), '/') . '/storage/' . ltrim($cleanPath, '/');
+            $cleanPath = ltrim($cleanPath, '/');
+
+            // Split path into directory and filename to URL-encode only the filename
+            $pathParts = explode('/', $cleanPath);
+            $filename = array_pop($pathParts);
+            $directory = implode('/', $pathParts);
+
+            // URL-encode the filename to handle special characters
+            $encodedFilename = rawurlencode($filename);
+
+            // Rebuild the path
+            $encodedPath = $directory ? $directory . '/' . $encodedFilename : $encodedFilename;
+
+            return rtrim(config('app.url'), '/') . '/storage/' . $encodedPath;
         }
 
         // Return fallback or default placeholder
@@ -151,10 +166,60 @@ trait ImageHelper
      * Format variant thumbnail URL with standard format
      *
      * @param string|null $thumbnail Variant thumbnail path
+     * @param string|null $fallback Fallback image URL (usually product thumbnail)
      * @return string Full image URL or placeholder
      */
-    protected function formatVariantThumbnail(?string $thumbnail): string
+    protected function formatVariantThumbnail(?string $thumbnail, ?string $fallback = null): string
     {
-        return $this->getImageUrl($thumbnail);
+        // If variant has its own thumbnail, use it
+        if ($thumbnail && !empty($thumbnail)) {
+            return $this->getImageUrl($thumbnail);
+        }
+
+        // Fall back to product thumbnail
+        if ($fallback) {
+            return $fallback;
+        }
+
+        // Last resort: return placeholder
+        return $this->getDefaultPlaceholderUrl();
+    }
+
+    /**
+     * Get gallery image URLs from catalog_product_images
+     *
+     * Uses catalog_product_images table since gallery_images stores catalog IDs.
+     * Preserves the order of images as stored in gallery_images array.
+     *
+     * @param array|null $galleryIds Array of catalog_product_images IDs
+     * @return array Array of image URLs in original order
+     */
+    protected function getGalleryImagesUrlsDirect(?array $galleryIds): array
+    {
+        if (empty($galleryIds) || !is_array($galleryIds)) {
+            return [];
+        }
+
+        // Query catalog_product_images table (not media_files)
+        // because gallery_images stores catalog_product_images IDs
+        $results = DB::table('catalog_product_images')
+            ->whereIn('id', $galleryIds)
+            ->select('id', 'url', 'path')
+            ->orderBy('id')
+            ->get()
+            ->keyBy('id');
+
+        $urls = [];
+        foreach ($galleryIds as $id) {
+            if (isset($results[$id])) {
+                $file = $results[$id];
+                // Use stored URL (probesh.hooknhunt.com) if available, otherwise build from path
+                $urls[] = ($file->url && str_starts_with($file->url, 'http'))
+                    ? $file->url
+                    : url($file->path ?? '');
+            }
+        }
+
+        return $urls;
     }
 }
