@@ -64,23 +64,15 @@ trait ImageHelper
      */
     protected function formatProductImage(?string $thumbnailId, ?string $thumbnailPath, ?string $thumbnailUrl): array
     {
-        // If thumbnailUrl is already a full URL, use it
-        if ($thumbnailUrl && (str_starts_with($thumbnailUrl, 'http://') || str_starts_with($thumbnailUrl, 'https://'))) {
+        // Use /media/{id} URL format to avoid UTF-8 filename issues
+        if ($thumbnailId) {
             return [
-                'image_url' => $thumbnailUrl,
+                'image_url' => url('/media/' . $thumbnailId),
                 'image_id' => $thumbnailId,
             ];
         }
 
-        // If thumbnailPath exists, format it
-        if ($thumbnailPath) {
-            return [
-                'image_url' => $this->getImageUrl($thumbnailPath),
-                'image_id' => $thumbnailId,
-            ];
-        }
-
-        // Return placeholder
+        // Return placeholder if no ID
         return [
             'image_url' => $this->getDefaultPlaceholderUrl(),
             'image_id' => null,
@@ -200,24 +192,10 @@ trait ImageHelper
             return [];
         }
 
-        // Query media_files table
-        // gallery_images stores media_files IDs
-        $results = DB::table('media_files')
-            ->whereIn('id', $galleryIds)
-            ->select('id', 'url', 'path')
-            ->orderBy('id')
-            ->get()
-            ->keyBy('id');
-
         $urls = [];
         foreach ($galleryIds as $id) {
-            if (isset($results[$id])) {
-                $file = $results[$id];
-                // Use stored URL if available and it's a full URL, otherwise build from path
-                $urls[] = ($file->url && str_starts_with($file->url, 'http'))
-                    ? $file->url
-                    : url($file->path ?? '');
-            }
+            // Use /media/{id} URL format to avoid UTF-8 filename issues
+            $urls[] = url('/media/' . $id);
         }
 
         return $urls;
