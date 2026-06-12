@@ -51,7 +51,7 @@ class ProductController extends Controller
             $products = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($perPage, $search, $categorySlug, $sortBy, $sortOrder) {
                 $query = Product::query()
                     ->with(['category', 'brand', 'variants' => function ($query) {
-                        $query->select('id', 'product_id', 'sku', 'variant_name', 'price', 'offer_price', 'stock', 'is_active', 'thumbnail');
+                        $query->select('id', 'product_id', 'sku', 'variant_name', 'price', 'offer_price', 'stock', 'is_active', 'thumbnail_id');
                     }])
                     ->where('status', 'published');
 
@@ -127,7 +127,7 @@ class ProductController extends Controller
                     'brand',
                     'variants' => function ($query) {
                         $query->where('is_active', true)
-                              ->select('id', 'product_id', 'sku', 'variant_name', 'price', 'offer_price', 'stock', 'is_active', 'thumbnail', 'purchase_cost');
+                              ->select('id', 'product_id', 'sku', 'variant_name', 'price', 'offer_price', 'stock', 'is_active', 'thumbnail_id', 'purchase_cost');
                     }
                 ])
                 ->where('slug', $slug)
@@ -368,11 +368,20 @@ class ProductController extends Controller
                     $variant['retail_offer_price'] = $variant['retailOfferPrice'] ?? $variant['retail_offer_price'] ?? 0;
                     $variant['wholesale_offer_price'] = $variant['wholesaleOfferPrice'] ?? $variant['wholesale_offer_price'] ?? null;
                     $variant['wholesale_moq'] = $variant['wholesaleMoq'] ?? $variant['wholesale_moq'] ?? null;
+                    $variant['thumbnail_id'] = $variant['thumbnailId'] ?? $variant['thumbnail_id'] ?? null;
+
+                    // Log thumbnail_id conversion for debugging
+                    \Log::info('Variant thumbnail conversion', [
+                        'variant_name' => $variant['name'] ?? 'unknown',
+                        'thumbnailId_before' => $variant['thumbnailId'] ?? 'not set',
+                        'thumbnail_id_before' => $variant['thumbnail_id'] ?? 'not set',
+                        'thumbnail_id_after' => $variant['thumbnail_id'] ?? 'not set'
+                    ]);
 
                     // Remove camelCase versions
                     unset($variant['sellerSku'], $variant['purchaseCost'], $variant['retailPrice'],
                             $variant['wholesalePrice'], $variant['retailOfferPrice'], $variant['wholesaleOfferPrice'],
-                            $variant['wholesaleMoq']);
+                            $variant['wholesaleMoq'], $variant['thumbnailId']);
                 }
                 $request->merge(['variants' => $variants]);
             }
@@ -418,7 +427,7 @@ class ProductController extends Controller
                 'variants.*.wholesale_moq' => 'nullable|integer|min:0',
                 'variants.*.weight' => 'nullable|numeric|min:0',
                 'variants.*.stock' => 'required_with:variants|integer|min:0',
-                'variants.*.thumbnail' => 'nullable|string|max:500',
+                'variants.*.thumbnail_id' => 'nullable|integer|exists:media_files,id',
             ]);
 
             // Handle variants creation
@@ -505,7 +514,7 @@ class ProductController extends Controller
                 $variantData['stock'] = $variantData['stock'] ?? 0;
                 $variantData['weight'] = $variantData['weight'] ?? 0;
                 $variantData['moq'] = $variantData['wholesale_moq'] ?? 0;
-                $variantData['thumbnail'] = $variantData['thumbnail'] ?? null;
+                $variantData['thumbnail_id'] = $variantData['thumbnail_id'] ?? null;
                 $variantData['channel'] = 'retail'; // Required field - enum('retail','wholesale','daraz','pos')
                 $variantData['is_active'] = true;
 
@@ -691,6 +700,36 @@ class ProductController extends Controller
                 $request->merge(['includes_in_box_bn' => $value]);
             }
 
+            // Handle variant field name conversions (camelCase to snake_case)
+            if ($request->has('variants')) {
+                $variants = $request->input('variants');
+                foreach ($variants as &$variant) {
+                    // Convert camelCase to snake_case
+                    $variant['seller_sku'] = $variant['sellerSku'] ?? $variant['seller_sku'] ?? null;
+                    $variant['purchase_cost'] = $variant['purchaseCost'] ?? $variant['purchase_cost'] ?? 0;
+                    $variant['retail_price'] = $variant['retailPrice'] ?? $variant['retail_price'] ?? 0;
+                    $variant['wholesale_price'] = $variant['wholesalePrice'] ?? $variant['wholesale_price'] ?? null;
+                    $variant['retail_offer_price'] = $variant['retailOfferPrice'] ?? $variant['retail_offer_price'] ?? 0;
+                    $variant['wholesale_offer_price'] = $variant['wholesaleOfferPrice'] ?? $variant['wholesale_offer_price'] ?? null;
+                    $variant['wholesale_moq'] = $variant['wholesaleMoq'] ?? $variant['wholesale_moq'] ?? null;
+                    $variant['thumbnail_id'] = $variant['thumbnailId'] ?? $variant['thumbnail_id'] ?? null;
+
+                    // Log thumbnail_id conversion for debugging
+                    \Log::info('Variant thumbnail conversion', [
+                        'variant_name' => $variant['name'] ?? 'unknown',
+                        'thumbnailId_before' => $variant['thumbnailId'] ?? 'not set',
+                        'thumbnail_id_before' => $variant['thumbnail_id'] ?? 'not set',
+                        'thumbnail_id_after' => $variant['thumbnail_id'] ?? 'not set'
+                    ]);
+
+                    // Remove camelCase versions
+                    unset($variant['sellerSku'], $variant['purchaseCost'], $variant['retailPrice'],
+                            $variant['wholesalePrice'], $variant['retailOfferPrice'], $variant['wholesaleOfferPrice'],
+                            $variant['wholesaleMoq'], $variant['thumbnailId']);
+                }
+                $request->merge(['variants' => $variants]);
+            }
+
             $validated = $request->validate([
                 'name' => 'sometimes|string|max:255',
                 'slug' => 'nullable|string|max:255|unique:products,slug,' . $product->id,
@@ -730,11 +769,72 @@ class ProductController extends Controller
                 'thank_you' => 'nullable|boolean',
                 'hide_from_website' => 'nullable|boolean',
                 'sort_order' => 'nullable|integer',
+                // Variant validation
+                'variants' => 'nullable|array',
+                'variants.*.id' => 'nullable|integer|exists:product_variants,id',
+                'variants.*.name' => 'nullable|string|max:255',
+                'variants.*.sku' => 'nullable|string|max:255',
+                'variants.*.retail_price' => 'nullable|numeric|min:0',
+                'variants.*.wholesale_price' => 'nullable|numeric|min:0',
+                'variants.*.retail_offer_price' => 'nullable|numeric|min:0',
+                'variants.*.wholesale_offer_price' => 'nullable|numeric|min:0',
+                'variants.*.wholesale_moq' => 'nullable|integer|min:0',
+                'variants.*.weight' => 'nullable|numeric|min:0',
+                'variants.*.stock' => 'nullable|integer|min:0',
+                'variants.*.thumbnail_id' => 'nullable|integer|exists:media_files,id',
             ]);
 
             // thumbnail_id and gallery_images already contain media_files IDs
             // No conversion needed - save directly
             $product->update($validated);
+
+            // Handle variants update
+            if (isset($validated['variants']) && is_array($validated['variants'])) {
+                \Log::info('Processing variants update', ['count' => count($validated['variants'])]);
+
+                foreach ($validated['variants'] as $index => $variantData) {
+                    // Extract variant ID if provided
+                    $variantId = $variantData['id'] ?? null;
+
+                    \Log::info("Processing variant {$index}", [
+                        'variant_id' => $variantId,
+                        'variant_data' => $variantData,
+                        'has_thumbnail_id' => isset($variantData['thumbnail_id']),
+                        'thumbnail_id_value' => $variantData['thumbnail_id'] ?? 'not set',
+                    ]);
+
+                    // Prepare variant data
+                    $updateData = [
+                        'variant_name' => $variantData['name'] ?? null,
+                        'sku' => $variantData['sku'] ?? (\Illuminate\Support\Str::slug($variantData['name'] ?? 'variant') . '-' . time()),
+                        'price' => $variantData['retail_price'] ?? 0,
+                        'offer_price' => $variantData['retail_offer_price'] ?? 0,
+                        'stock' => $variantData['stock'] ?? 0,
+                        'weight' => $variantData['weight'] ?? 0,
+                        'moq' => $variantData['wholesale_moq'] ?? 0,
+                        'thumbnail_id' => $variantData['thumbnail_id'] ?? null,
+                        'channel' => 'retail',
+                        'is_active' => true,
+                    ];
+
+                    if ($variantId) {
+                        // Update existing variant
+                        \Log::info('Updating variant', ['variant_id' => $variantId, 'update_data' => $updateData]);
+                        $affected = ProductVariant::where('id', $variantId)
+                            ->where('product_id', $product->id)
+                            ->update($updateData);
+                        \Log::info('Variant update result', ['affected_rows' => $affected]);
+                    } else {
+                        // Create new variant
+                        $updateData['product_id'] = $product->id;
+                        $updateData['variant_slug'] = \Illuminate\Support\Str::slug($variantData['name'] ?? 'variant') . '-' . time();
+                        \Log::info('Creating new variant', ['update_data' => $updateData]);
+                        ProductVariant::create($updateData);
+                    }
+                }
+            } else {
+                \Log::info('No variants in request', ['all_keys' => array_keys($validated)]);
+            }
 
             // Clear cache
             Cache::forget("product:v2:slug:{$product->slug}");

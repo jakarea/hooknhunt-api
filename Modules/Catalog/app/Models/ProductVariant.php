@@ -16,7 +16,7 @@ class ProductVariant extends Model
         'channel',
         'variant_slug',
         'variant_name',
-        'thumbnail',
+        'thumbnail_id',
         'sku',
         'custom_sku',
         'size',
@@ -68,6 +68,11 @@ class ProductVariant extends Model
         return $this->belongsTo(Product::class);
     }
 
+    public function thumbnailMedia()
+    {
+        return $this->belongsTo(MediaFile::class, 'thumbnail_id');
+    }
+
     // Unit relationship removed (Inventory module dependency - breaks independence)
     // Use unit_id directly or API calls to Inventory module
     // public function unit()
@@ -102,27 +107,17 @@ class ProductVariant extends Model
     }
 
     /**
-     * Get thumbnail URL with fallback to product thumbnail
-     * Returns variant's own thumbnail, or falls back to product thumbnail
+     * Get thumbnail URL from thumbnail_id (media_files)
+     * Returns placeholder if no variant thumbnail is set
      */
     public function getThumbnailUrlAttribute(): ?string
     {
-        // If variant has its own thumbnail, use it
-        if (!empty($this->attributes['thumbnail'])) {
-            return $this->attributes['thumbnail'];
+        // If variant has thumbnail_id, get media file URL
+        if (!empty($this->attributes['thumbnail_id'])) {
+            return url('/media/' . $this->attributes['thumbnail_id']);
         }
 
-        // Fall back to product thumbnail if product relationship is loaded
-        if ($this->relationLoaded('product') && $this->product) {
-            return $this->product->thumbnailUrl ?? null;
-        }
-
-        // Otherwise, load the product and get its thumbnail
-        if ($this->product_id) {
-            $product = Product::find($this->product_id);
-            return $product?->thumbnailUrl ?? null;
-        }
-
+        // Return placeholder if no variant thumbnail is set
         return null;
     }
 

@@ -178,6 +178,58 @@ trait ImageHelper
     }
 
     /**
+     * Format variant thumbnail URL from media_files data
+     * Follows same pattern as product thumbnail (formatProductImage)
+     * Priority: thumbnail_id (media) → legacy thumbnail (string) → product thumbnail → placeholder
+     *
+     * @param int|null $thumbnailId media_files.id
+     * @param string|null $thumbnailPath media_files.path
+     * @param string|null $thumbnailUrl media_files.url
+     * @param string|null $legacyThumbnail Old thumbnail field (backward compatibility)
+     * @param string|null $fallback Fallback image URL (usually product thumbnail)
+     * @return string Full image URL or placeholder
+     */
+    protected function formatVariantThumbnailFromMedia(
+        ?int $thumbnailId,
+        ?string $thumbnailPath,
+        ?string $thumbnailUrl,
+        ?string $legacyThumbnail = null,
+        ?string $fallback = null
+    ): string {
+        // 1. Try new thumbnail_id approach (media_files)
+        if ($thumbnailId && !empty($thumbnailId)) {
+            return url('/media/' . $thumbnailId);
+        }
+
+        // 2. Fallback to media file path/url if available
+        if ($thumbnailUrl && !empty($thumbnailUrl)) {
+            return $thumbnailUrl;
+        }
+
+        if ($thumbnailPath && !empty($thumbnailPath)) {
+            return $this->getImageUrl($thumbnailPath);
+        }
+
+        // 3. Legacy: try old thumbnail field (backward compatibility during migration)
+        if ($legacyThumbnail && !empty($legacyThumbnail)) {
+            // If it's already a full URL, return it
+            if (str_starts_with($legacyThumbnail, 'http')) {
+                return $legacyThumbnail;
+            }
+            // Otherwise, treat it as a path
+            return $this->getImageUrl($legacyThumbnail);
+        }
+
+        // 4. Final fallback to product thumbnail
+        if ($fallback) {
+            return $fallback;
+        }
+
+        // 5. Last resort: placeholder
+        return $this->getDefaultPlaceholderUrl();
+    }
+
+    /**
      * Get gallery image URLs from media_files table
      *
      * Uses media_files table since gallery_images stores media_files IDs.

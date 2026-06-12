@@ -235,25 +235,29 @@ class ProductController extends Controller
         }
 
         // Load retail variants using direct SQL
-        $variants = DB::table('product_variants')
-            ->where('product_id', $product->id)
-            ->where('channel', 'retail')
-            ->where('is_active', true)
+        // Join with media_files to get thumbnail info
+        $variants = DB::table('product_variants as pv')
+            ->leftJoin('media_files as mf', 'pv.thumbnail_id', '=', 'mf.id')
+            ->where('pv.product_id', $product->id)
+            ->where('pv.channel', 'retail')
+            ->where('pv.is_active', true)
             ->select([
-                'id',
-                'product_id',
-                'variant_name',
-                'variant_slug',
-                'sku',
-                'stock',
-                'price',
-                'offer_price',
-                'offer_starts',
-                'offer_ends',
-                'weight',
-                'size',
-                'color',
-                'thumbnail',
+                'pv.id',
+                'pv.product_id',
+                'pv.variant_name',
+                'pv.variant_slug',
+                'pv.sku',
+                'pv.stock',
+                'pv.price',
+                'pv.offer_price',
+                'pv.offer_starts',
+                'pv.offer_ends',
+                'pv.weight',
+                'pv.size',
+                'pv.color',
+                'pv.thumbnail_id',
+                'mf.path as thumbnail_path',
+                'mf.url as thumbnail_url',
             ])
             ->get();
 
@@ -271,52 +275,46 @@ class ProductController extends Controller
             $galleryImages = json_decode($galleryImages, true) ?? [];
         }
 
-        // Always add variant images to gallery (if gallery is empty, use variants as gallery)
-        if (empty($galleryImages) || !is_array($galleryImages)) {
-            $galleryImages = [];
+        // Convert gallery_images (array of media IDs) to URLs first
+        $galleryUrls = [];
+        if (!empty($galleryImages) && is_array($galleryImages)) {
+            // Fetch media files for all gallery image IDs
+            $mediaIds = array_filter($galleryImages, fn($id) => is_numeric($id) && $id > 0);
+            if (!empty($mediaIds)) {
+                $mediaFiles = DB::table('media_files')
+                    ->whereIn('id', $mediaIds)
+                    ->select('id', 'path', 'url')
+                    ->get();
+
+                foreach ($mediaIds as $mediaId) {
+                    $media = $mediaFiles->firstWhere('id', $mediaId);
+                    if ($media) {
+                        // Use /media/{id} format for consistency
+                        $galleryUrls[] = url('/media/' . $mediaId);
+                    }
+                }
+            }
         }
 
         // Collect ALL variant image URLs and add to gallery
         $variantImageUrls = [];
         foreach ($variants as $variant) {
-            // Use formatVariantThumbnail to get the actual imageUrl (handles fallback)
-            $variantImageUrl = $this->formatVariantThumbnail($variant->thumbnail, $thumbnailUrl);
+            // Use thumbnail_id (media_files.id) to get image URL
+            if (!empty($variant->thumbnail_id)) {
+                $variantImageUrl = url('/media/' . $variant->thumbnail_id);
 
-            if (!empty($variantImageUrl)) {
-                // Add to gallery if not already present (avoid duplicates)
-                if (!in_array($variantImageUrl, $variantImageUrls)) {
+                // Add to variant image collection if not duplicate
+                if (!in_array($variantImageUrl, $variantImageUrls) && !in_array($variantImageUrl, $galleryUrls)) {
                     $variantImageUrls[] = $variantImageUrl;
                 }
             }
         }
 
-        // Add all variant images to gallery (without duplicates)
-        foreach ($variantImageUrls as $url) {
-            // Check if this URL already exists in gallery
-            $exists = false;
-            foreach ($galleryImages as $existingImage) {
-                $existingUrl = is_array($existingImage) ? ($existingImage['imageUrl'] ?? '') : '';
-                if ($existingUrl === $url) {
-                    $exists = true;
-                    break;
-                }
-            }
+        // Merge gallery URLs and variant image URLs (gallery images first, then variants)
+        $allGalleryUrls = array_merge($galleryUrls, $variantImageUrls);
 
-            // Add to gallery if not duplicate
-            if (!$exists) {
-                $galleryImages[] = [
-                    'imageUrl' => $url
-                ];
-            }
-        }
-
-        // Build gallery URLs array from the galleryImages (which now includes variant images)
-        $galleryUrls = collect($galleryImages)
-            ->pluck('imageUrl')
-            ->filter()
-            ->unique()
-            ->values()
-            ->toArray();
+        // Remove duplicates while preserving order
+        $allGalleryUrls = array_values(array_unique($allGalleryUrls));
 
         $highlights = $product->highlights;
         if (is_string($highlights)) {
@@ -393,7 +391,7 @@ class ProductController extends Controller
             // Image fields - standardized format (camelCase to match catalog API)
             'imageUrl' => $thumbnailUrl,
             'imageId' => $imageData['image_id'],
-            'galleryImages' => collect($galleryUrls)->map(fn($url) => ['imageUrl' => $url])->values()->toArray(),
+            'galleryImages' => collect($allGalleryUrls)->map(fn($url) => ['imageUrl' => $url])->values()->toArray(),
             // Price fields
             'price' => $price,
             'actual_price' => $price,
@@ -427,7 +425,13 @@ class ProductController extends Controller
                 'size' => $v->size,
                 'color' => $v->color,
                 'isActive' => true,
-                'imageUrl' => $this->formatVariantThumbnail($v->thumbnail, $thumbnailUrl),
+                'imageUrl' => $this->formatVariantThumbnailFromMedia(
+                    $v->thumbnail_id,
+                    $v->thumbnail_path,
+                    $v->thumbnail_url,
+                    null,
+                    $thumbnailUrl
+                ),
             ])->values()->toArray(),
             'crossSaleProducts' => [],
             'upSaleProducts' => [],

@@ -191,6 +191,8 @@ interface ProductVariant {
   sellerSkuSuffix: string
   sellerSkuManuallyEdited?: boolean
   thumbnail?: string | null
+  thumbnailUrl?: string | null
+  thumbnailId?: number | null
 }
 
 export default function CreateProductPage() {
@@ -1902,6 +1904,16 @@ export default function CreateProductPage() {
         updated.sellerSkuManuallyEdited = true
       }
 
+      // When thumbnailId is set, also update thumbnailUrl for display
+      if (field === 'thumbnailId' && value) {
+        updated.thumbnailUrl = `/media/${value}`
+      }
+      // When thumbnailId is cleared, also clear thumbnailUrl
+      if (field === 'thumbnailId' && value === null) {
+        updated.thumbnailUrl = null
+        updated.thumbnail = null
+      }
+
       return updated
     }))
   }
@@ -2078,11 +2090,34 @@ export default function CreateProductPage() {
           wholesaleMoq: Math.round(parseFloat(v.wholesaleMoq.toString())),
           weight: Math.round(parseFloat(v.weight.toString())),
           stock: Math.round(parseFloat(v.stock.toString())),
-          thumbnail: v.thumbnail || null
+          thumbnail_id: v.thumbnailId || null
         }))
       }
 
       console.log('📦 Payload prepared:', payload)
+      console.log('🖼️ Variant thumbnail data:', {
+        variantsCount: payload.variants?.length || 0,
+        thumbnailIds: payload.variants?.map((v: any, i: number) => ({
+          index: i,
+          name: v.name,
+          thumbnail_id: v.thumbnail_id,
+          thumbnailIdType: typeof v.thumbnail_id,
+          thumbnailIdValue: v.thumbnail_id,
+          hasThumbnailId: !!v.thumbnail_id
+        }))
+      })
+
+      // Log each variant's thumbnail data in detail
+      payload.variants?.forEach((v: any, i: number) => {
+        console.log(`Variant ${i} (${v.name}):`, {
+          thumbnail_id: v.thumbnail_id,
+          thumbnail_id_type: typeof v.thumbnail_id,
+          thumbnail_id_value: v.thumbnail_id,
+          is_null: v.thumbnail_id === null,
+          is_undefined: v.thumbnail_id === undefined,
+          has_value: !!v.thumbnail_id
+        })
+      })
 
       // Call API
       console.log('🌐 Calling API...')
@@ -2742,13 +2777,14 @@ export default function CreateProductPage() {
                               <Box style={{ display: 'grid', gridTemplateColumns: '48px 2.2fr 1.4fr 1.4fr 1.4fr 1.4fr 1.4fr 1.4fr 1.1fr 1.1fr 1.4fr 36px', gap: '6px', alignItems: 'start' }}>
                                 {/* Thumbnail */}
                                 <Box
-                                  style={{ width: 44, height: 44, cursor: 'pointer', borderRadius: 4, overflow: 'hidden', border: '1px dashed var(--mantine-color-gray-4)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: variant.thumbnail ? 'transparent' : 'var(--mantine-color-gray-0)' }}
+                                  style={{ width: 44, height: 44, cursor: 'pointer', borderRadius: 4, overflow: 'hidden', border: '1px dashed var(--mantine-color-gray-4)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: variant.thumbnailId ? 'transparent' : 'var(--mantine-color-gray-0)' }}
                                   onClick={() => openSingleSelect((mediaFile: MediaFile) => {
-                                    handleUpdateVariant(variant.id, 'thumbnail', mediaFile.url)
+                                    handleUpdateVariant(variant.id, 'thumbnailId', mediaFile.id)
+                                    handleUpdateVariant(variant.id, 'thumbnailUrl', mediaFile.url)
                                   })}
                                 >
-                                  {variant.thumbnail ? (
-                                    <Image src={variant.thumbnail} w={44} h={44} fit="cover" radius={4} />
+                                  {variant.thumbnailUrl || variant.thumbnail ? (
+                                    <Image src={variant.thumbnailUrl || variant.thumbnail} w={44} h={44} fit="cover" radius={4} />
                                   ) : (
                                     <IconPhoto size={18} color="var(--mantine-color-gray-5)" />
                                   )}

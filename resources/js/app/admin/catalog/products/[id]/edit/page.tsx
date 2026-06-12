@@ -1904,7 +1904,8 @@ export default function EditProductPage() {
                 weight: variant.weight || 0,
                 stock: variant.stock || variant.currentStock || variant.current_stock || 0,
                 thumbnail: variant.thumbnail || null,
-                thumbnailUrl: variant.thumbnailUrl || variant.thumbnail || null
+                thumbnailUrl: variant.thumbnailUrl || variant.thumbnail || null,
+                thumbnailId: variant.thumbnail_id || variant.thumbnailId || null
               }
             })
             console.log('🔄 Mapped variants:', mappedVariants)
@@ -1983,7 +1984,8 @@ export default function EditProductPage() {
                 weight: variant.weight || 0,
                 stock: variant.stock || variant.current_stock || 0,
                 thumbnail: variant.thumbnail || null,
-                thumbnailUrl: variant.thumbnailUrl || variant.thumbnail || null
+                thumbnailUrl: variant.thumbnailUrl || variant.thumbnail || null,
+                thumbnailId: variant.thumbnail_id || variant.thumbnailId || null
               }
             })
             setVariants(mappedVariants)
@@ -2159,6 +2161,15 @@ export default function EditProductPage() {
         if (field === 'sellerSku' && value !== v.sellerSku) {
           updated.sellerSkuManuallyEdited = true
         }
+        // When thumbnailId is set, also update thumbnailUrl for display
+        if (field === 'thumbnailId' && value) {
+          updated.thumbnailUrl = `/media/${value}`
+        }
+        // When thumbnailId is cleared, also clear thumbnailUrl
+        if (field === 'thumbnailId' && value === null) {
+          updated.thumbnailUrl = null
+          updated.thumbnail = null
+        }
         return updated
       }
       return v
@@ -2317,8 +2328,20 @@ export default function EditProductPage() {
         seo_tags: seoTags.length > 0 ? seoTags : undefined,
         thumbnail_id: featuredImage?.mediaId ?? undefined,
         gallery_images: galleryImages.map(img => img.mediaId),
-        // Note: Variants are sent separately to variant endpoints
-        // The backend ProductController doesn't handle variants in the update method
+        variants: variants.map(v => ({
+          id: v.dbId ?? (typeof v.id === 'number' ? v.id : undefined),
+          name: v.name,
+          sellerSku: v.sellerSku || null,
+          purchaseCost: parseFloat(v.purchaseCost.toString()),
+          retailPrice: parseFloat(v.price.toString()),
+          wholesalePrice: parseFloat(v.wholesalePrice.toString()),
+          retailOfferPrice: v.specialPrice ? parseFloat(v.specialPrice.toString()) : null,
+          wholesaleOfferPrice: v.wholesaleOfferPrice ? parseFloat(v.wholesaleOfferPrice.toString()) : null,
+          wholesaleMoq: parseInt(v.wholesaleMoq.toString()),
+          weight: parseFloat(v.weight.toString()),
+          stock: parseInt(v.stock.toString()),
+          thumbnail_id: v.thumbnailId || null
+        }))
       }
 
       // Call API - PUT for update
@@ -2497,6 +2520,7 @@ export default function EditProductPage() {
         featuredImage: featuredImage?.mediaId ?? null,
         galleryImages: galleryImages.map(img => img.mediaId),
         variants: variants.map(v => ({
+          id: v.dbId ?? (typeof v.id === 'number' ? v.id : undefined), // Use dbId if available
           retail_id: v.retail_id ?? null,
           wholesale_id: v.wholesale_id ?? null,
           name: v.name,
@@ -2509,9 +2533,23 @@ export default function EditProductPage() {
           wholesaleMoq: parseInt(v.wholesaleMoq.toString()),
           weight: parseFloat(v.weight.toString()),
           stock: parseInt(v.stock.toString()),
-          thumbnail: v.thumbnail || v.thumbnailUrl || null
+          thumbnail_id: v.thumbnailId || null
         }))
       }
+
+      console.log('📤 Sending to API:', {
+        productId: id,
+        variantsCount: variants.length,
+        firstVariant: variants[0],
+        allVariants: variants.map((v, i) => ({
+          index: i,
+          id: v.id,
+          dbId: v.dbId,
+          name: v.name,
+          thumbnailId: v.thumbnailId,
+          hasThumbnailId: !!v.thumbnailId
+        }))
+      })
 
       // Call API - PUT for update
       const response = await apiMethods.put(`catalog/products/${id}`, payload)
@@ -3276,13 +3314,14 @@ export default function EditProductPage() {
                               <Box style={{ display: 'grid', gridTemplateColumns: '48px 2.2fr 1.4fr 1.4fr 1.4fr 1.4fr 1.4fr 1.4fr 1.1fr 1.1fr 1.4fr 36px', gap: '6px', alignItems: 'start' }}>
                                 {/* Thumbnail */}
                                 <Box
-                                  style={{ width: 44, height: 44, cursor: 'pointer', borderRadius: 4, overflow: 'hidden', border: '1px dashed var(--mantine-color-gray-4)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: (variant.thumbnail || variant.thumbnailUrl) ? 'transparent' : 'var(--mantine-color-gray-0)' }}
+                                  style={{ width: 44, height: 44, cursor: 'pointer', borderRadius: 4, overflow: 'hidden', border: '1px dashed var(--mantine-color-gray-4)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: (variant.thumbnailId || variant.thumbnail || variant.thumbnailUrl) ? 'transparent' : 'var(--mantine-color-gray-0)' }}
                                   onClick={() => openSingleSelect((mediaFile: MediaFile) => {
-                                    handleUpdateVariant(variant.id, 'thumbnail', mediaFile.url)
+                                    handleUpdateVariant(variant.id, 'thumbnailId', mediaFile.id)
+                                    handleUpdateVariant(variant.id, 'thumbnailUrl', mediaFile.url)
                                   })}
                                 >
-                                  {variant.thumbnail || variant.thumbnailUrl ? (
-                                    <Image src={variant.thumbnail || variant.thumbnailUrl} w={44} h={44} fit="cover" radius={4} />
+                                  {variant.thumbnailUrl || variant.thumbnail ? (
+                                    <Image src={variant.thumbnailUrl || variant.thumbnail} w={44} h={44} fit="cover" radius={4} />
                                   ) : (
                                     <IconPhoto size={18} color="var(--mantine-color-gray-5)" />
                                   )}
