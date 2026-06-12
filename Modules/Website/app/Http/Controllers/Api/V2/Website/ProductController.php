@@ -279,28 +279,13 @@ class ProductController extends Controller
         // Collect ALL variant image URLs and add to gallery
         $variantImageUrls = [];
         foreach ($variants as $variant) {
-            if (!empty($variant->thumbnail)) {
-                $thumbnailValue = $variant->thumbnail;
+            // Use formatVariantThumbnail to get the actual imageUrl (handles fallback)
+            $variantImageUrl = $this->formatVariantThumbnail($variant->thumbnail, $thumbnailUrl);
 
-                // Handle both Media ID and URL formats
-                $imageUrl = null;
-                if (is_numeric($thumbnailValue)) {
-                    // thumbnail is a Media ID - get media file
-                    $media = DB::table('media_files')->where('id', $thumbnailValue)->first();
-                    if ($media) {
-                        $imageUrl = url('/media/' . $media->id);
-                    }
-                } elseif (filter_var($thumbnailValue, FILTER_VALIDATE_URL)) {
-                    // thumbnail is a full URL
-                    $imageUrl = $thumbnailValue;
-                } else {
-                    // thumbnail is a path - build URL
-                    $imageUrl = url('/storage/' . $thumbnailValue);
-                }
-
+            if (!empty($variantImageUrl)) {
                 // Add to gallery if not already present (avoid duplicates)
-                if ($imageUrl && !in_array($imageUrl, $variantImageUrls)) {
-                    $variantImageUrls[] = $imageUrl;
+                if (!in_array($variantImageUrl, $variantImageUrls)) {
+                    $variantImageUrls[] = $variantImageUrl;
                 }
             }
         }
@@ -324,6 +309,14 @@ class ProductController extends Controller
                 ];
             }
         }
+
+        // Build gallery URLs array from the galleryImages (which now includes variant images)
+        $galleryUrls = collect($galleryImages)
+            ->pluck('imageUrl')
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
 
         $highlights = $product->highlights;
         if (is_string($highlights)) {
@@ -360,8 +353,7 @@ class ProductController extends Controller
             $seoTags = json_decode($seoTags, true) ?? [];
         }
 
-        // Get gallery image URLs
-        $galleryUrls = $this->getGalleryImagesUrlsDirect($galleryImages);
+        // $galleryUrls is already built above with variant images included
 
         // Get first variant for price calculation
         $firstVariant = $variants->first();
