@@ -25,11 +25,20 @@ Route::get('/refresh', function () {
 
 /*
 |--------------------------------------------------------------------------
+| CRM Module Web Routes (Load BEFORE React Catch-All)
+|--------------------------------------------------------------------------
+*/
+if (file_exists(base_path('Modules/CRM/Routes/web.php'))) {
+    require base_path('Modules/CRM/Routes/web.php');
+}
+
+/*
+|--------------------------------------------------------------------------
 | React SPA Catch-All
 |--------------------------------------------------------------------------
 | Root (/) সহ সব non-API request React index.html serve করবে
 */
 Route::get('/{any}', function () {
     return View::make('app');
-})->where('any', '^(?!api|sanctum).*$');
+})->where('any', '^(?!api|sanctum|crm).*');
 

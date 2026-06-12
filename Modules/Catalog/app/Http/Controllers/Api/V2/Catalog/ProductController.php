@@ -1,11 +1,12 @@
 <?php
 
+/* hooknhunt-api/Modules/Catalog/app/Http/Controllers/Api/V2/Catalog/ProductController.php */
+
 namespace App\Modules\Catalog\Http\Controllers\Api\V2\Catalog;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Catalog\Models\ProductVariant;
-use App\Modules\Catalog\Models\ProductImage;
 use App\Modules\Catalog\Models\Category;
 use App\Traits\ImageHelper;
 use Illuminate\Http\JsonResponse;
@@ -49,7 +50,7 @@ class ProductController extends Controller
 
             $products = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($perPage, $search, $categorySlug, $sortBy, $sortOrder) {
                 $query = Product::query()
-                    ->with(['category', 'brand', 'thumbnail', 'variants' => function ($query) {
+                    ->with(['category', 'brand', 'variants' => function ($query) {
                         $query->select('id', 'product_id', 'sku', 'variant_name', 'price', 'offer_price', 'stock', 'is_active', 'thumbnail');
                     }])
                     ->where('status', 'published');
@@ -78,14 +79,8 @@ class ProductController extends Controller
 
                 $query->orderBy($sortField, $sortDirection);
 
-                // Paginate and append full_url to thumbnails
+                // Paginate products - thumbnail URL handled by Product model accessor
                 $paginatedProducts = $query->paginate($perPage);
-                $paginatedProducts->getCollection()->transform(function ($product) {
-                    if ($product->thumbnail) {
-                        $product->thumbnail->append('full_url');
-                    }
-                    return $product;
-                });
 
                 return $paginatedProducts;
             });
@@ -130,7 +125,6 @@ class ProductController extends Controller
                 return Product::with([
                     'category',
                     'brand',
-                    'thumbnail',
                     'variants' => function ($query) {
                         $query->where('is_active', true)
                               ->select('id', 'product_id', 'sku', 'variant_name', 'price', 'offer_price', 'stock', 'is_active', 'thumbnail', 'purchase_cost');
@@ -444,32 +438,9 @@ class ProductController extends Controller
                     $validated['slug'] = \Illuminate\Support\Str::slug($validated['name']) . '-' . time();
                 }
 
-                // Store media file IDs separately before creating product
-                $thumbnailMediaId = $validated['thumbnail_id'] ?? null;
-                $galleryMediaIds = $validated['gallery_images'] ?? [];
-
-                // Remove image fields from validated data - will add back after conversion
-                unset($validated['thumbnail_id'], $validated['gallery_images']);
-
-                // Create the product first (without images)
+                // thumbnail_id and gallery_images already contain media_files IDs
+                // No conversion needed - save directly
                 $product = Product::create($validated);
-
-                // Now create catalog_product_images entries with the product_id
-                if ($thumbnailMediaId) {
-                    $thumbnailCatalogId = $this->createCatalogProductImageWithProduct($thumbnailMediaId, $product->id, true);
-                    if ($thumbnailCatalogId) {
-                        $product->thumbnail_id = $thumbnailCatalogId;
-                    }
-                }
-
-                if (!empty($galleryMediaIds)) {
-                    $galleryCatalogIds = $this->createCatalogProductImagesWithProduct($galleryMediaIds, $product->id);
-                    if (!empty($galleryCatalogIds)) {
-                        $product->gallery_images = $galleryCatalogIds;
-                    }
-                }
-
-                $product->save();
 
                 // Clear cache
                 Cache::forget('products:v2:*');
@@ -518,32 +489,9 @@ class ProductController extends Controller
                 $validated['slug'] = \Illuminate\Support\Str::slug($validated['name']) . '-' . time();
             }
 
-            // Store media file IDs separately before creating product
-            $thumbnailMediaId = $validated['thumbnail_id'] ?? null;
-            $galleryMediaIds = $validated['gallery_images'] ?? [];
-
-            // Remove image fields from validated data - will add back after conversion
-            unset($validated['thumbnail_id'], $validated['gallery_images']);
-
-            // Create the product first (without images)
+            // thumbnail_id and gallery_images already contain media_files IDs
+            // No conversion needed - save directly
             $product = Product::create($validated);
-
-            // Now create catalog_product_images entries with the product_id
-            if ($thumbnailMediaId) {
-                $thumbnailCatalogId = $this->createCatalogProductImageWithProduct($thumbnailMediaId, $product->id, true);
-                if ($thumbnailCatalogId) {
-                    $product->thumbnail_id = $thumbnailCatalogId;
-                }
-            }
-
-            if (!empty($galleryMediaIds)) {
-                $galleryCatalogIds = $this->createCatalogProductImagesWithProduct($galleryMediaIds, $product->id);
-                if (!empty($galleryCatalogIds)) {
-                    $product->gallery_images = $galleryCatalogIds;
-                }
-            }
-
-            $product->save();
 
             // Create variants
             foreach ($variantsData as $variantData) {
@@ -784,84 +732,8 @@ class ProductController extends Controller
                 'sort_order' => 'nullable|integer',
             ]);
 
-            // Handle thumbnail_id conversion if it's a media_files ID
-            if (!empty($validated['thumbnail_id'])) {
-                // Check if it's already a catalog_product_images ID for THIS product
-                $existingCatalogImage = DB::table('catalog_product_images')
-                    ->where('id', $validated['thumbnail_id'])
-                    ->where('product_id', $product->id)
-                    ->first();
-
-                if (!$existingCatalogImage) {
-                    // Either it's a media_files ID or it belongs to another product
-                    // Check if it's a catalog_product_images ID (for any product)
-                    $isAnyCatalogImage = DB::table('catalog_product_images')->where('id', $validated['thumbnail_id'])->exists();
-
-                    if ($isAnyCatalogImage) {
-                        // It's a catalog_product_images ID but belongs to another product
-                        // We need to get the original media file and create a new entry
-                        $otherCatalogImage = DB::table('catalog_product_images')->where('id', $validated['thumbnail_id'])->first();
-                        // Find the original media file
-                        $mediaFile = DB::table('media_files')->where('filename', $otherCatalogImage->file_name)->first();
-                        if ($mediaFile) {
-                            $catalogId = $this->createCatalogProductImageWithProduct($mediaFile->id, $product->id, true);
-                            if ($catalogId) {
-                                $validated['thumbnail_id'] = $catalogId;
-                            } else {
-                                unset($validated['thumbnail_id']);
-                            }
-                        }
-                    } else {
-                        // It's a media_files ID, convert it
-                        $catalogId = $this->createCatalogProductImageWithProduct($validated['thumbnail_id'], $product->id, true);
-                        if ($catalogId) {
-                            $validated['thumbnail_id'] = $catalogId;
-                        } else {
-                            unset($validated['thumbnail_id']);
-                        }
-                    }
-                }
-            }
-
-            // Handle gallery_images conversion if they are media_files IDs
-            if (!empty($validated['gallery_images']) && is_array($validated['gallery_images'])) {
-                $convertedGalleryIds = [];
-                foreach ($validated['gallery_images'] as $imageId) {
-                    // Check if it's already a catalog_product_images ID for THIS product
-                    $existingCatalogImage = DB::table('catalog_product_images')
-                        ->where('id', $imageId)
-                        ->where('product_id', $product->id)
-                        ->first();
-
-                    if ($existingCatalogImage) {
-                        // Already exists for this product, use it
-                        $convertedGalleryIds[] = $imageId;
-                    } else {
-                        // Check if it's a catalog_product_images ID for any product
-                        $isAnyCatalogImage = DB::table('catalog_product_images')->where('id', $imageId)->exists();
-
-                        if ($isAnyCatalogImage) {
-                            // It's a catalog_product_images ID but belongs to another product
-                            $otherCatalogImage = DB::table('catalog_product_images')->where('id', $imageId)->first();
-                            $mediaFile = DB::table('media_files')->where('filename', $otherCatalogImage->file_name)->first();
-                            if ($mediaFile) {
-                                $catalogId = $this->createCatalogProductImageWithProduct($mediaFile->id, $product->id, false);
-                                if ($catalogId) {
-                                    $convertedGalleryIds[] = $catalogId;
-                                }
-                            }
-                        } else {
-                            // It's a media_files ID, convert it
-                            $catalogId = $this->createCatalogProductImageWithProduct($imageId, $product->id, false);
-                            if ($catalogId) {
-                                $convertedGalleryIds[] = $catalogId;
-                            }
-                        }
-                    }
-                }
-                $validated['gallery_images'] = $convertedGalleryIds;
-            }
-
+            // thumbnail_id and gallery_images already contain media_files IDs
+            // No conversion needed - save directly
             $product->update($validated);
 
             // Clear cache
@@ -970,7 +842,7 @@ class ProductController extends Controller
 
             $products = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($perPage, $search, $categorySlug, $sortBy, $sortOrder) {
                 $query = Product::query()
-                    ->with(['category', 'brand', 'thumbnail', 'variants' => function ($query) {
+                    ->with(['category', 'brand', 'variants' => function ($query) {
                         $query->select('id', 'product_id', 'price', 'stock', 'is_active');
                     }])
                     ->where('status', 'published')
@@ -1073,8 +945,6 @@ class ProductController extends Controller
                 return Product::with([
                     'category',
                     'brand',
-                    'thumbnail',
-                    'images',
                     'variants' => function ($query) {
                         $query->where('is_active', true)
                               ->select('id', 'product_id', 'variant_name', 'sku', 'price',
@@ -1171,7 +1041,6 @@ class ProductController extends Controller
                 return Product::with([
                     'category',
                     'brand',
-                    'thumbnail',
                     'variants' => function ($query) {
                         $query->where('is_active', true)
                               ->select('id', 'product_id', 'variant_name', 'sku', 'price',
@@ -1234,67 +1103,5 @@ class ProductController extends Controller
                 'error' => config('app.debug') ? $e->getMessage() : 'An error occurred'
             ], 500);
         }
-    }
-
-    /**
-     * Create catalog_product_image entry from media_file with product_id
-     * Converts media_files ID to catalog_product_images ID
-     */
-    protected function createCatalogProductImageWithProduct(int $mediaFileId, int $productId, bool $isThumbnail = false): ?int
-    {
-        $mediaFile = DB::table('media_files')->where('id', $mediaFileId)->first();
-        if (!$mediaFile) {
-            return null;
-        }
-
-        // Check if catalog_product_image already exists for this media file and product
-        $existingImage = DB::table('catalog_product_images')
-            ->where('file_name', $mediaFile->filename)
-            ->where('product_id', $productId)
-            ->first();
-
-        if ($existingImage) {
-            return $existingImage->id;
-        }
-
-        // Create new catalog_product_image entry with product_id
-        return DB::table('catalog_product_images')->insertGetId([
-            'product_id' => $productId,
-            'url' => $mediaFile->url,
-            'file_name' => $mediaFile->filename,
-            'original_filename' => $mediaFile->original_filename,
-            'mime_type' => $mediaFile->mime_type,
-            'size' => $mediaFile->size,
-            'width' => $mediaFile->width ?? null,
-            'height' => $mediaFile->height ?? null,
-            'disk' => $mediaFile->disk,
-            'path' => $mediaFile->path,
-            'is_thumbnail' => $isThumbnail,
-            'sort_order' => 0,
-            'alt_text' => $mediaFile->alt_text ?? null,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-    }
-
-    /**
-     * Create catalog_product_image entries from media_files array with product_id
-     * Converts media_files IDs to catalog_product_images IDs
-     */
-    protected function createCatalogProductImagesWithProduct(array $mediaFileIds, int $productId): array
-    {
-        $catalogImageIds = [];
-        $sortOrder = 0;
-        foreach ($mediaFileIds as $mediaFileId) {
-            $catalogImageId = $this->createCatalogProductImageWithProduct($mediaFileId, $productId, false);
-            if ($catalogImageId) {
-                $catalogImageIds[] = $catalogImageId;
-                // Update sort order
-                DB::table('catalog_product_images')
-                    ->where('id', $catalogImageId)
-                    ->update(['sort_order' => $sortOrder++]);
-            }
-        }
-        return $catalogImageIds;
     }
 }

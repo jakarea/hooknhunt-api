@@ -1,5 +1,5 @@
 <?php
-
+/* hooknhunt-api/app/Traits/ImageHelper.php */
 namespace App\Traits;
 
 use Illuminate\Support\Facades\DB;
@@ -186,12 +186,12 @@ trait ImageHelper
     }
 
     /**
-     * Get gallery image URLs from catalog_product_images
+     * Get gallery image URLs from media_files table
      *
-     * Uses catalog_product_images table since gallery_images stores catalog IDs.
+     * Uses media_files table since gallery_images stores media_files IDs.
      * Preserves the order of images as stored in gallery_images array.
      *
-     * @param array|null $galleryIds Array of catalog_product_images IDs
+     * @param array|null $galleryIds Array of media_files IDs
      * @return array Array of image URLs in original order
      */
     protected function getGalleryImagesUrlsDirect(?array $galleryIds): array
@@ -200,9 +200,9 @@ trait ImageHelper
             return [];
         }
 
-        // Query catalog_product_images table (not media_files)
-        // because gallery_images stores catalog_product_images IDs
-        $results = DB::table('catalog_product_images')
+        // Query media_files table
+        // gallery_images stores media_files IDs
+        $results = DB::table('media_files')
             ->whereIn('id', $galleryIds)
             ->select('id', 'url', 'path')
             ->orderBy('id')
@@ -213,7 +213,7 @@ trait ImageHelper
         foreach ($galleryIds as $id) {
             if (isset($results[$id])) {
                 $file = $results[$id];
-                // Use stored URL (probesh.hooknhunt.com) if available, otherwise build from path
+                // Use stored URL if available and it's a full URL, otherwise build from path
                 $urls[] = ($file->url && str_starts_with($file->url, 'http'))
                     ? $file->url
                     : url($file->path ?? '');

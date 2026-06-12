@@ -1,5 +1,7 @@
 <?php
 
+/* hooknhunt-api/Modules/Catalog/app/Models/Product.php */
+
 namespace App\Modules\Catalog\Models;
 
 use App\Modules\Catalog\Events\ProductCreated;
@@ -124,17 +126,12 @@ class Product extends Model
         return $this->hasOne(ProductVariant::class)->oldestOfMany();
     }
 
-    // 3.2. Thumbnail relationship (Catalog module - self-contained)
-    public function thumbnail()
-    {
-        return $this->belongsTo(ProductImage::class, 'thumbnail_id');
-    }
+    // 3.2. Thumbnail - Direct relationship to media_files table (CMS module)
+    // Note: Using DB::table queries instead of relationship to avoid cross-module dependencies
+    // Thumbnail stores media_files.id (integer)
 
-    // 3.3. Gallery images relationship (Catalog module - self-contained)
-    public function images()
-    {
-        return $this->hasMany(ProductImage::class)->orderBy('sort_order');
-    }
+    // 3.3. Gallery images - stored as array of media_files IDs in gallery_images column
+    // No relationship needed - use getGalleryImagesUrlsAttribute() accessor
 
     // Cross-module dependencies removed for independence:
     // - Review relationship (Website module) - removed
@@ -428,27 +425,23 @@ class Product extends Model
     }
 
     /**
-     * Get thumbnail URL with fallback to catalog_product_images
-     * Returns the URL from the loaded relationship, media_files, or catalog_product_images
+     * Get thumbnail URL from media_files table
+     * Returns the URL from media_files based on thumbnail_id (which stores media_files.id)
      */
     public function getThumbnailUrlAttribute(): ?string
     {
-        // If thumbnail relationship is loaded, use it
-        if ($this->relationLoaded('thumbnail') && $this->thumbnail) {
-            return $this->thumbnail->url ?? null;
-        }
-
-        // Otherwise, try media_files table first (post-migration)
+        // thumbnail_id stores media_files.id (integer)
         if ($this->thumbnail_id) {
             $image = \DB::table('media_files')
                 ->where('id', $this->thumbnail_id)
                 ->value('url');
 
-            // If not found in media_files, fallback to catalog_product_images (pre-migration)
-            if (!$image) {
-                $image = \DB::table('catalog_product_images')
+            // If URL is not a full URL, build from path
+            if ($image && !str_starts_with($image, 'http')) {
+                $path = \DB::table('media_files')
                     ->where('id', $this->thumbnail_id)
-                    ->value('url');
+                    ->value('path');
+                return $path ? url($path) : null;
             }
 
             return $image ?: null;
@@ -458,8 +451,8 @@ class Product extends Model
     }
 
     /**
-     * Get gallery images URLs with fallback to catalog_product_images
-     * Converts gallery_images array of IDs to URLs from media_files or catalog_product_images
+     * Get gallery images URLs from media_files table
+     * Converts gallery_images array of media_files IDs to URLs
      */
     public function getGalleryImagesUrlsAttribute(): array
     {
@@ -467,9 +460,8 @@ class Product extends Model
             return [];
         }
 
-        // Use catalog_product_images table only (migration complete)
-        // gallery_images stores catalog_product_images IDs
-        $results = \DB::table('catalog_product_images')
+        // gallery_images stores media_files IDs
+        $results = \DB::table('media_files')
             ->whereIn('id', $this->gallery_images)
             ->select('id', 'url', 'path')
             ->orderBy('id')
@@ -480,7 +472,7 @@ class Product extends Model
         foreach ($this->gallery_images as $id) {
             if (isset($results[$id])) {
                 $file = $results[$id];
-                // Use stored URL (probesh.hooknhunt.com) if available, otherwise build from path
+                // Use stored URL if available and it's a full URL, otherwise build from path
                 $urls[] = ($file->url && str_starts_with($file->url, 'http'))
                     ? $file->url
                     : url($file->path ?? '');

@@ -28,7 +28,7 @@
     "isDynamicEntry": true
   },
   "resources/js/main.tsx": {
-    "file": "assets/main-Dkax3Qby.js",
+    "file": "assets/main-Cd0p17c-.js",
     "name": "main",
     "src": "resources/js/main.tsx",
     "isEntry": true,
@@ -42,7 +42,7 @@
       "node_modules/workbox-window/build/workbox-window.prod.es5.mjs"
     ],
     "css": [
-      "assets/main-uc24eVrA.css"
+      "assets/main-C78NJydA.css"
     ]
   }
 }

@@ -209,7 +209,7 @@ class CustomerController extends Controller
 
     /**
      * Get customer list for CRM
-     * Shows only Users with retail_customer (10) and wholesale_customer (11) roles
+     * Shows all customers including guest customers without user accounts
      */
     public function index(Request $request)
     {
@@ -218,8 +218,92 @@ class CustomerController extends Controller
             return $this->sendError('You do not have permission to view customers.', null, 403);
         }
 
-        $query = User::with(['customerProfile', 'customer', 'addresses'])
-            ->whereIn('role_id', [10, 11]); // Only retail & wholesale customers
+        // Get all customers including guest customers (from customers table)
+        // Module independence: Direct DB access instead of relationships
+        $query = DB::table('customers as c')
+            ->leftJoin('users as u', 'c.user_id', '=', 'u.id')
+            ->leftJoin('customer_profiles as cp', 'u.id', '=', 'cp.user_id')
+            ->leftJoin('addresses as a', function($join) {
+                $join->on('u.id', '=', 'a.user_id')
+                      ->where('a.is_default', '=', 1);
+            })
+            ->select([
+                'c.id as customer_id',
+                'c.user_id',
+                'c.name as customer_name',
+                'c.phone as customer_phone',
+                'c.type as customer_type',
+                'c.wallet_balance',
+                'c.created_at as customer_created_at',
+                'u.id as user_id',
+                'u.name as user_name',
+                'u.phone as user_phone',
+                'u.email',
+                'u.role_id',
+                'cp.type as profile_type',
+                'a.division as address_division',
+                'a.district as address_district',
+                'a.thana as address_thana',
+                'a.city as address_city'
+            ]);
+
+        // Search across customer name, phone, and user fields
+        if ($request->search) {
+            $query->where(function($q) use ($request) {
+                $q->where('c.name', 'like', "%{$request->search}%")
+                  ->orWhere('c.phone', 'like', "%{$request->search}%")
+                  ->orWhere('u.name', 'like', "%{$request->search}%")
+                  ->orWhere('u.phone', 'like', "%{$request->search}%")
+                  ->orWhere('u.email', 'like', "%{$request->search}%");
+            });
+        }
+
+        // Filter by customer type (retail/wholesale)
+        if ($request->filled('type') && $request->type !== 'all') {
+            $query->where('c.type', $request->type);
+        }
+
+        // Get paginated results
+        $customers = $query->paginate($request->per_page ?? 20);
+
+        // Enhance each customer with order data and additional info
+        $customers->getCollection()->transform(function ($customer) {
+            // Get order statistics via direct DB query
+            $orderStats = DB::table('sales_orders')
+                ->where('customer_id', $customer->customer_id)
+                ->selectRaw('COUNT(*) as total_orders, SUM(total_amount) as total_spent')
+                ->first();
+
+            return [
+                'id' => $customer->user_id ?? 'guest-' . $customer->customer_id,
+                'customer_id' => $customer->customer_id,
+                'name' => $customer->user_name ?: $customer->customer_name,
+                'phone' => $customer->user_phone ?: $customer->customer_phone,
+                'email' => $customer->email,
+                'role_id' => $customer->role_id,
+                'customerProfile' => [
+                    'type' => $customer->customer_type,
+                    'totalOrders' => $orderStats->total_orders ?? 0,
+                    'totalSpent' => (float)($orderStats->total_spent ?? 0),
+                    'loyaltyPoints' => 0,
+                ],
+                'customer' => [
+                    'id' => $customer->customer_id,
+                    'name' => $customer->customer_name,
+                    'phone' => $customer->customer_phone,
+                    'type' => $customer->customer_type,
+                ],
+                'address' => [
+                    'division' => $customer->address_division,
+                    'district' => $customer->address_district,
+                    'thana' => $customer->address_thana,
+                    'city' => $customer->address_city,
+                ],
+                'created_at' => $customer->customer_created_at,
+            ];
+        });
+
+        return $this->sendSuccess($customers, 'Customers retrieved successfully.');
 
         // Search
         if ($request->search) {

@@ -9,7 +9,6 @@ import {
   Button,
   Table,
   Badge,
-  ActionIcon,
   Paper,
   Card,
   Grid,
@@ -20,9 +19,8 @@ import {
   MultiSelect,
   RangeSlider,
 } from '@mantine/core'
-import { IconPlus, IconPencil, IconTrash, IconSearch, IconEye, IconShoppingBag, IconRefresh, IconFilter, IconX, IconDownload } from '@tabler/icons-react'
+import { IconPlus, IconSearch, IconShoppingBag, IconRefresh, IconFilter, IconX, IconDownload } from '@tabler/icons-react'
 import { useDisclosure } from '@mantine/hooks'
-import { modals } from '@mantine/modals'
 import { notifications } from '@mantine/notifications'
 import { useTranslation } from 'react-i18next'
 import api from '@/lib/api'
@@ -41,14 +39,21 @@ interface Customer {
 	totalOrders: number
 	totalSpent: number
 	loyaltyPoints: number
+	division?: string
+	district?: string
+	thana?: string
+	city?: string
   }
-  addresses?: Array<{
-	city: string
-	division: string
-  }>
+  address?: {
+	division?: string
+	district?: string
+	thana?: string
+	city?: string
+  }
   createdAt: string
   updatedAt: string
 }
+
 
 interface PaginatedResponse {
   data: Customer[]
@@ -109,7 +114,7 @@ export default function CustomersPage() {
   const [pagination, setPagination] = useState({
     current_page: 1,
     last_page: 1,
-    per_page: 10,
+    per_page: 3,
     total: 0,
   })
 
@@ -331,13 +336,19 @@ export default function CustomersPage() {
         setCustomers(Array.isArray(data) ? data : data.data || [])
 
         // Handle pagination data
-        if (data.current_page) {
+        const paginationData = Array.isArray(data) ? null : data
+        if (paginationData?.current_page) {
           setPagination({
-            current_page: data.current_page,
-            last_page: data.last_page || 1,
-            per_page: data.per_page || 10,
-            total: data.total || 0,
+            current_page: paginationData.current_page,
+            last_page: paginationData.last_page || 1,
+            per_page: paginationData.per_page || 3,
+            total: paginationData.total || 0,
           })
+        } else {
+          // Debug: log when pagination data is not found
+          if (import.meta.env.DEV) {
+            console.log('Pagination data not found:', data)
+          }
         }
       } else {
         throw new Error('Failed to fetch customers')
@@ -399,7 +410,15 @@ export default function CustomersPage() {
     return (
       <Table.Tr key={customer.id}>
         <Table.Td>
-          <Text fw={600} className="text-sm md:text-base">{customer.name}</Text>
+          <Text
+            fw={600}
+            className="text-sm md:text-base"
+            component={Link}
+            to={`/crm/customers/${customer.id}`}
+            style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
+          >
+            {customer.name}
+          </Text>
           {customer.email && (
             <Text className="text-xs md:text-sm" c="dimmed">{customer.email}</Text>
           )}
@@ -411,6 +430,15 @@ export default function CustomersPage() {
           <Badge color={type === 'wholesale' ? 'blue' : 'gray'} variant="light">
             {t(`crm.customers.type.${type}`)}
           </Badge>
+        </Table.Td>
+        <Table.Td>
+          <Text className="text-sm md:text-base">{customer.customerProfile?.division || customer.address?.division || '-'}</Text>
+        </Table.Td>
+        <Table.Td>
+          <Text className="text-sm md:text-base">{customer.customerProfile?.district || customer.address?.district || '-'}</Text>
+        </Table.Td>
+        <Table.Td>
+          <Text className="text-sm md:text-base">{customer.customerProfile?.thana || customer.customerProfile?.city || customer.address?.thana || '-'}</Text>
         </Table.Td>
         <Table.Td>
           <Group>
@@ -429,36 +457,6 @@ export default function CustomersPage() {
         <Table.Td>
           <Text className="text-sm md:text-base">{formatDate(customer.createdAt)}</Text>
         </Table.Td>
-        <Table.Td>
-          <Group>
-            <ActionIcon
-              variant="subtle"
-              color="gray"
-              component={Link}
-              to={`/crm/customers/${customer.id}`}
-              aria-label="View Profile"
-            >
-              <IconEye size={16} />
-            </ActionIcon>
-            <ActionIcon
-              variant="subtle"
-              color="blue"
-              component={Link}
-              to={`/crm/customers/${customer.id}/edit`}
-              aria-label="Edit Customer"
-            >
-              <IconPencil size={16} />
-            </ActionIcon>
-            <ActionIcon
-              variant="subtle"
-              color="red"
-              onClick={() => openDeleteModal(customer.id, customer.name)}
-              aria-label="Delete Customer"
-            >
-              <IconTrash size={16} />
-            </ActionIcon>
-          </Group>
-        </Table.Td>
       </Table.Tr>
     )
   })
@@ -473,44 +471,14 @@ export default function CustomersPage() {
     return (
       <Card key={customer.id} shadow="sm" p={{ base: 'lg', md: 'md' }} radius="md" withBorder mb="md">
         <Stack>
-          {/* Header with name and actions */}
-          <Group justify="space-between">
-            <Box className="flex-1">
-              <Text fw={700} className="text-lg md:text-xl lg:text-2xl">{customer.name}</Text>
-              {customer.email && (
-                <Text className="text-sm md:text-base" c="dimmed">{customer.email}</Text>
-              )}
-              <Text className="text-xs md:text-sm" c="dimmed" mt={2}>{customer.phone}</Text>
-            </Box>
-            <Group>
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                component={Link}
-                to={`/crm/customers/${customer.id}`}
-                aria-label="View Profile"
-              >
-                <IconEye size={16} />
-              </ActionIcon>
-              <ActionIcon
-                variant="subtle"
-                color="blue"
-                component={Link}
-                to={`/crm/customers/${customer.id}/edit`}
-                aria-label="Edit Customer"
-              >
-                <IconPencil size={16} />
-              </ActionIcon>
-              <ActionIcon
-                variant="subtle"
-                color="red"
-                onClick={() => openDeleteModal(customer.id, customer.name)}
-                aria-label="Delete Customer"
-              >
-                <IconTrash size={16} />
-              </ActionIcon>
-            </Group>
-          </Group>
+          {/* Header with name */}
+          <Box>
+            <Text fw={700} className="text-lg md:text-xl lg:text-2xl">{customer.name}</Text>
+            {customer.email && (
+              <Text className="text-sm md:text-base" c="dimmed">{customer.email}</Text>
+            )}
+            <Text className="text-xs md:text-sm" c="dimmed" mt={2}>{customer.phone}</Text>
+          </Box>
 
           {/* Customer Type */}
           <Group>
@@ -547,49 +515,6 @@ export default function CustomersPage() {
       </Card>
     )
   })
-
-  const openDeleteModal = (id: number, name: string) => {
-    modals.openConfirmModal({
-      title: t('crm.customers.delete'),
-      centered: true,
-      children: (
-        <Text className="text-sm md:text-base">
-          {t('crm.customers.deleteConfirm')}
-        </Text>
-      ),
-      labels: {
-        confirm: t('common.delete'),
-        cancel: t('common.cancel'),
-      },
-      confirmProps: { color: 'red' },
-      onConfirm: async () => {
-        try {
-          const response = await api.delete(`/crm/customers/${id}`)
-
-          if (response.data?.status) {
-            notifications.show({
-              title: t('common.success'),
-              message: t('crm.customers.deleted', { name }),
-              color: 'green',
-            })
-            // Refresh the list
-            fetchCustomers(pagination.current_page)
-          } else {
-            throw new Error(response.data?.message || 'Failed to delete customer')
-          }
-        } catch (error: any) {
-          if (import.meta.env.DEV) {
-            console.error('Error deleting customer:', error)
-          }
-          notifications.show({
-            title: t('common.error'),
-            message: error.response?.data?.message || error.message || t('crm.customers.errorLoading'),
-            color: 'red',
-          })
-        }
-      },
-    })
-  }
 
   const handlePageChange = (newPage: number) => {
     fetchCustomers(newPage)
@@ -891,17 +816,18 @@ export default function CustomersPage() {
                     <Table.Th>{t('crm.customers.table.customer')}</Table.Th>
                     <Table.Th>{t('crm.customers.table.phone')}</Table.Th>
                     <Table.Th>{t('crm.customers.table.type')}</Table.Th>
+                    <Table.Th>District</Table.Th>
+                    <Table.Th>Thana/City</Table.Th>
                     <Table.Th>{t('crm.customers.table.totalSpent')}</Table.Th>
                     <Table.Th>{t('crm.customers.table.orders')}</Table.Th>
                     <Table.Th>{t('crm.customers.table.loyaltyPoints')}</Table.Th>
                     <Table.Th>{t('crm.customers.table.joined')}</Table.Th>
-                    <Table.Th>{t('common.actions')}</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
                   {customers.length === 0 ? (
                     <Table.Tr>
-                      <Table.Td colSpan={8}>
+                      <Table.Td colSpan={9}>
                         <Box py="xl" ta="center">
                           <Text c="dimmed">{t('crm.customers.noCustomersFound')}</Text>
                         </Box>

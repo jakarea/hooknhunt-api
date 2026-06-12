@@ -44,6 +44,12 @@ class AuthController extends Controller
                 return $this->sendError('User with this phone number already exists.', null, 400);
             }
 
+            // Check if customer record exists with this phone (prevent guest order takeover)
+            $existingCustomer = DB::table('customers')->where('phone', $phone)->first();
+            if ($existingCustomer) {
+                return $this->sendError('This phone number is already associated with an existing account. Please login instead.', null, 400);
+            }
+
             // Create user
             $user = User::create([
                 'name' => $validated['name'],
@@ -60,8 +66,8 @@ class AuthController extends Controller
             // Generate OTP for verification
             $otp = $this->generateOtp($user->phone, 'registration', $user->id);
 
-            // Send OTP via SMS (implementation depends on your SMS service)
-            // $this->sendOtpSms($user->phone, $otp);
+            // Send OTP via SMS
+            $this->sendOtpViaSms($user->phone, $otp, 'registration');
 
             return $this->sendSuccess([
                 'user' => $user->makeHidden(['password']),
@@ -184,6 +190,9 @@ class AuthController extends Controller
             // Generate and send new OTP
             $otp = $this->generateOtp($phone, 'verification', $user->id);
 
+            // Send OTP via SMS
+            $this->sendOtpViaSms($phone, $otp, 'verification');
+
             return $this->sendSuccess([
                 'phone' => $phone,
                 'message' => 'OTP resent successfully'
@@ -298,6 +307,9 @@ class AuthController extends Controller
 
             // Generate OTP for password reset
             $otp = $this->generateOtp($phone, 'password_reset', $user->id);
+
+            // Send OTP via SMS
+            $this->sendOtpViaSms($phone, $otp, 'password_reset');
 
             return $this->sendSuccess([
                 'phone' => $phone,
@@ -529,9 +541,47 @@ class AuthController extends Controller
             'user_id' => $userId,
             'identifier' => $phone,
             'token' => $otp,
-            'expires_at' => now()->addMinutes(15), // OTP valid for 15 minutes
+            'expires_at' => now()->addMinutes(2), // OTP valid for 2 minutes
         ]);
 
         return $otp;
+    }
+
+    /**
+     * Send OTP via SMS using Alpha SMS service.
+     *
+     * @param string $phone Phone number to send OTP to
+     * @param string $otp OTP code to send
+     * @param string $type Type of OTP (registration, verification, password_reset)
+     * @return void
+     */
+    protected function sendOtpViaSms(string $phone, string $otp, string $type = 'verification'): void
+    {
+        try {
+            if (class_exists(\App\Services\AlphaSmsService::class)) {
+                $smsService = new \App\Services\AlphaSmsService();
+
+                // Send OTP using the service's sendOTP method
+                $result = $smsService->sendOTP($phone, $otp);
+
+                Log::info('OTP SMS sent successfully', [
+                    'phone' => $phone,
+                    'type' => $type,
+                    'result' => $result,
+                ]);
+            } else {
+                Log::warning('Alpha SMS Service not available', [
+                    'phone' => $phone,
+                    'type' => $type,
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Failed to send OTP SMS', [
+                'phone' => $phone,
+                'type' => $type,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+        }
     }
 }

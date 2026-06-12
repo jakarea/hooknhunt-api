@@ -66,6 +66,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
             $middleware->alias([
                 // 'auth' => \App\Http\Middleware\Authenticate::class, // Use default Laravel auth
+                'sanctum.auth' => \App\Http\Middleware\SanctumAuth::class, // Sanctum token authentication for web routes
                 'permission' => \App\Http\Middleware\CheckPermission::class, // এটি যুক্ত করুন
                 'role' => \App\Http\Middleware\CheckRoleMiddleware::class,   // এটিও যুক্ত করে রাখা ভালো
                 'lazychat.auth' => \App\Http\Middleware\LazychatAuth::class, // Lazychat API authentication

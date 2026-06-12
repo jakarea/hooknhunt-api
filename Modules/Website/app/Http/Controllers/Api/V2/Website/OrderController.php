@@ -1,5 +1,7 @@
 <?php
 
+/* hooknhunt-api/Modules/Website/app/Http/Controllers/Api/V2/Website/OrderController.php */
+
 namespace App\Modules\Website\Http\Controllers\Api\V2\Website;
 
 use App\Http\Controllers\Controller;
@@ -293,8 +295,8 @@ class OrderController extends Controller
             try {
                 if (class_exists(AlphaSmsService::class)) {
                     $smsService = new AlphaSmsService();
-                    $message = "Your order {$order->invoice_no} has been placed successfully. Total: ৳{$order->total_amount}";
-                    $smsService->sendSms($order->customer_phone, $message);
+                    $message = "Hook & Hunt: Your order {$order->invoice_no} has been placed successfully. Total: ৳{$order->total_amount}";
+                    $smsService->sendSms($message, $order->customer_phone);
                 }
             } catch (\Exception $smsException) {
                 Log::warning('Failed to send order confirmation SMS', [
@@ -524,9 +526,22 @@ class OrderController extends Controller
             $customer = DB::table('customers')->where('user_id', $user->id)->first();
             $customerId = $customer ? $customer->id : null;
 
-            $orders = WebsiteOrder::when($customerId, function ($query) use ($customerId) {
-                    return $query->where('customer_id', $customerId);
-                })
+            // If no customer record exists, return empty orders (security: prevent data leak)
+            if (!$customerId) {
+                Log::info('No customer record found for user, returning empty orders', [
+                    'user_id' => $user->id,
+                ]);
+
+                return $this->sendSuccess([
+                    'data' => [],
+                    'total' => 0,
+                    'per_page' => $perPage,
+                    'current_page' => 1,
+                    'last_page' => 1,
+                ], 'No orders found for this account.');
+            }
+
+            $orders = WebsiteOrder::where('customer_id', $customerId)
                 ->with('items')
                 ->orderBy('created_at', 'desc')
                 ->paginate($perPage);
@@ -538,19 +553,15 @@ class OrderController extends Controller
                     $thumbnail = DB::table('sales_order_items as sgi')
                         ->leftJoin('product_variants as pv', 'sgi.product_variant_id', '=', 'pv.id')
                         ->leftJoin('products as p', 'pv.product_id', '=', 'p.id')
-                        ->leftJoin('catalog_product_images as cp', 'p.thumbnail_id', '=', 'cp.id')
-                        ->leftJoin('media_files as mf', function($join) {
-                            $join->on('p.thumbnail_id', '=', 'mf.id')
-                                 ->whereNull('cp.id');
-                        })
+                        ->leftJoin('media_files as mf', 'p.thumbnail_id', '=', 'mf.id')
                         ->where('sgi.id', $item->id)
                         ->select(
                             'p.id as product_id',
                             'p.thumbnail_id as product_thumbnail_id',
                             'p.gallery_images',
-                            DB::raw('COALESCE(cp.id, mf.id) as thumbnail_id'),
-                            DB::raw('COALESCE(cp.path, mf.path) as thumbnail_path'),
-                            DB::raw('COALESCE(cp.url, mf.url) as thumbnail_url')
+                            'mf.id as thumbnail_id',
+                            'mf.path as thumbnail_path',
+                            'mf.url as thumbnail_url'
                         )
                         ->first();
 
@@ -565,7 +576,7 @@ class OrderController extends Controller
                     if (!$imageData['image_url'] && $thumbnail && !$thumbnail->thumbnail_id && $thumbnail->gallery_images) {
                         $galleryIds = json_decode($thumbnail->gallery_images, true);
                         if (is_array($galleryIds) && !empty($galleryIds)) {
-                            $firstGalleryImage = DB::table('catalog_product_images')
+                            $firstGalleryImage = DB::table('media_files')
                                 ->where('id', $galleryIds[0])
                                 ->value('url');
                             if ($firstGalleryImage) {
@@ -626,19 +637,68 @@ class OrderController extends Controller
             $customer = DB::table('customers')->where('user_id', $user->id)->first();
             $customerId = $customer ? $customer->id : null;
 
+            // If no customer record exists, return empty stats (security: prevent data leak)
+            if (!$customerId) {
+                $emptySummary = (object) [
+                    'total_orders' => 0,
+                    'total_spent' => 0,
+                    'paid_amount' => 0,
+                    'due_amount' => 0,
+                    'pending_orders' => 0,
+                    'completed_orders' => 0,
+                    'recentOrders' => []
+                ];
+
+                Log::info('No customer record found for user, returning empty stats', [
+                    'user_id' => $user->id,
+                ]);
+
+                return $this->sendSuccess(
+                    $emptySummary,
+                    'No orders found for this account.'
+                );
+            }
+
+            // Get order summary statistics
             $summary = DB::table('sales_orders')
-                ->when($customerId, function ($query) use ($customerId) {
-                    return $query->where('customer_id', $customerId);
-                })
+                ->where('customer_id', $customerId)
                 ->selectRaw("
                     COUNT(*) as total_orders,
                     SUM(total_amount) as total_spent,
                     SUM(CASE WHEN payment_status = 'paid' THEN total_amount ELSE 0 END) as paid_amount,
                     SUM(CASE WHEN payment_status = 'unpaid' THEN total_amount ELSE 0 END) as due_amount,
                     COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_orders,
-                    COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_orders
+                    COUNT(CASE WHEN status = 'delivered' THEN 1 END) as completed_orders
                 ")
                 ->first();
+
+            // Get recent orders (last 5)
+            $recentOrders = DB::table('sales_orders as so')
+                ->where('customer_id', $customerId)
+                ->orderBy('so.created_at', 'desc')
+                ->limit(5)
+                ->select([
+                    'so.id',
+                    'so.invoice_no as orderNumber',
+                    'so.total_amount as totalAmount',
+                    'so.status',
+                    'so.created_at as createdAt'
+                ])
+                ->get()
+                ->map(function ($order) {
+                    return [
+                        'id' => $order->id,
+                        'orderNumber' => $order->orderNumber,
+                        'totalAmount' => (float) $order->totalAmount,
+                        'status' => $order->status,
+                        'createdAt' => $order->createdAt,
+                    ];
+                });
+
+            // Merge recent orders into summary
+            $summaryArray = (array) $summary;
+            $summaryArray['recentOrders'] = $recentOrders;
+            $summary = (object) $summaryArray;
 
             Log::info('Order summary retrieved', [
                 'user_id' => $user->id,
@@ -924,19 +984,15 @@ class OrderController extends Controller
                 $thumbnail = DB::table('sales_order_items as sgi')
                     ->leftJoin('product_variants as pv', 'sgi.product_variant_id', '=', 'pv.id')
                     ->leftJoin('products as p', 'pv.product_id', '=', 'p.id')
-                    ->leftJoin('catalog_product_images as cp', 'p.thumbnail_id', '=', 'cp.id')
-                    ->leftJoin('media_files as mf', function($join) {
-                        $join->on('p.thumbnail_id', '=', 'mf.id')
-                             ->whereNull('cp.id');
-                    })
+                    ->leftJoin('media_files as mf', 'p.thumbnail_id', '=', 'mf.id')
                     ->where('sgi.id', $item['id'])
                     ->select(
                         'p.id as product_id',
                         'p.thumbnail_id as product_thumbnail_id',
                         'p.gallery_images',
-                        DB::raw('COALESCE(cp.id, mf.id) as thumbnail_id'),
-                        DB::raw('COALESCE(cp.path, mf.path) as thumbnail_path'),
-                        DB::raw('COALESCE(cp.url, mf.url) as thumbnail_url')
+                        'mf.id as thumbnail_id',
+                        'mf.path as thumbnail_path',
+                        'mf.url as thumbnail_url'
                     )
                     ->first();
 
@@ -951,7 +1007,7 @@ class OrderController extends Controller
                 if (!$imageData['image_url'] && $thumbnail && !$thumbnail->thumbnail_id && $thumbnail->gallery_images) {
                     $galleryIds = json_decode($thumbnail->gallery_images, true);
                     if (is_array($galleryIds) && !empty($galleryIds)) {
-                        $firstGalleryImage = DB::table('catalog_product_images')
+                        $firstGalleryImage = DB::table('media_files')
                             ->where('id', $galleryIds[0])
                             ->value('url');
                         if ($firstGalleryImage) {
@@ -1003,17 +1059,11 @@ class OrderController extends Controller
             if (class_exists(AlphaSmsService::class)) {
                 $smsService = new AlphaSmsService();
 
-                $message = "Welcome to Hook & Hunt! Your account has been created successfully.\n";
-                $message .= "Phone: {$phone}\n";
-                $message .= "Password: {$password}\n";
+                $message = "Thank you for shopping with Hook & Hunt!\n";
+                $message .= "Order Received: {$invoiceNo}\n";
+                $message .= "Login to track anytime with Phone: {$phone} | Pass: {$password}";
 
-                if ($invoiceNo) {
-                    $message .= "Order: {$invoiceNo}\n";
-                }
-
-                $message .= "\nYou can now login to track your orders and manage your account. Thank you for shopping with us!";
-
-                $smsService->sendSms($phone, $message);
+                $smsService->sendSms($message, $phone);
 
                 Log::info('Account creation SMS sent successfully', [
                     'phone' => $phone,

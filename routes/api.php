@@ -96,3 +96,8 @@ Route::group([
         Route::get('website-admin/products/top-selling', 'App\Http\Controllers\Api\V2\WebsiteAdmin\OrderController@topSellingProducts');
     });
 });
+
+// Load CRM module routes
+if (file_exists(base_path('Modules/CRM/Routes/api.php'))) {
+    require base_path('Modules/CRM/Routes/api.php');
+}
