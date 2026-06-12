@@ -1,0 +1,154 @@
+# nginx Configuration for hooknhunt-api
+# This config provides:
+# 1. Proper static file serving
+# 2. UTF-8 filename support
+# 3. API routing to Laravel
+# 4. Caching headers
+# 5. Security headers
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name hooknhunt-api.test;
+
+    # Redirect HTTP to HTTPS (uncomment in production)
+    # return 301 https://$server_name$request_uri;
+
+    root /var/www/html/public;
+    index index.php;
+
+    # UTF-8 support for filenames
+    charset utf-8;
+    charset_types text/css text/plain text/xml text/javascript application/json application/javascript;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # Logging
+    access_log /var/log/nginx/hooknhunt-api-access.log;
+    error_log /var/log/nginx/hooknhunt-api-error.log;
+
+    # Increase buffer size for large headers
+    client_header_buffer_size 1k;
+    large_client_header_buffers 4 4k;
+
+    # =================================================================
+    # STATIC ASSETS - Serve directly with caching
+    # =================================================================
+    location ~* \.(jpg|jpeg|png|gif|webp|svg|ico|css|js|woff|woff2|ttf|eot)$ {
+        # Try serving static file first, fall back to Laravel
+        try_files $uri /index.php?$query_string;
+
+        # Cache headers for static assets
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+
+        # CORS for Next.js image optimization
+        add_header Access-Control-Allow-Origin *;
+    }
+
+    # =================================================================
+    # STORAGE FILES - Serve via Laravel for UTF-8 support
+    # =================================================================
+    location /storage/ {
+        # Force all storage requests through Laravel
+        # This ensures UTF-8 filenames are handled correctly
+        try_files $uri /index.php?$query_string;
+    }
+
+    # =================================================================
+    # MEDIA FILES - Serve via Laravel by ID
+    # =================================================================
+    location /media/ {
+        # Force through Laravel for ID-based serving
+        try_files $uri /index.php?$query_string;
+
+        # Cache headers for images
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # =================================================================
+    # BUILT ASSETS - Vite build output
+    # =================================================================
+    location /build/ {
+        try_files $uri =404;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    # =================================================================
+    # API ROUTES - Pass to Laravel
+    # =================================================================
+    location /api/ {
+        try_files $uri /index.php?$query_string;
+    }
+
+    # =================================================================
+    # SANCTUM - Laravel Sanctum routes
+    # =================================================================
+    location /sanctum/ {
+        try_files $uri /index.php?$query_string;
+    }
+
+    # =================================================================
+    # CRM MODULE - Separate module routes
+    # =================================================================
+    location /crm/ {
+        try_files $uri /index.php?$query_string;
+    }
+
+    # =================================================================
+    # ALL OTHER REQUESTS - Serve SPA (React/Next.js)
+    # =================================================================
+    location / {
+        try_files $uri /index.php?$query_string;
+    }
+
+    # =================================================================
+    # PHP-FPM - Process PHP files
+    # =================================================================
+    location ~ \.php$ {
+        fastcgi_pass unix:/var/run/php/php8.5-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+
+        # FastCGI timeouts
+        fastcgi_read_timeout 300;
+        fastcgi_send_timeout 300;
+    }
+
+    # Deny access to hidden files
+    location ~ /\. {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+
+    # Deny access to sensitive files
+    location ~ /\.(?:svn|git|hg|bzr|env)/ {
+        deny all;
+    }
+}
+
+# HTTPS Configuration (uncomment in production)
+# server {
+#     listen 443 ssl http2;
+#     listen [::]:443 ssl http2;
+#     server_name hooknhunt-api.test;
+#
+#     ssl_certificate /path/to/certificate.crt;
+#     ssl_certificate_key /path/to/certificate.key;
+#
+#     # SSL configuration
+#     ssl_protocols TLSv1.2 TLSv1.3;
+#     ssl_ciphers HIGH:!aNULL:!MD5;
+#     ssl_prefer_server_ciphers on;
+#
+#     # Include all other configuration from HTTP server
+#     include /etc/nginx/sites-available/hooknhunt-api-common;
+# }
