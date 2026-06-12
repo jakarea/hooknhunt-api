@@ -271,6 +271,46 @@ class ProductController extends Controller
             $galleryImages = json_decode($galleryImages, true) ?? [];
         }
 
+        // If gallery is empty, automatically populate with variant images
+        if (empty($galleryImages) || !is_array($galleryImages)) {
+            $galleryImages = [];
+            // Get unique variant images
+            $variantImageUrls = [];
+            foreach ($variants as $variant) {
+                if (!empty($variant->thumbnail)) {
+                    $thumbnailValue = $variant->thumbnail;
+
+                    // Handle both Media ID and URL formats
+                    $imageUrl = null;
+                    if (is_numeric($thumbnailValue)) {
+                        // thumbnail is a Media ID - get media file
+                        $media = DB::table('media_files')->where('id', $thumbnailValue)->first();
+                        if ($media) {
+                            $imageUrl = url('/media/' . $media->id);
+                        }
+                    } elseif (filter_var($thumbnailValue, FILTER_VALIDATE_URL)) {
+                        // thumbnail is a full URL
+                        $imageUrl = $thumbnailValue;
+                    } else {
+                        // thumbnail is a path - build URL
+                        $imageUrl = url('/storage/' . $thumbnailValue);
+                    }
+
+                    // Add to gallery if not already present (avoid duplicates)
+                    if ($imageUrl && !in_array($imageUrl, $variantImageUrls)) {
+                        $variantImageUrls[] = $imageUrl;
+                    }
+                }
+            }
+
+            // Build gallery images array with variant URLs
+            foreach ($variantImageUrls as $url) {
+                $galleryImages[] = [
+                    'imageUrl' => $url
+                ];
+            }
+        }
+
         $highlights = $product->highlights;
         if (is_string($highlights)) {
             $highlights = json_decode($highlights, true) ?? [];
