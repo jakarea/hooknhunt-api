@@ -4,6 +4,8 @@ namespace App\Modules\Affiliate\Providers;
 
 use Nwidart\Modules\Support\ModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
+use App\Modules\Website\Models\SalesOrder;
+use App\Modules\Affiliate\Observers\SalesOrderObserver;
 
 class AffiliateServiceProvider extends ModuleServiceProvider
 {
@@ -35,8 +37,21 @@ class AffiliateServiceProvider extends ModuleServiceProvider
     ];
 
     /**
+     * Boot the service provider.
+     */
+    public function boot(): void
+    {
+        parent::boot();
+
+        // Register SalesOrder observer for affiliate commission tracking
+        if (class_exists(SalesOrder::class)) {
+            SalesOrder::observe(SalesOrderObserver::class);
+        }
+    }
+
+    /**
      * Define module schedules.
-     * 
+     *
      * @param $schedule
      */
     // protected function configureSchedules(Schedule $schedule): void

@@ -101,3 +101,8 @@ Route::group([
 if (file_exists(base_path('Modules/CRM/Routes/api.php'))) {
     require base_path('Modules/CRM/Routes/api.php');
 }
+
+// Load Affiliate module routes
+if (file_exists(base_path('Modules/Affiliate/routes/api.php'))) {
+    require base_path('Modules/Affiliate/routes/api.php');
+}

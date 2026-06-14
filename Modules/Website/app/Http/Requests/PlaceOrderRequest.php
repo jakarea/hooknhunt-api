@@ -61,6 +61,10 @@ class PlaceOrderRequest extends FormRequest
             // Wholesale specific fields
             'trade_license' => 'nullable|string|max:255',
             'tax_id' => 'nullable|string|max:255',
+
+            // Affiliate Tracking (optional)
+            'affiliate_referral_code' => 'nullable|string|max:50',
+            'affiliate_referral_id' => 'nullable|integer',
         ];
     }
 

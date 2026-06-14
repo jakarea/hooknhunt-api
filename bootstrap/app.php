@@ -38,8 +38,8 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->runInBackground(); // Run in background to avoid blocking other tasks
     })
     ->withMiddleware(function (Middleware $middleware) {
-            // Disable EnsureFrontendRequestsAreStateful for local development with Bearer tokens
-            // Re-enable for production when using cookie-based auth
+            // EnsureFrontendRequestsAreStateful is disabled for API testing with Bearer tokens
+            // For production with SPA frontend, this should be enabled
             // $middleware->api(prepend: [
             //     \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             // ]);
@@ -67,6 +67,7 @@ return Application::configure(basePath: dirname(__DIR__))
             $middleware->alias([
                 // 'auth' => \App\Http\Middleware\Authenticate::class, // Use default Laravel auth
                 'sanctum.auth' => \App\Http\Middleware\SanctumAuth::class, // Sanctum token authentication for web routes
+                'sanctum.api' => \App\Http\Middleware\SanctumApiAuth::class, // Sanctum token authentication for API routes
                 'permission' => \App\Http\Middleware\CheckPermission::class, // এটি যুক্ত করুন
                 'role' => \App\Http\Middleware\CheckRoleMiddleware::class,   // এটিও যুক্ত করে রাখা ভালো
                 'lazychat.auth' => \App\Http\Middleware\LazychatAuth::class, // Lazychat API authentication

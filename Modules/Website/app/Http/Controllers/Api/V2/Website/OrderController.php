@@ -242,6 +242,9 @@ class OrderController extends Controller
                 'due_amount' => $paymentStatus === 'paid' ? 0 : $validated['payable_amount'],
                 'note' => $validated['notes'] ?? null,
                 'external_data' => $this->buildShippingData($validated, $customerType),
+                // Affiliate tracking fields
+                'affiliate_referral_code' => $validated['affiliate_referral_code'] ?? null,
+                'affiliate_referral_id' => $validated['affiliate_referral_id'] ?? null,
             ]);
 
             // Create order items

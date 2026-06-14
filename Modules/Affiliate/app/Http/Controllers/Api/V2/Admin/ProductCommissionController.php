@@ -19,7 +19,7 @@ class ProductCommissionController extends Controller
     {
         try {
             // Use direct database query with joins for module independence
-            $query = DB::table('product_affiliate_commissions as pac')
+            $query = DB::table('affiliate_product_commissions as pac')
                 ->leftJoin('products as p', 'pac.product_id', '=', 'p.id')
                 ->leftJoin('users as u', 'pac.affiliate_id', '=', 'u.id') // Assuming affiliate table has user_id
                 ->select(

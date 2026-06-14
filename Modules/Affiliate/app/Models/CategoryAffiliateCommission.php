@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class CategoryAffiliateCommission extends Model
 {
+    protected $table = 'affiliate_category_commissions';
+
     protected $fillable = [
         'category_id',
         'affiliate_id',

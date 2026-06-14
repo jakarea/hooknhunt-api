@@ -13,6 +13,7 @@ use App\Modules\Website\Http\Controllers\Api\V2\WebsiteAdmin\OrderController as 
 use App\Modules\Website\Http\Controllers\Api\V2\WebsiteAdmin\SliderController;
 use App\Modules\Website\Http\Controllers\Api\V2\WebsiteAdmin\DeliverySettingController;
 use App\Modules\Website\Http\Controllers\Api\V2\WebsiteAdmin\SettingController;
+use App\Modules\Website\Http\Controllers\Api\V2\WebsiteAdmin\LeadController as WebsiteAdminLeadController;
 use App\Http\Controllers\Api\V2\AuthController;
 use App\Http\Controllers\Api\V2\PublicController;
 use App\Http\Controllers\Api\V2\SystemController;
@@ -63,6 +64,15 @@ Route::prefix('api/v2/website-admin')->group(function () {
     Route::get('/orders/statistics', [WebsiteAdminOrderController::class, 'statistics']);
     Route::get('/orders/{id}', [WebsiteAdminOrderController::class, 'show']);
     Route::put('/orders/{id}/status', [WebsiteAdminOrderController::class, 'updateStatus']);
+
+    // CRM Leads admin routes
+    Route::prefix('crm')->group(function () {
+        Route::get('/leads', [WebsiteAdminLeadController::class, 'index']);
+        Route::get('/leads/stats', [WebsiteAdminLeadController::class, 'stats']);
+        Route::get('/leads/{id}', [WebsiteAdminLeadController::class, 'show']);
+        Route::put('/leads/{id}', [WebsiteAdminLeadController::class, 'update']);
+        Route::delete('/leads/{id}', [WebsiteAdminLeadController::class, 'destroy']);
+    });
 });
 
 // System settings endpoints (admin only - not storefront)

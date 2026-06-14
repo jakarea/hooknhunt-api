@@ -198,4 +198,141 @@ class Affiliate extends Model
 
         return round(($this->getTotalConversionsAttribute() / $clicks) * 100, 2);
     }
+
+    /**
+     * Calculate and record commission for an order.
+     * Called when an order is placed/confirmed.
+     *
+     * @param \App\Modules\Website\Models\SalesOrder $order
+     * @param string|null $referralCode The referral code used (optional, will be read from order if not provided)
+     * @return bool Success status
+     */
+    public function calculateOrderCommission($order, ?string $referralCode = null): bool
+    {
+        try {
+            // Get referral code from order if not provided
+            if ($referralCode === null) {
+                $referralCode = $order->affiliate_referral_code ?? null;
+            }
+
+            // Get referral ID from order if not provided
+            $referralId = $order->affiliate_referral_id ?? null;
+
+            // Validate that this referral belongs to this affiliate
+            if ($referralId !== null) {
+                $referral = AffiliateReferral::where('id', $referralId)
+                    ->where('affiliate_id', $this->id)
+                    ->first();
+
+                if (!$referral) {
+                    \Log::warning('Referral does not belong to this affiliate', [
+                        'affiliate_id' => $this->id,
+                        'referral_id' => $referralId,
+                        'order_id' => $order->id,
+                    ]);
+                    return false;
+                }
+
+                // Check if referral was already converted
+                if ($referral->status === 'converted') {
+                    \Log::info('Referral already converted, skipping', [
+                        'referral_id' => $referralId,
+                        'order_id' => $order->id,
+                    ]);
+                    return false;
+                }
+            }
+
+            // Calculate commission amount
+            $totalAmount = (float) ($order->total_amount ?? $order->paid_amount ?? 0);
+            $commissionRate = $this->commission_rate; // Use affiliate's default rate
+
+            // You could implement product/category specific rates here
+            // For now, using the affiliate's default rate
+
+            $commissionAmount = ($totalAmount * $commissionRate) / 100;
+
+            if ($commissionAmount <= 0) {
+                \Log::info('Commission amount is zero, skipping', [
+                    'order_id' => $order->id,
+                    'total_amount' => $totalAmount,
+                    'commission_rate' => $commissionRate,
+                ]);
+                return false;
+            }
+
+            // Update order with affiliate information
+            $order->update([
+                'affiliate_id' => $this->id,
+                'affiliate_referral_code' => $referralCode,
+                'affiliate_referral_id' => $referralId,
+                'affiliate_commission_amount' => $commissionAmount,
+                'affiliate_commission_rate' => $commissionRate,
+                'affiliate_commission_calculated_at' => now(),
+            ]);
+
+            // Convert referral to converted
+            if ($referralId !== null) {
+                $referral->update([
+                    'converted_at' => now(),
+                    'sales_order_id' => $order->id,
+                    'order_amount' => $totalAmount,
+                    'commission_amount' => $commissionAmount,
+                    'status' => 'converted',
+                ]);
+            }
+
+            // Create affiliate earning record
+            AffiliateEarning::create([
+                'affiliate_id' => $this->id,
+                'sales_order_id' => $order->id,
+                'order_invoice' => $order->order_number ?? $order->id,
+                'order_amount' => $totalAmount,
+                'commission_amount' => $commissionAmount,
+                'commission_rate' => $commissionRate,
+                'customer_id' => $order->customer_id,
+                'customer_name' => $order->customer_name ?? 'Guest',
+                'customer_email' => $order->customer_email ?? null,
+                'status' => 'pending', // Pending until order is completed/paid
+            ]);
+
+            // Update affiliate stats
+            $this->increment('total_earned', $commissionAmount);
+            $this->update(['last_conversion_at' => now()]);
+
+            \Log::info('Affiliate commission calculated and recorded', [
+                'affiliate_id' => $this->id,
+                'order_id' => $order->id,
+                'commission_amount' => $commissionAmount,
+                'commission_rate' => $commissionRate,
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to calculate affiliate commission', [
+                'affiliate_id' => $this->id,
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
+    /**
+     * Scope for approved affiliates.
+     */
+    public function scopeApproved($query)
+    {
+        return $query->where('is_approved', true);
+    }
+
+    /**
+     * Scope for pending affiliates.
+     */
+    public function scopePending($query)
+    {
+        return $query->where('is_approved', false);
+    }
 }

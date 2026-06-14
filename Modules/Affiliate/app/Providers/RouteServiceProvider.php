@@ -45,6 +45,8 @@ class RouteServiceProvider extends ServiceProvider
      */
     protected function mapApiRoutes(): void
     {
-        Route::middleware('api')->group(module_path($this->name, '/routes/api.php'));
+        // Don't apply 'api' middleware to avoid automatic Sanctum authentication
+        // Routes will inherit middleware from the main routes/api.php file
+        Route::group([], module_path($this->name, '/routes/api.php'));
     }
 }

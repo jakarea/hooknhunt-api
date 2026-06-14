@@ -19,7 +19,7 @@ class CategoryCommissionController extends Controller
     {
         try {
             // Use direct database query with joins for module independence
-            $query = DB::table('category_affiliate_commissions as cac')
+            $query = DB::table('affiliate_category_commissions as cac')
                 ->leftJoin('categories as c', 'cac.category_id', '=', 'c.id')
                 ->leftJoin('users as u', 'cac.affiliate_id', '=', 'u.id') // Assuming affiliate table has user_id
                 ->select(

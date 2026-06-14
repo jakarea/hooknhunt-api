@@ -26,12 +26,18 @@ class AdminAffiliateController extends Controller
             $query = Affiliate::with('user')->orderBy('created_at', 'desc');
 
             // Filter by status
-            if ($request->has('status')) {
-                $status = $request->input('status');
-                if ($status === 'approved') {
-                    $query->where('is_approved', true);
-                } elseif ($status === 'pending') {
-                    $query->where('is_approved', false);
+            $status = $request->query('status');
+            if ($status && $status !== 'all') {
+                switch ($status) {
+                    case 'pending':
+                        $query->where('is_approved', false)->whereNull('rejection_reason');
+                        break;
+                    case 'approved':
+                        $query->where('is_approved', true);
+                        break;
+                    case 'rejected':
+                        $query->whereNotNull('rejection_reason');
+                        break;
                 }
             }
 
@@ -45,7 +51,8 @@ class AdminAffiliateController extends Controller
             }
 
             $perPage = $request->input('per_page', 15);
-            $affiliates = $query->paginate($perPage);
+            $page = $request->input('page', 1);
+            $affiliates = $query->paginate($perPage, ['*'], 'page', $page);
 
             // Load stats for each affiliate
             $affiliates->getCollection()->transform(function ($affiliate) {
@@ -65,6 +72,10 @@ class AdminAffiliateController extends Controller
                     'total_conversions' => $affiliate->total_conversions,
                     'conversion_rate' => $affiliate->conversion_rate,
                     'is_approved' => $affiliate->is_approved,
+                    'rejection_reason' => $affiliate->rejection_reason,
+                    'admin_notes' => $affiliate->admin_notes,
+                    'approved_at' => $affiliate->approved_at?->toDateTimeString(),
+                    'approved_by' => $affiliate->approved_by,
                     'joined_at' => $affiliate->created_at->toDateTimeString(),
                     'last_conversion_at' => $affiliate->last_conversion_at?->toDateTimeString(),
                 ];
@@ -79,6 +90,8 @@ class AdminAffiliateController extends Controller
                         'per_page' => $affiliates->perPage(),
                         'current_page' => $affiliates->currentPage(),
                         'last_page' => $affiliates->lastPage(),
+                        'from' => $affiliates->firstItem(),
+                        'to' => $affiliates->lastItem(),
                     ],
                 ],
             ]);
@@ -194,19 +207,57 @@ class AdminAffiliateController extends Controller
     }
 
     /**
-     * Update affiliate (approve, reject, change rate).
+     * Update affiliate (approve, reject, change rate, edit referral code).
      * PUT /api/v2/admin/affiliates/{id}
      */
     public function update(Request $request, $id): JsonResponse
     {
         try {
             $validated = $request->validate([
-                'is_approved' => 'sometimes|boolean',
-                'commission_rate' => 'sometimes|numeric|min:0|max:100',
+                'commission_rate' => 'nullable|numeric|min:0|max:100',
+                'admin_notes' => 'nullable|string|max:1000',
+                'is_approved' => 'nullable|boolean',
+                'referral_code' => 'nullable|string|max:20|unique:affiliates,referral_code,' . $id,
             ]);
 
             $affiliate = Affiliate::findOrFail($id);
-            $affiliate->update($validated);
+
+            DB::beginTransaction();
+
+            // Update commission rate
+            if (isset($validated['commission_rate'])) {
+                $affiliate->commission_rate = $validated['commission_rate'];
+            }
+
+            // Update admin notes
+            if (isset($validated['admin_notes'])) {
+                $affiliate->admin_notes = $validated['admin_notes'];
+            }
+
+            // Update approval status
+            if (isset($validated['is_approved'])) {
+                $affiliate->is_approved = $validated['is_approved'];
+                if ($affiliate->is_approved) {
+                    $affiliate->approved_at = now();
+                    $affiliate->approved_by = auth()->id();
+                    $affiliate->rejection_reason = null;
+                }
+            }
+
+            // Update referral code
+            if (isset($validated['referral_code'])) {
+                // Ensure referral code is uppercase
+                $affiliate->referral_code = strtoupper($validated['referral_code']);
+            }
+
+            $affiliate->save();
+
+            DB::commit();
+
+            Log::info('Affiliate updated by admin', [
+                'affiliate_id' => $affiliate->id,
+                'admin_id' => auth()->id(),
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -214,9 +265,16 @@ class AdminAffiliateController extends Controller
                 'data' => [
                     'id' => $affiliate->id,
                     'is_approved' => $affiliate->is_approved,
-                    'commission_rate' => (float) $affiliate->commission_rate,
+                    'referral_code' => $affiliate->referral_code,
                 ],
             ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
@@ -225,6 +283,7 @@ class AdminAffiliateController extends Controller
             ], 404);
 
         } catch (\Exception $e) {
+            DB::rollBack();
             Log::error('Failed to update affiliate', ['error' => $e->getMessage()]);
 
             return response()->json([
@@ -472,11 +531,41 @@ class AdminAffiliateController extends Controller
      * Approve affiliate.
      * POST /api/v2/admin/affiliates/{id}/approve
      */
-    public function approve($id): JsonResponse
+    public function approve(Request $request, $id): JsonResponse
     {
         try {
             $affiliate = Affiliate::findOrFail($id);
-            $affiliate->update(['is_approved' => true]);
+
+            if ($affiliate->is_approved) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Affiliate is already approved',
+                ], 400);
+            }
+
+            DB::beginTransaction();
+
+            $affiliate->is_approved = true;
+            $affiliate->approved_at = now();
+            $affiliate->approved_by = auth()->id();
+            $affiliate->rejection_reason = null;
+
+            // Set custom commission rate if provided
+            if ($request->has('commission_rate')) {
+                $commissionRate = $request->input('commission_rate');
+                if ($commissionRate >= 0 && $commissionRate <= 100) {
+                    $affiliate->commission_rate = $commissionRate;
+                }
+            }
+
+            $affiliate->save();
+
+            DB::commit();
+
+            Log::info('Affiliate approved by admin', [
+                'affiliate_id' => $affiliate->id,
+                'admin_id' => auth()->id(),
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -494,6 +583,7 @@ class AdminAffiliateController extends Controller
             ], 404);
 
         } catch (\Exception $e) {
+            DB::rollBack();
             Log::error('Failed to approve affiliate', ['error' => $e->getMessage()]);
 
             return response()->json([
@@ -507,20 +597,54 @@ class AdminAffiliateController extends Controller
      * Reject affiliate.
      * POST /api/v2/admin/affiliates/{id}/reject
      */
-    public function reject($id): JsonResponse
+    public function reject(Request $request, $id): JsonResponse
     {
         try {
+            $validated = $request->validate([
+                'rejection_reason' => 'nullable|string|max:500',
+            ]);
+
             $affiliate = Affiliate::findOrFail($id);
-            $affiliate->update(['is_approved' => false]);
+
+            if (!$affiliate->is_approved && $affiliate->rejection_reason) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Affiliate is already rejected',
+                ], 400);
+            }
+
+            DB::beginTransaction();
+
+            $affiliate->is_approved = false;
+            $affiliate->rejection_reason = $validated['rejection_reason'] ?? 'No reason provided';
+            $affiliate->approved_at = null;
+            $affiliate->approved_by = null;
+            $affiliate->save();
+
+            DB::commit();
+
+            Log::info('Affiliate rejected by admin', [
+                'affiliate_id' => $affiliate->id,
+                'admin_id' => auth()->id(),
+                'reason' => $affiliate->rejection_reason,
+            ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Affiliate rejected',
+                'message' => 'Affiliate rejected successfully',
                 'data' => [
                     'id' => $affiliate->id,
                     'is_approved' => false,
+                    'rejection_reason' => $affiliate->rejection_reason,
                 ],
             ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
@@ -529,6 +653,7 @@ class AdminAffiliateController extends Controller
             ], 404);
 
         } catch (\Exception $e) {
+            DB::rollBack();
             Log::error('Failed to reject affiliate', ['error' => $e->getMessage()]);
 
             return response()->json([
