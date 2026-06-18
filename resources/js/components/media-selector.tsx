@@ -82,9 +82,6 @@ export function MediaSelector({
         },
       })
 
-      console.log('Media API response:', response)
-      console.log('Response data type:', typeof response?.data)
-      console.log('Is response.data array?', Array.isArray(response?.data))
 
       // Handle different response structures - ALWAYS ensure array
       let filesData: MediaFile[] = []
@@ -103,13 +100,10 @@ export function MediaSelector({
         }
       }
 
-      console.log('Final filesData:', filesData)
-      console.log('Is filesData array?', Array.isArray(filesData))
 
       // ALWAYS set as array, fallback to empty array
       setMediaFiles(Array.isArray(filesData) ? filesData : [])
     } catch (error) {
-      console.error('Failed to load media files:', error)
       show_notification_for_error_loading_media_files()
       setMediaFiles([])
     } finally {
@@ -210,7 +204,6 @@ export function MediaSelector({
    */
   const filter_media_files_by_search_query = (files: MediaFile[] | null | undefined) => {
     if (!Array.isArray(files)) {
-      console.warn('filter_media_files_by_search_query: files is not an array', files)
       return []
     }
 
@@ -276,8 +269,6 @@ export function MediaSelector({
   const filteredMediaFiles = filter_media_files_by_search_query(mediaFiles)
 
   // Debug logs
-  console.log('RENDER - mediaFiles:', mediaFiles, 'Type:', typeof mediaFiles, 'IsArray:', Array.isArray(mediaFiles))
-  console.log('RENDER - filteredMediaFiles:', filteredMediaFiles, 'Type:', typeof filteredMediaFiles, 'IsArray:', Array.isArray(filteredMediaFiles))
 
   return (
     <Modal

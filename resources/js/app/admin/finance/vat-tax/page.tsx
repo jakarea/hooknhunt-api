@@ -192,7 +192,6 @@ export default function VatTaxLedgerPage() {
         setSummary(response.data)
       }
     } catch (error) {
-      console.error('Failed to load summary:', error)
     }
   }
 
@@ -203,7 +202,6 @@ export default function VatTaxLedgerPage() {
         setNetCalculation(response.data)
       }
     } catch (error) {
-      console.error('Failed to load net calculation:', error)
     }
   }
 

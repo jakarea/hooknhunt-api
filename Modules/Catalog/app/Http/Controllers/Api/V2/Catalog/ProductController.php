@@ -22,8 +22,8 @@ class ProductController extends Controller
 {
     use ImageHelper;
     private const CACHE_TTL = 300; // 5 minutes
-    private const DEFAULT_PER_PAGE = 20;
-    private const MAX_PER_PAGE = 50;
+    private const DEFAULT_PER_PAGE = 20;  // Reduced from 50 for faster initial load
+    private const MAX_PER_PAGE = 500;
 
     /**
      * Get paginated list of products
@@ -41,27 +41,36 @@ class ProductController extends Controller
             );
             $page = (int) $request->input('page', 1);
             $search = $request->input('search', '');
+            $status = $request->input('status');
             $categorySlug = $request->input('category');
             $sortBy = $request->input('sort_by', 'created_at');
             $sortOrder = $request->input('sort_order', 'desc');
 
             // Cache key for products list
-            $cacheKey = "products:v2:page:{$page}:per_page:{$perPage}:search:{$search}:category:{$categorySlug}:sort:{$sortBy}:{$sortOrder}";
+            $cacheKey = "products:v2:page:{$page}:per_page:{$perPage}:search:{$search}:status:{$status}:category:{$categorySlug}:sort:{$sortBy}:{$sortOrder}";
 
-            $products = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($perPage, $search, $categorySlug, $sortBy, $sortOrder) {
+            $products = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($perPage, $search, $status, $categorySlug, $sortBy, $sortOrder) {
                 $query = Product::query()
-                    ->with(['category', 'brand', 'variants' => function ($query) {
-                        $query->select('id', 'product_id', 'sku', 'variant_name', 'price', 'offer_price', 'stock', 'is_active', 'thumbnail_id');
-                    }])
-                    ->where('status', 'published');
+                    ->select('id', 'name', 'slug', 'product_code', 'thumbnail_id', 'category_id', 'brand_id', 'status', 'sort_order', 'created_at', 'updated_at')
+                    ->with([
+                        'category:id,name,slug',
+                        'brand:id,name,slug',
+                        'variants' => function ($query) {
+                            $query->select('id', 'product_id', 'stock');
+                        }
+                    ]);
 
                 // Search filter
                 if ($search) {
                     $query->where(function ($q) use ($search) {
                         $q->where('name', 'like', "%{$search}%")
-                          ->orWhere('product_code', 'like', "%{$search}%")
-                          ->orWhere('description', 'like', "%{$search}%");
+                          ->orWhere('product_code', 'like', "%{$search}%");
                     });
+                }
+
+                // Status filter (allow admin to filter by status)
+                if ($status && $status !== 'all') {
+                    $query->where('status', $status);
                 }
 
                 // Category filter
@@ -79,16 +88,47 @@ class ProductController extends Controller
 
                 $query->orderBy($sortField, $sortDirection);
 
-                // Paginate products - thumbnail URL handled by Product model accessor
+                // Paginate products
                 $paginatedProducts = $query->paginate($perPage);
 
                 return $paginatedProducts;
             });
 
+            // Transform to lightweight format for list view
+            $transformedProducts = collect($products->items())->map(function ($product) {
+                // Calculate stock from variants - handle empty collection
+                $stock = 0;
+                if ($product->variants && $product->variants->count() > 0) {
+                    $stock = (int) $product->variants->sum('stock');
+                }
+
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'slug' => $product->slug,
+                    'productCode' => $product->product_code,
+                    'thumbnailId' => $product->thumbnail_id,
+                    'thumbnailUrl' => $product->thumbnailUrl,
+                    'category' => $product->category ? [
+                        'id' => $product->category->id,
+                        'name' => $product->category->name,
+                        'slug' => $product->category->slug,
+                    ] : null,
+                    'brand' => $product->brand ? [
+                        'id' => $product->brand->id,
+                        'name' => $product->brand->name,
+                        'slug' => $product->brand->slug,
+                    ] : null,
+                    'variantsCount' => $product->variants ? $product->variants->count() : 0,
+                    'stock' => $stock,
+                    'status' => $product->status,
+                ];
+            });
+
             return response()->json([
                 'success' => true,
                 'message' => 'Products retrieved successfully',
-                'data' => $products->items(),
+                'data' => $transformedProducts->toArray(),
                 'pagination' => [
                     'current_page' => $products->currentPage(),
                     'per_page' => $products->perPage(),

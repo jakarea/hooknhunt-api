@@ -117,7 +117,6 @@ export default function FiscalYearsPage() {
       const response = await getFiscalYearStatistics()
       setStatistics(response.data)
     } catch (error: any) {
-      console.error('Failed to fetch statistics:', error)
     }
   }
 
@@ -128,7 +127,6 @@ export default function FiscalYearsPage() {
         setCurrentFiscalYear(response.data)
       }
     } catch (error: any) {
-      console.error('Failed to fetch current fiscal year:', error)
     }
   }
 

@@ -118,7 +118,6 @@ export const useCategoriesStore = create<CategoriesState>()((set, get) => ({
 
       set({ categories: categoriesData, loading: false })
     } catch (error: any) {
-      console.error('Failed to load categories:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load categories',
@@ -140,7 +139,6 @@ export const useCategoriesStore = create<CategoriesState>()((set, get) => ({
 
       set({ categoryTree: treeData })
     } catch (error: any) {
-      console.error('Failed to load category tree:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load category tree',
@@ -168,7 +166,6 @@ export const useCategoriesStore = create<CategoriesState>()((set, get) => ({
         loading: false
       })
     } catch (error: any) {
-      console.error('Failed to load root categories:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load root categories',
@@ -200,7 +197,6 @@ export const useCategoriesStore = create<CategoriesState>()((set, get) => ({
         loadingChildren: false
       })
     } catch (error: any) {
-      console.error('Failed to load child categories:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load child categories',
@@ -242,7 +238,6 @@ export const useCategoriesStore = create<CategoriesState>()((set, get) => ({
         })
       }
     } catch (error: any) {
-      console.error('Failed to load category:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load category',
@@ -298,7 +293,6 @@ export const useCategoriesStore = create<CategoriesState>()((set, get) => ({
 
       return response.data?.data || response.data
     } catch (error: any) {
-      console.error('Failed to create category:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to create category',
@@ -325,7 +319,6 @@ export const useCategoriesStore = create<CategoriesState>()((set, get) => ({
         color: 'green',
       })
     } catch (error: any) {
-      console.error('Failed to update category:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to update category',
@@ -352,7 +345,6 @@ export const useCategoriesStore = create<CategoriesState>()((set, get) => ({
         color: 'green',
       })
     } catch (error: any) {
-      console.error('Failed to delete category:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to delete category',

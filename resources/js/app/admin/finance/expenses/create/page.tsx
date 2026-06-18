@@ -81,13 +81,11 @@ export default function CreateExpensePage() {
         // Fetch accounts
         const accountsResponse = await getAccounts()
 
-        console.log('DEBUG: Raw accountsResponse:', accountsResponse)
 
         let accountsData: ChartOfAccount[] = []
         if (accountsResponse && typeof accountsResponse === 'object') {
           if ('data' in accountsResponse) {
             const innerData = accountsResponse.data
-            console.log('DEBUG: innerData:', innerData)
             if (typeof innerData === 'object' && 'data' in innerData && Array.isArray(innerData.data)) {
               accountsData = innerData.data
             } else if (Array.isArray(innerData)) {
@@ -98,15 +96,12 @@ export default function CreateExpensePage() {
           }
         }
 
-        console.log('DEBUG: accountsData count:', accountsData.length)
-        console.log('DEBUG: First 3 accounts:', accountsData.slice(0, 3))
 
         // Filter only expense accounts (case-insensitive)
         const expenseAccounts = accountsData.filter((acc) => {
           const accountType = typeof acc.type === 'string' ? acc.type.toLowerCase() : ''
           return accountType === 'expense'
         })
-        console.log('DEBUG: expenseAccounts count:', expenseAccounts.length)
         setAccounts(expenseAccounts)
 
         // Fetch payment accounts (bank accounts linked to chart of accounts)
@@ -126,10 +121,8 @@ export default function CreateExpensePage() {
             }
           }
 
-          console.log('DEBUG: paymentAccounts count:', paymentAccountsData.length)
           setPaymentAccounts(paymentAccountsData)
         } catch (paymentError) {
-          console.error('Failed to fetch payment accounts:', paymentError)
           // Fallback to filtered chart of accounts
           const fallbackAccounts = accountsData.filter((acc) => {
             const accountType = typeof acc.type === 'string' ? acc.type.toLowerCase() : ''
@@ -168,7 +161,6 @@ export default function CreateExpensePage() {
         }
         setUsers(usersData)
       } catch (error) {
-        console.error('Failed to fetch data:', error)
         notifications.show({
           title: t('common.error'),
           message: t('common.somethingWentWrong'),
@@ -308,7 +300,6 @@ export default function CreateExpensePage() {
 
       navigate('/finance/expenses')
     } catch (error) {
-      console.error('Failed to create expense:', error)
       notifications.show({
         title: t('common.error'),
         message: t('common.somethingWentWrong'),

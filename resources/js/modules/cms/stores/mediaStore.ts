@@ -229,7 +229,6 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
         hasMoreFiles: filtered.length >= 24,
       })
     } catch (error: any) {
-      console.error('Failed to load files:', error)
       notifications.show({ title: 'Error', message: 'Failed to load files', color: 'red' })
     } finally {
       set({ loading: false })
@@ -265,7 +264,6 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
         loadingMore: false,
       }))
     } catch (error: any) {
-      console.error('Failed to load more files:', error)
       set({ loadingMore: false })
     }
   },
@@ -294,7 +292,6 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
 
       if (data) set({ folders: data })
     } catch (error: any) {
-      console.error('Failed to load folders:', error)
       // silent - media module might not be available
       set({ folders: [] })
     }
@@ -376,7 +373,6 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
       get().invalidateCache(currentFolder)
       await get().loadFiles()
     } catch (error: any) {
-      console.error('Failed to delete files:', error)
       notifications.show({ title: 'Error', message: 'Delete failed', color: 'red' })
     }
   },
@@ -395,7 +391,6 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
       get().invalidateCache(targetFolderId)
       await get().loadFiles()
     } catch (error: any) {
-      console.error('Failed to move files:', error)
       notifications.show({ title: 'Error', message: 'Move failed', color: 'red' })
     }
   },
@@ -413,7 +408,6 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
       }
       return false
     } catch (error: any) {
-      console.error('Failed to create folder:', error)
       notifications.show({ title: 'Error', message: 'Failed to create folder', color: 'red' })
       return false
     } finally {
@@ -451,7 +445,6 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
         files: state.files.map((f) => f.id === previewFile.id ? updatedFile : f),
       }))
     } catch (error: any) {
-      console.error('Save failed:', error)
       notifications.show({ title: 'Error', message: 'Update failed', color: 'red' })
     } finally {
       set({ savingFileChanges: false })
@@ -492,7 +485,6 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
         await get().loadFiles()
       }
     } catch (error: any) {
-      console.error('Failed to move folder:', error)
       notifications.show({ title: 'Error', message: 'Failed to move folder', color: 'red' })
     }
   },

@@ -121,7 +121,6 @@ export default function EditCustomerPage() {
           setRoles(response.data.data || [])
         }
       } catch (error) {
-        console.error('Error fetching roles:', error)
       }
     }
     fetchRoles()
@@ -173,7 +172,6 @@ export default function EditCustomerPage() {
           throw new Error('Failed to fetch customer')
         }
       } catch (error) {
-        console.error('Error fetching customer:', error)
         notifications.show({
           title: 'Error',
           message: 'Failed to load customer data. Please try again.',
@@ -344,7 +342,6 @@ export default function EditCustomerPage() {
         throw new Error(response.data?.message || 'Failed to update customer')
       }
     } catch (error: any) {
-      console.error('Error updating customer:', error)
 
       // Handle validation errors from backend
       if (error.response?.data?.errors) {

@@ -163,7 +163,6 @@ export default function AttendancePage() {
       setHrmSettings(settings)
     } catch (error) {
       // Use defaults if fetch fails
-      console.error('Failed to fetch HRM settings:', error)
     }
   }
 
@@ -344,7 +343,6 @@ export default function AttendancePage() {
             setTodayAttendance(null)
           }
         } catch (error) {
-          console.error('Error fetching my attendance:', error)
           setTodayAttendance(null)
         }
       } else {

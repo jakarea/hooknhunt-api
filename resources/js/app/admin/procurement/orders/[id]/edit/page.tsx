@@ -130,7 +130,6 @@ export default function EditPurchaseOrderPage() {
       // Load supplier products and then populate order items (pass exchange rate explicitly)
       await fetchSupplierProducts(order.supplierId, order.items || [], rate)
     } catch (error: any) {
-      console.error('Failed to load PO:', error)
       notifications.show({
         title: 'Error',
         message: error.response?.data?.message || error.message || 'Failed to load purchase order',
@@ -149,7 +148,6 @@ export default function EditPurchaseOrderPage() {
       const suppliersData = response?.data?.data || response?.data || response || []
       setSuppliers(Array.isArray(suppliersData) ? suppliersData : [])
     } catch (error) {
-      console.error('Failed to load suppliers:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load suppliers',
@@ -201,7 +199,6 @@ export default function EditPurchaseOrderPage() {
 
       setOrderItems(initialItems)
     } catch (error) {
-      console.error('Failed to load products:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load products',
@@ -306,7 +303,6 @@ export default function EditPurchaseOrderPage() {
 
       navigate(`/procurement/orders/${id}`)
     } catch (error: any) {
-      console.error('Failed to update PO:', error)
       notifications.show({
         title: 'Error',
         message: error.response?.data?.message || error.message || 'Failed to update purchase order',

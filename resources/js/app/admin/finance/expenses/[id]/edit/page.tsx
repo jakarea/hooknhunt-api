@@ -159,7 +159,6 @@ export default function EditExpensePage() {
           setAccounts(expenseAccounts)
           setPaymentAccounts(paymentAccountsData)
         } catch (paymentError) {
-          console.error('Failed to fetch payment accounts:', paymentError)
           // Fallback to filtered chart of accounts
           const assetAccounts = accountsData.filter((acc) => {
             const accountType = typeof acc.type === 'string' ? acc.type.toLowerCase() : ''
@@ -181,7 +180,6 @@ export default function EditExpensePage() {
           setPaymentAccounts(assetAccounts)
         }
       } catch (error: any) {
-        console.error('Failed to fetch data:', error)
         notifications.show({
           title: 'Error',
           message: error.response?.data?.message || 'Failed to load expense data',
@@ -335,7 +333,6 @@ export default function EditExpensePage() {
 
       navigate('/finance/expenses')
     } catch (error: any) {
-      console.error('Failed to update expense:', error)
       notifications.show({
         title: 'Error',
         message: error.response?.data?.message || 'Failed to update expense',

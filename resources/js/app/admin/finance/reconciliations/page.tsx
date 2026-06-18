@@ -144,7 +144,6 @@ export default function BankAccountReconciliationsPage() {
 
       setAutoBookBalance(balance)
     } catch (error) {
-      console.error('Failed to load book balance:', error)
     } finally {
       setCalculating(false)
     }

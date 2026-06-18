@@ -208,7 +208,6 @@ export default function EditStaffPage() {
       const day = String(date.getDate()).padStart(2, '0')
       return `${year}-${month}-${day}`
     } catch {
-      console.error('Invalid date format:', dateString)
       return ''
     }
   }
@@ -245,7 +244,6 @@ export default function EditStaffPage() {
         })
         setAllPermissions(groupedPermissions)
       } catch (error: unknown) {
-        console.error('Failed to fetch dropdown data:', error)
         notifications.show({
           title: 'Error',
           message: 'Failed to load form data. Please refresh.',
@@ -316,7 +314,6 @@ export default function EditStaffPage() {
                 },
               }))
             } catch (e) {
-              console.error('Failed to load profile photo:', e)
             }
           }
 
@@ -332,7 +329,6 @@ export default function EditStaffPage() {
                 },
               }))
             } catch (e) {
-              console.error('Failed to load national ID:', e)
             }
           }
 
@@ -348,7 +344,6 @@ export default function EditStaffPage() {
                 },
               }))
             } catch (e) {
-              console.error('Failed to load resume:', e)
             }
           }
         }
@@ -362,13 +357,11 @@ export default function EditStaffPage() {
           setGrantedPermissions(granted.map((p: Permission) => p.id))
           setBlockedPermissions(blocked.map((p: Permission) => p.id))
         } catch (permError) {
-          console.error('Failed to fetch permissions:', permError)
           // Continue without permissions
           setGrantedPermissions([])
           setBlockedPermissions([])
         }
       } catch (error: unknown) {
-        console.error('Failed to fetch user:', error)
         notifications.show({
           title: 'Error',
           message: 'Failed to load user data. Please try again.',
@@ -438,7 +431,6 @@ export default function EditStaffPage() {
       const day = String(date.getDate()).padStart(2, '0')
       return `${year}-${month}-${day}`
     } catch {
-      console.error('Invalid date format:', dateString)
       return null
     }
   }
@@ -648,7 +640,6 @@ export default function EditStaffPage() {
       })
       navigate(`/hrm/staff/${id}`)
     } catch (error: any) {
-      console.error('Failed to update user:', error)
 
       // Extract validation errors from backend response
       const backendErrors = error?.response?.data?.errors

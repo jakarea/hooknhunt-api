@@ -21,20 +21,19 @@ class PublicController extends Controller
     public function getActivePaymentGateway(): JsonResponse
     {
         try {
-            $sslcommerzEnabled = config('payments.sslcommerz.enabled', false);
-            $epsEnabled = config('payments.eps.enabled', false);
+            $activeGateway = DB::table('settings')
+                ->where('group', 'website')
+                ->where('key', 'active_payment_gateway')
+                ->value('value') ?? 'sslcommerz';
 
-            $activeGateway = null;
-            if ($epsEnabled) {
-                $activeGateway = 'eps';
-            } elseif ($sslcommerzEnabled) {
+            if (!in_array($activeGateway, ['sslcommerz', 'eps'])) {
                 $activeGateway = 'sslcommerz';
             }
 
             return $this->sendSuccess([
                 'activeGateway' => $activeGateway,
-                'sslcommerz' => $sslcommerzEnabled,
-                'eps' => $epsEnabled,
+                'sslcommerz'    => $activeGateway === 'sslcommerz',
+                'eps'           => $activeGateway === 'eps',
             ], 'Payment gateway configuration retrieved successfully.');
 
         } catch (\Exception $e) {
@@ -209,43 +208,54 @@ class PublicController extends Controller
 
             $suggestions = DB::table('products as p')
                 ->join('product_variants as pv', 'p.id', '=', 'pv.product_id')
-                ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
                 ->where('p.status', 'published')
                 ->where('pv.is_active', true)
                 ->where('pv.stock', '>', 0)
                 ->where(function ($q) use ($query) {
+                    // Search across: product names (EN & BN), code, category names (EN & BN), and seo tags
                     $q->where('p.name', 'like', "%{$query}%")
-                      ->orWhere('p.product_code', 'like', "%{$query}%");
+                      ->orWhere('p.retail_name_bn', 'like', "%{$query}%")
+                      ->orWhere('p.wholesale_name_bn', 'like', "%{$query}%")
+                      ->orWhere('p.product_code', 'like', "%{$query}%")
+                      ->orWhere('p.seo_tags', 'like', "%{$query}%")
+                      ->orWhereExists(function ($subQ) use ($query) {
+                          // Search in category name (English) - products.category_id = categories.id
+                          $subQ->select(DB::raw(1))
+                              ->from('categories as c')
+                              ->whereColumn('c.id', '=', 'p.category_id')
+                              ->where('c.name', 'like', "%{$query}%");
+                      })
+                      ->orWhereExists(function ($subQ) use ($query) {
+                          // Search in category name Bangla
+                          $subQ->select(DB::raw(1))
+                              ->from('categories as c')
+                              ->whereColumn('c.id', '=', 'p.category_id')
+                              ->where('c.name_bn', 'like', "%{$query}%");
+                      });
                 })
                 ->select([
                     'p.id',
                     'p.name',
                     'p.slug',
                     'pv.price',
-                    'm.path as image',
+                    'p.thumbnail_id',
                     DB::raw('(SELECT GROUP_CONCAT(c.name SEPARATOR ", ")
                         FROM categories c
                         INNER JOIN product_category pc ON c.id = pc.category_id
                         WHERE pc.product_id = p.id
                         LIMIT 1) as category')
                 ])
-                ->groupBy('p.id', 'p.name', 'p.slug', 'pv.price', 'm.path', 'category')
+                ->distinct()
+                ->groupBy('p.id', 'p.name', 'p.slug', 'pv.price', 'p.thumbnail_id', 'category')
                 ->limit($limit)
                 ->get();
 
             // Transform suggestions for response
             $suggestionsData = $suggestions->map(function ($product) {
-                $imagePath = $product->image;
-                $imageUrl = null;
-
-                if ($imagePath) {
-                    $imageUrl = $this->getImageUrl($imagePath);
-                }
-
-                // Fallback to placeholder if no image
-                if (!$imageUrl) {
-                    $imageUrl = config('app.url') . '/storage/placeholder.jpg';
-                }
+                // Use media system format: /media/{id}
+                $imageUrl = $product->thumbnail_id
+                    ? config('app.url') . '/media/' . $product->thumbnail_id
+                    : config('app.url') . '/storage/placeholder.jpg';
 
                 return [
                     'id' => $product->id,
@@ -282,12 +292,8 @@ class PublicController extends Controller
             $perPage = (int) ($validated['per_page'] ?? 20);
             $page = (int) ($validated['page'] ?? 1);
 
+            // Get products with correct pricing (use offer_price if available, otherwise price)
             $productsQuery = DB::table('products as p')
-                ->leftJoin('catalog_product_images as cp', 'p.thumbnail_id', '=', 'cp.id')
-                ->leftJoin('media_files as mf', function($join) {
-                    $join->on('p.thumbnail_id', '=', 'mf.id')
-                         ->whereNull('cp.id');
-                })
                 ->where('p.status', 'published')
                 ->whereExists(function ($q) {
                     $q->select(DB::raw(1))
@@ -298,23 +304,44 @@ class PublicController extends Controller
                         ->limit(1);
                 })
                 ->where(function ($q) use ($query) {
+                    // Search across: product names (EN & BN), code, category names (EN & BN), and seo tags
                     $q->where('p.name', 'like', "%{$query}%")
-                      ->orWhere('p.product_code', 'like', "%{$query}%");
+                      ->orWhere('p.retail_name_bn', 'like', "%{$query}%")
+                      ->orWhere('p.wholesale_name_bn', 'like', "%{$query}%")
+                      ->orWhere('p.product_code', 'like', "%{$query}%")
+                      ->orWhere('p.seo_tags', 'like', "%{$query}%")
+                      ->orWhereExists(function ($subQ) use ($query) {
+                          // Search in category name (English) - products.category_id = categories.id
+                          $subQ->select(DB::raw(1))
+                              ->from('categories as c')
+                              ->whereColumn('c.id', '=', 'p.category_id')
+                              ->where('c.name', 'like', "%{$query}%");
+                      })
+                      ->orWhereExists(function ($subQ) use ($query) {
+                          // Search in category name Bangla
+                          $subQ->select(DB::raw(1))
+                              ->from('categories as c')
+                              ->whereColumn('c.id', '=', 'p.category_id')
+                              ->where('c.name_bn', 'like', "%{$query}%");
+                      });
                 })
                 ->select([
                     'p.id',
                     'p.name',
                     'p.slug',
                     'p.thumbnail_id',
-                    DB::raw('(SELECT MIN(pv2.price) FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.is_active = 1 AND pv2.stock > 0) as price'),
-                    DB::raw('COALESCE(cp.path, mf.path) as thumbnail_path'),
-                    DB::raw('COALESCE(cp.url, mf.url) as thumbnail_url'),
+                    // Use COALESCE to prefer offer_price when it exists, otherwise use price
+                    DB::raw('(SELECT COALESCE(MIN(CASE WHEN pv2.offer_price > 0 THEN pv2.offer_price ELSE pv2.price END), MIN(pv2.price))
+                              FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.is_active = 1 AND pv2.stock > 0) as price'),
                 ]);
 
             if (!empty($validated['category_id'])) {
                 $productsQuery->join('product_category as pc', 'p.id', '=', 'pc.product_id')
                     ->where('pc.category_id', $validated['category_id']);
             }
+
+            // Remove duplicates from joined tables
+            $productsQuery->distinct();
 
             $total = $productsQuery->count();
 
@@ -325,37 +352,12 @@ class PublicController extends Controller
 
             $lastPage = (int) ceil($total / $perPage);
 
-            // Transform products for response
+            // Transform products for response using media system
             $productsData = $products->map(function ($product) {
-                // Use thumbnail_url first (COALESCE result), fallback to thumbnail_path
-                $imageUrl = null;
-
-                if ($product->thumbnail_url && (str_starts_with($product->thumbnail_url, 'http://') || str_starts_with($product->thumbnail_url, 'https://'))) {
-                    $imageUrl = $product->thumbnail_url;
-                } elseif ($product->thumbnail_path) {
-                    $imageUrl = $this->getImageUrl($product->thumbnail_path);
-                }
-
-                // Fallback to first gallery image if no thumbnail
-                if (!$imageUrl && !$product->thumbnail_id) {
-                    $galleryIds = DB::table('products')->where('id', $product->id)->value('gallery_images');
-                    if ($galleryIds) {
-                        $ids = json_decode($galleryIds, true);
-                        if (is_array($ids) && !empty($ids)) {
-                            $firstGalleryImage = DB::table('catalog_product_images')
-                                ->where('id', $ids[0])
-                                ->value('url');
-                            if ($firstGalleryImage) {
-                                $imageUrl = $firstGalleryImage;
-                            }
-                        }
-                    }
-                }
-
-                // Final fallback to placeholder if no image
-                if (!$imageUrl) {
-                    $imageUrl = config('app.url') . '/storage/placeholder.jpg';
-                }
+                // Use media system format: /media/{id}
+                $imageUrl = $product->thumbnail_id
+                    ? config('app.url') . '/media/' . $product->thumbnail_id
+                    : config('app.url') . '/storage/placeholder.jpg';
 
                 return [
                     'id' => $product->id,

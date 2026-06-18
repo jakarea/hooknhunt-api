@@ -109,7 +109,6 @@ export default function BankDetailsPage() {
       const response = await getBank(parseInt(id))
       setBank(response.data as BankDetail)
     } catch (err: any) {
-      console.error('Error fetching bank details:', err)
       setError(err.message || 'Failed to load bank details')
       notifications.show({
         title: 'Error',
@@ -132,7 +131,6 @@ export default function BankDetailsPage() {
       const response = await getBanks({ status: 'active' })
       setAllBanks(response.data || [])
     } catch (err) {
-      console.error('Error fetching banks:', err)
     }
   }
 
@@ -158,7 +156,6 @@ export default function BankDetailsPage() {
 
       setChartOfAccounts(expenseAccounts)
     } catch (err) {
-      console.error('Error fetching chart of accounts:', err)
     }
   }
 

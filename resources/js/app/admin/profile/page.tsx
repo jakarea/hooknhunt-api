@@ -145,7 +145,6 @@ export default function ProfilePage() {
 
         setPermissions(finalPermissions)
       } catch (error) {
-        console.error('Failed to fetch profile:', error)
         notifications.show({
           title: 'Error',
           message: 'Failed to load profile data. Please try again.',

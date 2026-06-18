@@ -146,7 +146,6 @@ export default function EditRolePage() {
           setPermissionGroups(groups)
         }
       } catch (err: unknown) {
-        console.error('Failed to fetch data:', err)
         const errorObj = err as { response?: { data?: { message?: string } } }
         setError(errorObj.response?.data?.message || 'Failed to load role data')
         notifications.show({
@@ -355,7 +354,6 @@ export default function EditRolePage() {
         throw new Error(response.data.message || 'Failed to update role')
       }
     } catch (error) {
-      console.error('Failed to update role:', error)
       notifications.show({
         title: 'Error',
         message: (error as any).response?.data?.message || (error as any).message || 'Failed to update role. Please try again.',

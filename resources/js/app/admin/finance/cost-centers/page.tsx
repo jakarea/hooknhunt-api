@@ -136,7 +136,6 @@ export default function CostCentersPage() {
       const response = await getUsers()
       setManagers(response.data || [])
     } catch (error: any) {
-      console.error('Failed to fetch users:', error)
     }
   }
 
@@ -145,7 +144,6 @@ export default function CostCentersPage() {
       const response = await getCostCenterStatistics()
       setStatistics(response.data)
     } catch (error: any) {
-      console.error('Failed to fetch statistics:', error)
     }
   }
 
@@ -154,7 +152,6 @@ export default function CostCentersPage() {
       const response = await getNextCostCenterCode()
       setNextCode(response.data?.next_code || 'CC-001')
     } catch (error: any) {
-      console.error('Failed to fetch next code:', error)
     }
   }
 

@@ -130,7 +130,6 @@ export default function ChequesPage() {
         setSummary(response.data)
       }
     } catch (error) {
-      console.error('Failed to load summary:', error)
     }
   }
 
@@ -141,7 +140,6 @@ export default function ChequesPage() {
         setAlerts(response.data)
       }
     } catch (error) {
-      console.error('Failed to load alerts:', error)
     }
   }
 
@@ -158,7 +156,6 @@ export default function ChequesPage() {
       }
       setBanks(data)
     } catch (error) {
-      console.error('Failed to load banks:', error)
     }
   }
 
@@ -193,7 +190,6 @@ export default function ChequesPage() {
         }
       })
 
-      console.log('Submitting payload:', payload)
 
       if (editId) {
         await updateCheque(editId, payload)
@@ -210,7 +206,6 @@ export default function ChequesPage() {
       fetchSummary()
       fetchAlerts()
     } catch (error: any) {
-      console.error('Submit error:', error)
       // Handle validation errors from API
       const apiErrors = error.response?.data?.errors
       if (apiErrors) {

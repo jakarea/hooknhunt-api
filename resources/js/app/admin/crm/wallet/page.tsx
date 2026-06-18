@@ -76,7 +76,6 @@ function AddFundsModal({
         )
       }
     } catch (error) {
-      console.error('Error searching customers:', error)
     } finally {
       setSearchingCustomers(false)
     }
@@ -303,7 +302,6 @@ export default function WalletPage() {
         throw new Error('Failed to fetch wallets')
       }
     } catch (error) {
-      console.error('Error fetching wallets:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load wallets. Please try again.',
@@ -336,7 +334,6 @@ export default function WalletPage() {
         throw new Error('Failed to fetch transactions')
       }
     } catch (error) {
-      console.error('Error fetching transactions:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load transactions. Please try again.',
@@ -358,7 +355,6 @@ export default function WalletPage() {
         setStats(response.data.data)
       }
     } catch (error) {
-      console.error('Error fetching stats:', error)
     } finally {
       setStatsLoading(false)
     }

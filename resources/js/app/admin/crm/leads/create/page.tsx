@@ -139,7 +139,6 @@ export default function CreateLeadPage() {
         throw new Error(response.data?.message || 'Failed to create lead')
       }
     } catch (error: any) {
-      console.error('Error creating lead:', error)
 
       // Handle validation errors from backend
       if (error.response?.data?.errors) {

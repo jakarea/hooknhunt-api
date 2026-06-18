@@ -72,7 +72,6 @@ export default function BanksPage() {
       setBanks(banksData.data || [])
       setSummary(summaryData.data || summaryData)
     } catch (err: any) {
-      console.error('Error fetching banks:', err)
       setError(err.message || 'Failed to load banks')
       notifications.show({
         title: 'Error',
@@ -133,7 +132,6 @@ export default function BanksPage() {
       )
       setChartOfAccounts(expenseAccounts)
     } catch (err) {
-      console.error('Error fetching chart of accounts:', err)
     }
   }, [])
 

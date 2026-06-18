@@ -109,7 +109,6 @@ export default function AdminDashboardPage() {
       const currentDate = new Date()
       const startDate = formatDateLocal(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1))
       const endDate = today
-console.log({endDate})
       // Parallel API calls for maximum speed
       const [historyResponse, settingsResponse, staffResponse, deptResponse] = await Promise.all([
         // Fetch current month's attendance with high pagination limit to get all records
@@ -119,10 +118,6 @@ console.log({endDate})
         isAdmin ? api.get('/hrm/departments').catch(() => null) : Promise.resolve(null),
       ])
 
-      console.log('=== API RESPONSES ===')
-      console.log('History response:', historyResponse)
-      console.log('Staff response:', staffResponse)
-      console.log('Dept response:', deptResponse)
 
       // Process HRM settings if available
       if (settingsResponse?.data) {
@@ -159,15 +154,9 @@ console.log({endDate})
         allAttendanceData = Array.isArray(historyResponse.data.data) ? historyResponse.data.data : []
       }
 
-      console.log('=== DATA EXTRACTION ===')
-      console.log('Date range:', { startDate, endDate, today })
-      console.log('All attendance data:', allAttendanceData.length, 'records')
-      console.log('First 3 records:', allAttendanceData.slice(0, 3))
-      console.log('All dates in data:', allAttendanceData.map(a => a.date))
 
       // Filter today's attendance
       const todayAttendance = allAttendanceData.filter((a: any) => a.date === today)
-      console.log('Today attendance filter results:', todayAttendance.length, 'records for', today)
 
       // Count present employees (both 'present' and 'late' status)
       const presentCount = todayAttendance.filter((a: any) => {
@@ -182,7 +171,6 @@ console.log({endDate})
         return breakInCount > breakOutCount
       }).length
 
-      console.log('Dashboard - Stats:', { presentCount, onBreakCount })
 
       // Build stats object
       const statsData: DashboardStats = {
@@ -224,12 +212,7 @@ console.log({endDate})
           return String(recordUserId) === String(user.id) && recordDate === today
         })
 
-        console.log('=== MY ATTENDANCE CHECK ===')
-        console.log('Current user ID:', user.id)
-        console.log('Today:', today)
-        console.log('My record found:', myRecord ? 'YES' : 'NO')
         if (myRecord) {
-          console.log('My record data:', myRecord)
         }
 
         if (myRecord) {
@@ -270,7 +253,6 @@ console.log({endDate})
       }
 
     } catch (error) {
-      console.error('Error fetching dashboard data:', error)
     } finally {
       setLoading(false)
     }

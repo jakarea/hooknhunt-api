@@ -150,7 +150,6 @@ export default function PayrollPage() {
         });
       }
     } catch (error: unknown) {
-      console.error('Payroll fetch error:', error);
       const errorObj = error as { response?: { data?: { message?: string } }; message?: string };
       notifications.show({
         title: 'Error',
@@ -180,7 +179,6 @@ export default function PayrollPage() {
         setSelectedBankId(banksData[0].id);
       }
     } catch (error: unknown) {
-      console.error('Failed to fetch banks:', error);
       notifications.show({
         title: 'Warning',
         message: 'Could not load bank accounts',
@@ -381,10 +379,6 @@ export default function PayrollPage() {
         amountInWords: response.data?.amount_in_words,
       };
 
-      console.log('Full Response:', response);
-      console.log('Response.data:', response.data);
-      console.log('Bank Letter Data:', bankLetterData);
-      console.log('Employees:', bankLetterData?.employees);
 
       setBankLetterData(bankLetterData);
       setPayAllModalOpened(false);

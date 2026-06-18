@@ -133,19 +133,11 @@ export default function CategoryCommissionsPage() {
       if (activeFilter && activeFilter !== 'all') params.is_active = activeFilter
 
       const response = await api.get<PaginatedResponse>('/admin/category-commissions', { params })
-      console.log('===== Category Commissions Debug =====')
-      console.log('Full axios response:', response)
-      console.log('response.data:', response.data)
-      console.log('response.data.success:', response.data?.success)
-      console.log('response.data.data:', response.data?.data)
 
       // The API returns { success: true, data: { commissions: [...], pagination: {...} } }
       // axios gives us response.data = { success: true, data: {...} }
       // So we need response.data.data to get our actual data
       const innerData = response.data?.data
-      console.log('Extracted innerData:', innerData)
-      console.log('innerData.commissions:', innerData?.commissions)
-      console.log('innerData.pagination:', innerData?.pagination)
 
       setCommissions(innerData?.commissions || [])
       setPagination({
@@ -154,9 +146,7 @@ export default function CategoryCommissionsPage() {
         total: innerData?.pagination?.total || 0,
         last_page: innerData?.pagination?.last_page || 1,
       })
-      console.log('===================================')
     } catch (error) {
-      console.error('Failed to fetch commissions:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load commissions.',
@@ -178,7 +168,6 @@ export default function CategoryCommissionsPage() {
       const categoriesData = response.data.data?.data || response.data.data || response.data.categories || []
       setCategories(Array.isArray(categoriesData) ? categoriesData : [])
     } catch (error) {
-      console.error('Failed to fetch categories:', error)
       setCategories([])
     }
   }
@@ -193,7 +182,6 @@ export default function CategoryCommissionsPage() {
       const affiliatesData = response.data.data?.affiliates || response.data.data?.data || response.data.affiliates || []
       setAffiliates(Array.isArray(affiliatesData) ? affiliatesData : [])
     } catch (error) {
-      console.error('Failed to fetch affiliates:', error)
       setAffiliates([])
     }
   }
@@ -243,7 +231,6 @@ export default function CategoryCommissionsPage() {
           })
           fetchCommissions(false)
         } catch (error) {
-          console.error('Failed to delete commission:', error)
           notifications.show({
             title: 'Error',
             message: 'Failed to delete commission.',
@@ -498,7 +485,6 @@ function CommissionForm({
 
       onSuccess()
     } catch (error) {
-      console.error('Failed to save commission:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to save commission. Please try again.',

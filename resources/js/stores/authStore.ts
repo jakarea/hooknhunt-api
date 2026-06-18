@@ -253,7 +253,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const permissionObjects = permissionObjectsString ? JSON.parse(permissionObjectsString) : []
         set({ user, token, permissions, permissionKeys, permissionObjects, hydrated: true })
       } catch (error) {
-        console.error('[authStore.loadUserFromStorage] Error parsing:', error)
         // Clear corrupted storage
         set({ hydrated: true })
         get().logout()

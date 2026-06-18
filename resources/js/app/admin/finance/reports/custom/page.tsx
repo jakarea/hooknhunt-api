@@ -108,7 +108,6 @@ export default function CustomReportsPage() {
       const response = await getReportTemplates()
       setTemplates(response || [])
     } catch (error: any) {
-      console.error('Failed to fetch templates:', error)
     }
   }
 
@@ -117,7 +116,6 @@ export default function CustomReportsPage() {
       const response = await getFinancialReportStatistics()
       setStatistics(response.data)
     } catch (error: any) {
-      console.error('Failed to fetch statistics:', error)
     }
   }
 

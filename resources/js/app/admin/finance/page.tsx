@@ -126,7 +126,6 @@ export default function FinanceDashboardPage() {
 
       setPendingExpenses(expensesData)
     } catch (error) {
-      console.error('Error fetching dashboard data:', error)
       notifications.show({
         title: t('common.error') || 'Error',
         message: t('common.somethingWentWrong') || 'Failed to load dashboard data',
@@ -179,7 +178,6 @@ export default function FinanceDashboardPage() {
       })
       fetchDashboardData(false)
     } catch (error: any) {
-      console.error('Failed to approve expense:', error)
       const errorMessage = error?.response?.data?.message
         || error?.response?.data?.error
         || error?.message

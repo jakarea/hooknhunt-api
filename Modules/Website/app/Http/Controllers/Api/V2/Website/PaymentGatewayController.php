@@ -6,7 +6,6 @@ namespace App\Modules\Website\Http\Controllers\Api\V2\Website;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Modules\Website\Events\Order\OrderCancelled;
 use App\Modules\Website\Events\Order\OrderFailed;
@@ -21,7 +20,8 @@ class PaymentGatewayController extends Controller
     {
         // Get active payment gateway from database - pure function, no cross-module dependencies
         $activeGateway = DB::table('settings')
-            ->where('key', 'website_active_payment_gateway')
+            ->where('group', 'website')
+            ->where('key', 'active_payment_gateway')
             ->value('value') ?? 'sslcommerz';
 
         // Validate gateway value
@@ -40,6 +40,101 @@ class PaymentGatewayController extends Controller
 
 
 
+    /**
+     * Unified payment initiation — gateway chosen from admin settings, not from request.
+     * POST /api/v2/store/payments/initiate
+     */
+    public function initiatePayment(Request $request)
+    {
+        // Read active gateway from admin settings (set via /settings/payments)
+        $activeGateway = DB::table('settings')
+            ->where('group', 'website')
+            ->where('key', 'active_payment_gateway')
+            ->value('value') ?? 'sslcommerz';
+
+        if (!in_array($activeGateway, ['sslcommerz', 'eps'])) {
+            $activeGateway = 'sslcommerz';
+        }
+
+        $validated = $request->validate([
+            'sales_order_id'   => 'required|integer',
+            'customer_name'    => 'required|string',
+            'customer_email'   => 'nullable|email',
+            'customer_phone'   => 'required|string',
+            'customer_address' => 'required|array',
+            'emi_option'       => 'nullable|integer',
+        ]);
+
+        $order = \App\Modules\Website\Models\WebsiteOrder::with('items')->find($validated['sales_order_id']);
+
+        if (!$order) {
+            return response()->json(['status' => false, 'error' => 'Order not found'], 404);
+        }
+
+        if ($activeGateway === 'sslcommerz') {
+            try {
+                $ssl = new SSLCommerzService();
+
+                $result = $ssl->createPayment([
+                    'amount'           => (float) $order->total_amount,
+                    'currency'         => 'BDT',
+                    'customer_name'    => $validated['customer_name'],
+                    'customer_email'   => $validated['customer_email'] ?? '',
+                    'customer_phone'   => $validated['customer_phone'],
+                    'customer_address' => $validated['customer_address'],
+                    'sales_order_id'   => $order->id,
+                    'customer_id'      => $order->customer_id ?? 'guest',
+                    'user_id'          => $order->customer_id ?? 'guest',
+                    'emi_option'       => $validated['emi_option'] ?? 0,
+                ]);
+
+                if ($result['success']) {
+                    return response()->json([
+                        'status' => true,
+                        'data'   => [
+                            'payment_id'  => $order->id,
+                            'gateway_url' => $result['gateway_url'],
+                            'tran_id'     => $result['tran_id'],
+                            'amount'      => (float) $order->total_amount,
+                            'currency'    => 'BDT',
+                            'gateway'     => 'sslcommerz',
+                            'sandbox'     => $ssl->isSandbox(),
+                        ],
+                    ]);
+                }
+
+                return response()->json(['status' => false, 'error' => $result['error'] ?? 'Payment initiation failed'], 500);
+
+            } catch (\Exception $e) {
+                Log::error('SSL Commerz Payment Exception', ['message' => $e->getMessage()]);
+                return response()->json(['status' => false, 'error' => 'Payment service error: ' . $e->getMessage()], 500);
+            }
+        }
+
+        // EPS path — delegate to existing method
+        return $this->initiateEPSPayment($request);
+    }
+
+    /**
+     * SSL Commerz EMI options endpoint.
+     * POST /api/v2/store/payments/emi-options
+     */
+    public function emiOptions(Request $request)
+    {
+        $request->validate(['amount' => 'required|numeric|min:0']);
+
+        $ssl = new SSLCommerzService();
+        $options = $ssl->getEmiOptions((float) $request->input('amount'));
+
+        return response()->json([
+            'status' => true,
+            'data'   => [
+                'emi_options' => $options,
+                'emi_banks'   => $ssl->getEmiBanks(),
+            ],
+        ]);
+    }
+
     public function initiateEPSPayment(Request $request)
     {
         Log::info('EPS Payment Initiation Started', ['request_data' => $request->all()]);
@@ -51,7 +146,6 @@ class PaymentGatewayController extends Controller
             'customer_email' => 'nullable|email',
             'customer_phone' => 'required|string',
             'customer_address' => 'required|array',
-            'payment_method' => 'required|in:eps,sslcommerz',
         ]);
 
         Log::info('Validation passed', ['validated' => $validated]);
@@ -179,184 +273,248 @@ class PaymentGatewayController extends Controller
 
 
     /**
-     * EPS Success Callback - User redirected here after successful payment
-     * GET /api/v2/store/payments/success
+     * Payment Success Callback — handles both SSL Commerz (POST) and EPS (GET)
+     * GET|POST /api/v2/store/payments/success
      */
     public function success(Request $request)
     {
-        // Get EPS parameters securely
+        $frontendUrl = config('app.frontend_url') ?? env('FRONTEND_URL', 'http://localhost:3000');
+
+        // SSL Commerz sends a POST with tran_id + value_a (our sales_order id)
+        if ($request->has('tran_id') && !$request->has('MerchantTransactionId')) {
+            $tranId      = $request->input('tran_id');
+            $salesOrderId = $request->input('value_a');
+            $status      = $request->input('status');
+
+            Log::info('SSL Commerz Success Callback', ['tran_id' => $tranId, 'value_a' => $salesOrderId, 'status' => $status]);
+
+            $order = \App\Modules\Website\Models\WebsiteOrder::find($salesOrderId);
+
+            if ($order && $order->payment_status !== 'paid') {
+                DB::transaction(function () use ($order, $tranId) {
+                    $order->update([
+                        'payment_status' => 'paid',
+                        'paid_amount'    => $order->total_amount,
+                        'due_amount'     => 0,
+                        'status'         => 'processing',
+                    ]);
+                    event(new OrderPaid($order, $tranId, 'sslcommerz'));
+                });
+            }
+
+            return redirect()->away($frontendUrl . '/order-success?' . http_build_query([
+                'tran_id' => $tranId,
+                'invoice' => $order->invoice_no ?? '',
+                'total' => $order->total_amount ?? 0,
+                'name' => $order->customer_name ?? $order->shipping_name ?? 'Customer',
+                'phone' => $order->customer_phone ?? $order->shipping_phone ?? '',
+                'status'  => $status,
+                'gateway' => 'sslcommerz',
+            ]));
+        }
+
+        // EPS GET callback
         $merchantTransactionId = $request->query('MerchantTransactionId');
-        $epsTransactionId = $request->query('EPSTransactionId_');
-        $status = $request->query('Status');
-        $errorCode = $request->query('ErrorCode');
-        $errorMessage = $request->query('ErrorMessage');
+        $epsTransactionId      = $request->query('EPSTransactionId_');
+        $status                = $request->query('Status');
 
-        Log::info('EPS Success Callback', [
-            'merchant_transaction_id' => $merchantTransactionId,
-            'eps_transaction_id' => $epsTransactionId,
-            'status' => $status
-        ]);
+        Log::info('EPS Success Callback', ['merchant_transaction_id' => $merchantTransactionId, 'eps_transaction_id' => $epsTransactionId]);
 
-        // Find and update order
         $order = \App\Modules\Website\Models\WebsiteOrder::where('invoice_no', $merchantTransactionId)->first();
 
         if ($order && $order->payment_status !== 'paid') {
             DB::transaction(function () use ($order, $epsTransactionId) {
                 $order->update([
                     'payment_status' => 'paid',
-                    'paid_amount' => $order->total_amount,
-                    'due_amount' => 0,
-                    'status' => 'processing',
+                    'paid_amount'    => $order->total_amount,
+                    'due_amount'     => 0,
+                    'status'         => 'processing',
                 ]);
-
-                // Dispatch order paid event
                 event(new OrderPaid($order, $epsTransactionId, 'eps'));
             });
         }
 
-        // Redirect to frontend with payment details
-        $frontendUrl = config('app.frontend_url') ?? env('FRONTEND_URL', 'http://localhost:3000');
-
         return redirect()->away($frontendUrl . '/order-success?' . http_build_query([
             'tran_id' => $epsTransactionId,
             'invoice' => $merchantTransactionId,
-            'status' => $status,
+            'total' => $order->total_amount ?? 0,
+            'name' => $order->customer_name ?? $order->shipping_name ?? 'Customer',
+            'phone' => $order->customer_phone ?? $order->shipping_phone ?? '',
+            'status'  => $status,
             'gateway' => 'eps',
         ]));
     }
 
 
     /**
-     * EPS Fail Callback - User redirected here after failed payment
-     * GET /api/v2/store/payments/fail
+     * Payment Fail Callback — handles both SSL Commerz (POST) and EPS (GET)
+     * GET|POST /api/v2/store/payments/fail
      */
     public function fail(Request $request)
     {
-        // Get EPS parameters securely
+        $frontendUrl = config('app.frontend_url') ?? env('FRONTEND_URL', 'http://localhost:3000');
+
+        // SSL Commerz POST
+        if ($request->has('tran_id') && !$request->has('MerchantTransactionId')) {
+            $tranId       = $request->input('tran_id');
+            $salesOrderId = $request->input('value_a');
+            $errorMessage = $request->input('error_reason', 'Payment failed');
+
+            Log::error('SSL Commerz Fail Callback', ['tran_id' => $tranId, 'reason' => $errorMessage]);
+
+            $order = \App\Modules\Website\Models\WebsiteOrder::find($salesOrderId);
+            $orderTotal   = 0;
+            $customerName = '';
+
+            if ($order && $order->payment_status !== 'failed') {
+                $orderTotal   = $order->total_amount ?? 0;
+                $customerName = $order->customer_name ?? '';
+
+                DB::transaction(function () use ($order, $errorMessage) {
+                    $order->update(['payment_status' => 'failed']);
+                    event(new OrderFailed($order, $errorMessage, null));
+                });
+            }
+
+            return redirect()->away($frontendUrl . '/order-success?' . http_build_query([
+                'invoice' => $order->invoice_no ?? '',
+                'total'   => $orderTotal,
+                'name'    => $customerName,
+                'tran_id' => $tranId,
+                'payment_status' => 'failed',
+                'gateway' => 'sslcommerz',
+            ]));
+        }
+
+        // EPS GET callback
         $merchantTransactionId = $request->query('MerchantTransactionId');
-        $epsTransactionId = $request->query('EPSTransactionId_');
-        $status = $request->query('Status');
-        $errorCode = $request->query('ErrorCode');
-        $errorMessage = $request->query('ErrorMessage');
+        $epsTransactionId      = $request->query('EPSTransactionId_');
+        $errorCode             = $request->query('ErrorCode');
+        $errorMessage          = $request->query('ErrorMessage');
 
-        Log::error('EPS Fail Callback', [
-            'merchant_transaction_id' => $merchantTransactionId,
-            'eps_transaction_id' => $epsTransactionId,
-            'status' => $status,
-            'error_code' => $errorCode,
-            'error_message' => $errorMessage
-        ]);
+        Log::error('EPS Fail Callback', ['merchant_transaction_id' => $merchantTransactionId, 'error' => $errorMessage]);
 
-        // Load order to get details and update status
-        $orderTotal = 0;
+        $orderTotal   = 0;
         $customerName = '';
-        $order = null;
+        $order        = null;
+
         if ($merchantTransactionId) {
             $order = \App\Modules\Website\Models\WebsiteOrder::where('invoice_no', $merchantTransactionId)->first();
             if ($order) {
-                $orderTotal = $order->total_amount ?? 0;
+                $orderTotal   = $order->total_amount ?? 0;
                 $customerName = $order->customer_name ?? '';
 
-                // Update order status as failed
-                if ($order->status !== 'failed') {
+                if ($order->payment_status !== 'failed') {
                     DB::transaction(function () use ($order, $errorMessage, $errorCode) {
-                        $order->update([
-                            'status' => 'failed',
-                            'payment_status' => 'failed',
-                        ]);
-
-                        // Restore stock - pure function, direct DB access
-                        foreach ($order->items as $item) {
-                            if ($item->product_variant_id) {
-                                DB::table('product_variants')
-                                    ->where('id', $item->product_variant_id)
-                                    ->increment('stock', $item->quantity);
-                            }
-                        }
-
-                        // Dispatch order failed event (for LazyChat webhook)
+                        $order->update(['payment_status' => 'failed']);
                         event(new OrderFailed($order, $errorMessage, $errorCode));
                     });
                 }
             }
         }
 
-        $frontendUrl = config('app.frontend_url') ?? env('FRONTEND_URL', 'http://localhost:3000');
-
-        return redirect()->away($frontendUrl . '/order-fail?' . http_build_query([
+        return redirect()->away($frontendUrl . '/order-success?' . http_build_query([
             'invoice' => $merchantTransactionId,
-            'total' => $orderTotal,
-            'name' => $customerName,
+            'total'   => $orderTotal,
+            'name'    => $customerName,
             'tran_id' => $epsTransactionId,
-            'reason' => $errorMessage ?: 'Payment failed',
+            'payment_status' => 'failed',
             'gateway' => 'eps',
         ]));
     }
 
 
     /**
-     * EPS Cancel Callback - User redirected here after canceling payment
-     * GET /api/v2/store/payments/cancel
+     * Payment Cancel Callback — handles both SSL Commerz (POST) and EPS (GET)
+     * GET|POST /api/v2/store/payments/cancel
      */
     public function cancel(Request $request)
     {
-        // Get EPS parameters securely
+        $frontendUrl = config('app.frontend_url') ?? env('FRONTEND_URL', 'http://localhost:3000');
+
+        // SSL Commerz POST
+        if ($request->has('tran_id') && !$request->has('MerchantTransactionId')) {
+            $tranId       = $request->input('tran_id');
+            $salesOrderId = $request->input('value_a');
+
+            Log::warning('SSL Commerz Cancel Callback', ['tran_id' => $tranId]);
+
+            $order = \App\Modules\Website\Models\WebsiteOrder::find($salesOrderId);
+
+            if ($order && $order->payment_status !== 'cancelled') {
+                DB::transaction(function () use ($order) {
+                    $order->update(['payment_status' => 'cancelled']);
+                    event(new OrderCancelled($order, 'Payment cancelled by customer', 'customer'));
+                });
+            }
+
+            return redirect()->away($frontendUrl);
+        }
+
+        // EPS GET callback
         $merchantTransactionId = $request->query('MerchantTransactionId');
-        $epsTransactionId = $request->query('EPSTransactionId_');
-        $status = $request->query('Status');
-        $errorCode = $request->query('ErrorCode');
-        $errorMessage = $request->query('ErrorMessage');
+        $epsTransactionId      = $request->query('EPSTransactionId_');
+        $errorMessage          = $request->query('ErrorMessage');
 
-        Log::warning('EPS Cancel Callback', [
-            'merchant_transaction_id' => $merchantTransactionId,
-            'eps_transaction_id' => $epsTransactionId,
-            'status' => $status
-        ]);
+        Log::warning('EPS Cancel Callback', ['merchant_transaction_id' => $merchantTransactionId]);
 
-        // Load order to get details and update status
-        $orderTotal = 0;
-        $customerName = '';
-        $order = null;
         if ($merchantTransactionId) {
             $order = \App\Modules\Website\Models\WebsiteOrder::where('invoice_no', $merchantTransactionId)->first();
-            if ($order) {
-                $orderTotal = $order->total_amount ?? 0;
-                $customerName = $order->customer_name ?? '';
-
-                // Update order status as cancelled
-                if ($order->status !== 'cancelled') {
-                    DB::transaction(function () use ($order, $errorMessage) {
-                        $order->update([
-                            'status' => 'cancelled',
-                            'payment_status' => 'cancelled',
-                        ]);
-
-                        // Restore stock - pure function, direct DB access
-                        foreach ($order->items as $item) {
-                            if ($item->product_variant_id) {
-                                DB::table('product_variants')
-                                    ->where('id', $item->product_variant_id)
-                                    ->increment('stock', $item->quantity);
-                            }
-                        }
-
-                        // Dispatch order cancelled event (for LazyChat webhook)
-                        event(new OrderCancelled($order, $errorMessage ?: 'Payment cancelled by customer', 'customer'));
-                    });
-                }
+            if ($order && $order->payment_status !== 'cancelled') {
+                DB::transaction(function () use ($order, $errorMessage) {
+                    $order->update(['payment_status' => 'cancelled']);
+                    event(new OrderCancelled($order, $errorMessage ?: 'Payment cancelled by customer', 'customer'));
+                });
             }
         }
 
-        $frontendUrl = config('app.frontend_url') ?? env('FRONTEND_URL', 'http://localhost:3000');
+        return redirect()->away($frontendUrl);
+    }
 
-        return redirect()->away($frontendUrl . '/order-cancel?' . http_build_query([
-            'invoice' => $merchantTransactionId,
-            'total' => $orderTotal,
-            'name' => $customerName,
-            'tran_id' => $epsTransactionId,
-            'message' => $errorMessage,
-            'gateway' => 'eps',
-        ]));
+    /**
+     * SSL Commerz IPN Webhook — server-to-server payment verification
+     * POST /api/v2/store/payments/sslcommerz/ipn
+     */
+    public function sslCommerzIPN(Request $request)
+    {
+        $data = $request->all();
+
+        Log::info('SSL Commerz IPN Received', ['tran_id' => $data['tran_id'] ?? null, 'status' => $data['status'] ?? null]);
+
+        $ssl = new SSLCommerzService();
+
+        if (!$ssl->verifyHash($data)) {
+            Log::warning('SSL Commerz IPN: Invalid hash signature', ['tran_id' => $data['tran_id'] ?? null]);
+            return response()->json(['status' => false, 'message' => 'Invalid signature'], 400);
+        }
+
+        $salesOrderId = $data['value_a'] ?? null;
+        $tranId       = $data['tran_id'] ?? null;
+        $status       = strtoupper($data['status'] ?? '');
+
+        $order = \App\Modules\Website\Models\WebsiteOrder::find($salesOrderId);
+
+        if (!$order) {
+            Log::warning('SSL Commerz IPN: Order not found', ['value_a' => $salesOrderId]);
+            return response()->json(['status' => false, 'message' => 'Order not found'], 404);
+        }
+
+        DB::transaction(function () use ($order, $tranId, $status, $data) {
+            if (in_array($status, ['VALID', 'SUCCESS']) && $order->payment_status !== 'paid') {
+                $order->update(['payment_status' => 'paid', 'paid_amount' => $order->total_amount, 'due_amount' => 0, 'status' => 'processing']);
+                event(new OrderPaid($order, $tranId, 'sslcommerz'));
+
+            } elseif ($status === 'FAILED' && $order->payment_status !== 'failed') {
+                $order->update(['payment_status' => 'failed']);
+                event(new OrderFailed($order, $data['error_reason'] ?? 'Payment failed via IPN', null));
+
+            } elseif ($status === 'CANCELLED' && $order->payment_status !== 'cancelled') {
+                $order->update(['payment_status' => 'cancelled']);
+                event(new OrderCancelled($order, 'Payment cancelled via IPN', 'customer'));
+            }
+        });
+
+        return response()->json(['status' => true, 'message' => 'IPN received']);
     }
 
 
@@ -383,7 +541,7 @@ class PaymentGatewayController extends Controller
         }
 
         // Process based on status
-        DB::transaction(function () use ($order, $epsTransactionId, $status, $amount) {
+        DB::transaction(function () use ($order, $epsTransactionId, $status) {
             if ($status === 'success' || $status === 'completed') {
                 // Payment successful
                 if ($order->payment_status !== 'paid') {
@@ -397,41 +555,15 @@ class PaymentGatewayController extends Controller
                     event(new OrderPaid($order, $epsTransactionId, 'eps'));
                 }
             } elseif ($status === 'failed' || $status === 'error') {
-                // Payment failed - restore stock
-                if ($order->status !== 'failed') {
-                    $order->update([
-                        'status' => 'failed',
-                        'payment_status' => 'failed',
-                    ]);
-
-                    // Restore stock - pure function, direct DB access
-                    foreach ($order->items as $item) {
-                        if ($item->product_variant_id) {
-                            DB::table('product_variants')
-                                ->where('id', $item->product_variant_id)
-                                ->increment('stock', $item->quantity);
-                        }
-                    }
-
+                // Payment failed - keep order as pending with payment_status failed
+                if ($order->payment_status !== 'failed') {
+                    $order->update(['payment_status' => 'failed']);
                     event(new OrderFailed($order, 'Payment failed via IPN', $status));
                 }
             } elseif ($status === 'cancelled') {
-                // Payment cancelled - restore stock
-                if ($order->status !== 'cancelled') {
-                    $order->update([
-                        'status' => 'cancelled',
-                        'payment_status' => 'cancelled',
-                    ]);
-
-                    // Restore stock - pure function, direct DB access
-                    foreach ($order->items as $item) {
-                        if ($item->product_variant_id) {
-                            DB::table('product_variants')
-                                ->where('id', $item->product_variant_id)
-                                ->increment('stock', $item->quantity);
-                        }
-                    }
-
+                // Payment cancelled - keep order as pending, treat as lead
+                if ($order->payment_status !== 'cancelled') {
+                    $order->update(['payment_status' => 'cancelled']);
                     event(new OrderCancelled($order, 'Payment cancelled via IPN', 'customer'));
                 }
             }

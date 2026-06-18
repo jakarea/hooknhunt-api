@@ -39,7 +39,6 @@ export default function Page() {
         }
       } catch (error) {
         // Silently use defaults if API fails
-        console.log('Using default pricing settings (API unavailable)')
       } finally {
         setLoading(false)
       }
@@ -72,7 +71,6 @@ export default function Page() {
         color: 'green',
       })
     } catch (error) {
-      console.error('Error saving pricing settings:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to save settings',

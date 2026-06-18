@@ -141,7 +141,6 @@ export default function LeadsPage() {
       }
     } catch (error) {
       if (import.meta.env.DEV) {
-        console.error('Error fetching leads:', error)
       }
       notifications.show({
         title: t('common.error'),
@@ -245,7 +244,6 @@ export default function LeadsPage() {
           fetchLeads()
         } catch (error) {
           if (import.meta.env.DEV) {
-            console.error('Error deleting lead:', error)
           }
           notifications.show({
             title: t('common.error'),

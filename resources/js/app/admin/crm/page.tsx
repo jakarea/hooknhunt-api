@@ -115,7 +115,6 @@ export default function CRMDashboardPage() {
       }
     } catch (error) {
       if (import.meta.env.DEV) {
-        console.error('Error fetching CRM stats:', error)
       }
       notifications.show({
         title: t('common.error'),

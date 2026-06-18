@@ -114,7 +114,6 @@ export default function WebsiteSettingsPage() {
       // Also fetch delivery settings
       await fetchDeliverySettings()
     } catch (error) {
-      console.error('Error fetching settings:', error)
       notifications.show({ title: 'Error', message: 'Failed to load settings', color: 'red' })
     } finally {
       setLoading(false)
@@ -124,19 +123,15 @@ export default function WebsiteSettingsPage() {
   const fetchDeliverySettings = async () => {
     try {
       const response = await api.get('website-admin/delivery-settings')
-      console.log('Delivery settings raw axios response:', response)
-      console.log('Response.data (Laravel response):', response.data)
 
       // axios response.data is the Laravel response { success: true, data: {...} }
       if (response.data.success) {
         setDeliverySettings(response.data.data)
         setOriginalDeliverySettings(response.data.data)
       } else {
-        console.error('API returned success:false', response.data)
         notifications.show({ title: 'Error', message: response.data.message || 'Failed to load delivery settings', color: 'red' })
       }
     } catch (error) {
-      console.error('Error fetching delivery settings:', error)
       notifications.show({ title: 'Error', message: 'Failed to load delivery settings', color: 'red' })
     }
   }
@@ -144,13 +139,11 @@ export default function WebsiteSettingsPage() {
   const handleSave = async () => {
     try {
       setSaving(true)
-      console.log('Saving website settings:', settings)
       await updateWebsiteSettings(settings)
       setOriginalSettings(settings)
       setHasChanges(false)
       notifications.show({ title: 'Success', message: 'Settings saved successfully', color: 'green' })
     } catch (error) {
-      console.error('Error saving settings:', error)
       notifications.show({ title: 'Error', message: 'Failed to save settings', color: 'red' })
     } finally {
       setSaving(false)
@@ -189,11 +182,8 @@ export default function WebsiteSettingsPage() {
         },
       }
 
-      console.log('Sending payload:', payload)
 
       const response = await api.put('website-admin/delivery-settings', payload)
-      console.log('Save API response:', response)
-      console.log('Save response.data:', response.data)
 
       if (response.data.success) {
         setOriginalDeliverySettings(deliverySettings)
@@ -203,7 +193,6 @@ export default function WebsiteSettingsPage() {
         throw new Error(response.data.message || 'Failed to save')
       }
     } catch (error) {
-      console.error('Save error:', error)
       notifications.show({ title: 'Error', message: 'Failed to save delivery settings', color: 'red' })
     } finally {
       setSaving(false)

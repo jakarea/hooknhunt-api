@@ -160,7 +160,6 @@ export default function ProjectsPage() {
       const response = await getCostCenters({ active: true })
       setCostCenters(response.data || [])
     } catch (error: any) {
-      console.error('Failed to fetch cost centers:', error)
     }
   }
 
@@ -169,7 +168,6 @@ export default function ProjectsPage() {
       const response = await getUsers()
       setManagers(response.data || [])
     } catch (error: any) {
-      console.error('Failed to fetch users:', error)
     }
   }
 
@@ -178,7 +176,6 @@ export default function ProjectsPage() {
       const response = await getProjectStatistics()
       setStatistics(response.data)
     } catch (error: any) {
-      console.error('Failed to fetch statistics:', error)
     }
   }
 
@@ -187,7 +184,6 @@ export default function ProjectsPage() {
       const response = await getNextProjectCode()
       setNextCode(response.data?.next_code || 'PRJ-0001')
     } catch (error: any) {
-      console.error('Failed to fetch next code:', error)
     }
   }
 

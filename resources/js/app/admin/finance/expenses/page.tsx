@@ -154,7 +154,6 @@ export default function ExpensesPage() {
         // Filter only expense accounts
         setAccounts(accountsData.filter((acc) => acc.type === 'expense'))
       } catch (error) {
-        console.error('Failed to fetch accounts:', error)
       }
     }
     fetchAccounts()
@@ -251,9 +250,7 @@ export default function ExpensesPage() {
   // Handle approve
   const handleApprove = async (expenseId: number) => {
     try {
-      console.log('Approving expense:', expenseId)
       const response = await approveExpense(expenseId)
-      console.log('Approve response:', response)
 
       notifications.show({
         title: t('finance.banksPage.expensesPage.notification.approved'),
@@ -262,7 +259,6 @@ export default function ExpensesPage() {
       })
       fetchExpenses(false)
     } catch (error: any) {
-      console.error('Failed to approve expense:', error)
       // Extract actual error message from API response
       const errorMessage = error?.response?.data?.message
         || error?.response?.data?.error

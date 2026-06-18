@@ -102,7 +102,6 @@ export default function HRMDashboardPage() {
       }
     } catch (error) {
       if (import.meta.env.DEV) {
-        console.error('Error fetching HRM stats:', error)
       }
       notifications.show({
         title: t('common.error'),

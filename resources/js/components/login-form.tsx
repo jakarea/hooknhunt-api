@@ -97,7 +97,6 @@ export function LoginForm() {
         password,
       })
 
-      console.log('Login full response:', response)
 
       // Check response status (apiMethods.post already unwraps response.data)
       if (!response?.status) {
@@ -114,7 +113,6 @@ export function LoginForm() {
       const user = data.user
 
       if (!token) {
-        console.error('Token not found in response. Available keys:', Object.keys(data))
         throw new Error('Token not found in login response')
       }
 
@@ -147,7 +145,6 @@ export function LoginForm() {
       // Use window.location.href for hard redirect (more reliable than React Router)
       window.location.href = '/dashboard'
     } catch (error: any) {
-      console.error('Login error:', error)
 
       // Handle different error types
       if (error && typeof error === 'object' && 'handled' in error) {
@@ -169,7 +166,6 @@ export function LoginForm() {
           } else {
             // Show inline error for password field
             const msg = responseData.message || responseData.error || 'Invalid credentials. Please try again.'
-            console.log('Showing error message:', msg)
             setErrors({ password: msg })
             notifications.show({
               title: 'Login Failed',
@@ -182,7 +178,6 @@ export function LoginForm() {
       } else {
         // Direct error (not from API interceptor)
         const errorMessage = (error as Error)?.message || 'Login failed. Please try again.'
-        console.log('Showing direct error:', errorMessage)
         setErrors({ password: errorMessage })
         notifications.show({
           title: 'Login Failed',

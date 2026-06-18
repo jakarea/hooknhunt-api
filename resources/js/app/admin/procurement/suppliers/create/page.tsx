@@ -271,7 +271,6 @@ export default function CreateSupplierPage() {
         throw apiError
       }
     } catch (error: any) {
-      console.error('Failed to create supplier:', error)
 
       // ✅ Handle backend validation errors - show inline
       const apiErrors = handleApiValidationErrors(error)

@@ -55,7 +55,6 @@ export default function ProcurementProductsPage() {
         per_page: 20,
       })
 
-      console.log('Procurement products response:', response)
 
       // Handle different response structures
       let productsData: any[] = []
@@ -86,13 +85,11 @@ export default function ProcurementProductsPage() {
       }
       // Fallback: Empty array
       else {
-        console.warn('Unexpected response structure:', response)
         productsData = []
       }
 
       setProducts(productsData)
     } catch (error: any) {
-      console.error('Failed to fetch products:', error)
       setProducts([]) // Always set to empty array on error
       notifications.show({
         title: t('common.error') || 'Error',
@@ -124,7 +121,6 @@ export default function ProcurementProductsPage() {
       })
       fetchProducts()
     } catch (error: any) {
-      console.error('Failed to delete product:', error)
       notifications.show({
         title: t('common.error') || 'Error',
         message: error.message || 'Failed to delete product',
@@ -146,7 +142,6 @@ export default function ProcurementProductsPage() {
       })
       fetchProducts()
     } catch (error: any) {
-      console.error('Failed to update status:', error)
       notifications.show({
         title: t('common.error') || 'Error',
         message: error.message || 'Failed to update status',

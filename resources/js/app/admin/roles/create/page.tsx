@@ -95,7 +95,6 @@ export default function CreateRolePage() {
           setPermissionGroups(groups)
         }
       } catch (error) {
-        console.error('Failed to fetch permissions:', error)
         notifications.show({
           title: 'Error',
           message: 'Failed to load permissions',
@@ -298,7 +297,6 @@ export default function CreateRolePage() {
         throw new Error(response.data.message || 'Failed to create role')
       }
     } catch (error) {
-      console.error('Failed to create role:', error)
       notifications.show({
         title: 'Error',
         message: (error as any).response?.data?.message || (error as any).message || 'Failed to create role. Please try again.',

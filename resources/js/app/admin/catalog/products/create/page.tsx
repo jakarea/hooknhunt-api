@@ -203,10 +203,8 @@ export default function CreateProductPage() {
     enabled: true,
     sessionDurationMinutes: 60, // 60 minute session
     onWarning: (minutesRemaining) => {
-      console.log(`Session expiring in ${minutesRemaining} minutes`)
     },
     onExpired: () => {
-      console.log('Session expired - user should save work')
     },
   })
   const navigate = useNavigate()
@@ -233,15 +231,9 @@ export default function CreateProductPage() {
   const collapseSidebarIfNeeded = () => {
     // Get fresh state from store
     const state = useUIStore.getState()
-    console.log('🔍 collapseSidebarIfNeeded called', {
-      sidebarCollapsed: state.sidebarCollapsed,
-      willToggle: !state.sidebarCollapsed
-    })
     if (!state.sidebarCollapsed) {
-      console.log('📉 Toggling sidebar to collapsed')
       state.toggleSidebar()
     } else {
-      console.log('✅ Sidebar already collapsed, skipping')
     }
   }
 
@@ -421,7 +413,6 @@ export default function CreateProductPage() {
           const categoriesData = categoriesResponse?.data?.categories || []
           setCategories(Array.isArray(categoriesData) ? categoriesData : [])
         } catch (catError) {
-          console.error('❌ Failed to fetch categories:', catError)
           setCategories([])
         }
 
@@ -432,7 +423,6 @@ export default function CreateProductPage() {
           const brandsData = brandsResponse?.data?.brands || []
           setBrands(Array.isArray(brandsData) ? brandsData : [])
         } catch (brandError) {
-          console.error('❌ Failed to fetch brands:', brandError)
           setBrands([])
         }
 
@@ -467,11 +457,9 @@ export default function CreateProductPage() {
 
           setPricingSettings(parsedSettings)
         } catch (settingsError) {
-          console.error('❌ Failed to fetch pricing settings:', settingsError)
           // Keep default values
         }
       } catch (error) {
-        console.error('Failed to fetch data:', error)
         notifications.show({
           title: t('common.error') || 'Error',
           message: t('catalog.productsCreate.notification.loadingError') || 'Failed to load required data',
@@ -795,10 +783,8 @@ export default function CreateProductPage() {
 
       // Helper function to make images resizable and selectable
       const setupImageInteractions = (quillInstance: any) => {
-        console.log('🔧 setupImageInteractions called for:', quillInstance)
         const editor = quillInstance.root
         const editorContainer = editor.parentElement
-        console.log('📝 Editor root:', editor, 'Container:', editorContainer)
 
         // Store current selected image and its UI elements
         let selectedImage: HTMLImageElement | null = null
@@ -814,7 +800,6 @@ export default function CreateProductPage() {
 
         // Remove all existing UI elements
         const cleanupImageUI = () => {
-          console.log('🧹 Cleaning up UI')
           uiElements.handles.forEach(handle => handle.remove())
           if (uiElements.deleteBtn) uiElements.deleteBtn.remove()
           if (uiElements.sizeDisplay) uiElements.sizeDisplay.remove()
@@ -869,13 +854,11 @@ export default function CreateProductPage() {
 
         // Add resize handles and delete button to selected image
         const addImageUI = (img: HTMLImageElement) => {
-          console.log('➕ Adding UI to image:', img)
           cleanupImageUI()
 
           selectedImage = img
 
           if (!editorContainer) {
-            console.log('❌ No editor container found')
             return
           }
 
@@ -892,7 +875,6 @@ export default function CreateProductPage() {
             handle.dataset.position = pos
             editorContainer.appendChild(handle)
             uiElements.handles.push(handle)
-            console.log(`✅ Added resize handle: ${pos}`)
           })
 
           // Add delete button
@@ -902,7 +884,6 @@ export default function CreateProductPage() {
           deleteBtn.title = 'Delete image'
           editorContainer.appendChild(deleteBtn)
           uiElements.deleteBtn = deleteBtn
-          console.log('✅ Added delete button')
 
           // Add size display
           const sizeDisplay = document.createElement('div')
@@ -910,16 +891,12 @@ export default function CreateProductPage() {
           sizeDisplay.textContent = `${img.offsetWidth} × ${img.offsetHeight}`
           editorContainer.appendChild(sizeDisplay)
           uiElements.sizeDisplay = sizeDisplay
-          console.log('✅ Added size display:', sizeDisplay.textContent)
 
           // Update positions
           setTimeout(() => updateUIPosition(), 0)
 
           // Verify all elements were added
           setTimeout(() => {
-            console.log('🔍 Verification - Handles in container:', editorContainer.querySelectorAll('.richtext-image-resize-handle').length,
-              'Delete btn:', !!editorContainer.querySelector('.richtext-image-delete-btn'),
-              'Size display:', !!editorContainer.querySelector('.richtext-image-size-display'))
           }, 100)
         }
 
@@ -929,18 +906,15 @@ export default function CreateProductPage() {
 
           // Check if clicking on image
           if (target && target.tagName === 'IMG' && target.classList.contains('richtext_image')) {
-            console.log('🖼️ Clicked on richtext_image')
             e.preventDefault()
             e.stopPropagation()
             const img = target as HTMLImageElement
 
             // Toggle selection
             if (selectedImage === img) {
-              console.log('❌ Deselecting image')
               img.classList.remove('selected')
               cleanupImageUI()
             } else {
-              console.log('✅ Selecting image')
               // Remove selected class from previous image
               if (selectedImage) {
                 selectedImage.classList.remove('selected')
@@ -949,7 +923,6 @@ export default function CreateProductPage() {
               addImageUI(img)
             }
           } else {
-            console.log('🌫️ Clicked elsewhere, deselecting all images')
             // Deselect image when clicking elsewhere
             if (selectedImage) {
               selectedImage.classList.remove('selected')
@@ -962,11 +935,9 @@ export default function CreateProductPage() {
         if (editorContainer) {
           editorContainer.addEventListener('click', (e: any) => {
             const target = e.target
-            console.log('🖱️ Container click on:', target, 'classes:', target?.className)
 
             // Check if clicking on resize handle
             if (target.classList.contains('richtext-image-resize-handle')) {
-              console.log('✋ Clicked on resize handle:', target.dataset.position)
               e.preventDefault()
               e.stopPropagation()
               return // Let the mousedown handler deal with it
@@ -974,7 +945,6 @@ export default function CreateProductPage() {
 
             // Check if clicking on delete button
             if (target.classList.contains('richtext-image-delete-btn')) {
-              console.log('🗑️ Clicked on delete button')
               e.preventDefault()
               e.stopPropagation()
               if (selectedImage) {
@@ -993,7 +963,6 @@ export default function CreateProductPage() {
         if (editorContainer) {
           editorContainer.addEventListener('mousedown', (e: any) => {
             if (e.target.classList.contains('richtext-image-resize-handle')) {
-              console.log('🎯 Started resizing with handle:', e.target.dataset.position)
               e.preventDefault()
               e.stopPropagation()
               const handle = e.target
@@ -1057,7 +1026,6 @@ export default function CreateProductPage() {
               const onMouseUp = () => {
                 document.removeEventListener('mousemove', onMouseMove)
                 document.removeEventListener('mouseup', onMouseUp)
-                console.log('✅ Finished resizing')
               }
 
               document.addEventListener('mousemove', onMouseMove)
@@ -1219,7 +1187,6 @@ export default function CreateProductPage() {
         descriptionQuillRef.current = quill1
 
         // Setup image interactions (resize, delete, replace)
-        console.log('🚀 Calling setupImageInteractions for description editor')
         setupImageInteractions(quill1)
       }
 
@@ -1384,7 +1351,6 @@ export default function CreateProductPage() {
         highlightsQuillRef.current = quill2
 
         // Setup image interactions
-        console.log('🚀 Calling setupImageInteractions for highlights editor')
         setupImageInteractions(quill2)
       }
 
@@ -1571,7 +1537,6 @@ export default function CreateProductPage() {
         descriptionBnQuillRef.current = quillBn1
 
         // Setup image interactions
-        console.log('🚀 Calling setupImageInteractions for Bangla description editor')
         setupImageInteractions(quillBn1)
       }
 
@@ -1660,7 +1625,6 @@ export default function CreateProductPage() {
         highlightsBnQuillRef.current = quillBn2
 
         // Setup image interactions
-        console.log('🚀 Calling setupImageInteractions for Bangla highlights editor')
         setupImageInteractions(quillBn2)
       }
 
@@ -1977,7 +1941,6 @@ export default function CreateProductPage() {
   // Common submit logic that both handlers use
   const submitProduct = async (productStatus: 'draft' | 'published') => {
     try {
-      console.log('📝 Form submit triggered with status:', productStatus)
 
     // Clear previous errors
     setErrors({})
@@ -1988,34 +1951,28 @@ export default function CreateProductPage() {
 
     if (!productName || productName.trim() === '') {
       newErrors.productName = t('catalog.productsCreate.validation.productNameRequired') || 'Product name is required'
-      console.log('❌ Missing: productName')
     }
 
     if (!category) {
       newErrors.category = t('catalog.productsCreate.validation.categoryRequired') || 'Please select a category'
-      console.log('❌ Missing: category')
     }
 
     if (!brand) {
       newErrors.brand = t('catalog.productsCreate.validation.brandRequired') || 'Please select a brand'
-      console.log('❌ Missing: brand')
     }
 
     if (!description || description.trim().length < 10) {
       newErrors.description = t('catalog.productsCreate.validation.descriptionTooShort') || 'Description must be at least 10 characters'
-      console.log('❌ Missing or too short: description')
     }
 
     if (variants.length === 0) {
       newErrors.variants = t('catalog.productsCreate.validation.atLeastOneVariant') || 'At least one variant is required'
-      console.log('❌ Missing: variants')
     }
 
     // Validate variants
     variants.forEach((variant, index) => {
       if (!variant.name || variant.name.trim() === '') {
         newErrors[`variant.${index}.name`] = t('catalog.productsCreate.validation.variantNameRequired', { index: index + 1 }) || `Variant ${index + 1} name is required`
-        console.log(`❌ Missing: variant.${index}.name`)
       }
     })
 
@@ -2026,12 +1983,10 @@ export default function CreateProductPage() {
       const uniqueDuplicates = [...new Set(duplicateNames)]
       newErrors.variants = t('catalog.productsCreate.validation.duplicateVariantNames', { names: uniqueDuplicates.join(', ') }) ||
         `Variant names must be unique. Duplicate(s): ${uniqueDuplicates.join(', ')}`
-      console.log('❌ Duplicate variant names:', uniqueDuplicates)
     }
 
     // If there are errors, set them and stop
     if (Object.keys(newErrors).length > 0) {
-      console.log('🚫 Validation errors:', newErrors)
       setErrors(newErrors)
 
       // Scroll to first error
@@ -2043,7 +1998,6 @@ export default function CreateProductPage() {
       return
     }
 
-    console.log('✅ Validation passed, submitting...')
     setIsSubmitting(true)
 
     try {
@@ -2094,35 +2048,9 @@ export default function CreateProductPage() {
         }))
       }
 
-      console.log('📦 Payload prepared:', payload)
-      console.log('🖼️ Variant thumbnail data:', {
-        variantsCount: payload.variants?.length || 0,
-        thumbnailIds: payload.variants?.map((v: any, i: number) => ({
-          index: i,
-          name: v.name,
-          thumbnail_id: v.thumbnail_id,
-          thumbnailIdType: typeof v.thumbnail_id,
-          thumbnailIdValue: v.thumbnail_id,
-          hasThumbnailId: !!v.thumbnail_id
-        }))
-      })
-
-      // Log each variant's thumbnail data in detail
-      payload.variants?.forEach((v: any, i: number) => {
-        console.log(`Variant ${i} (${v.name}):`, {
-          thumbnail_id: v.thumbnail_id,
-          thumbnail_id_type: typeof v.thumbnail_id,
-          thumbnail_id_value: v.thumbnail_id,
-          is_null: v.thumbnail_id === null,
-          is_undefined: v.thumbnail_id === undefined,
-          has_value: !!v.thumbnail_id
-        })
-      })
 
       // Call API
-      console.log('🌐 Calling API...')
       const response = await apiMethods.post('/catalog/products', payload)
-      console.log('✅ API response:', response)
 
       // Success
       notifications.show({
@@ -2137,7 +2065,6 @@ export default function CreateProductPage() {
       }, 1500)
 
     } catch (error: any) {
-      console.error('API Error:', error)
 
       // Handle validation errors from server
       if (error.response?.status === 422 && error.response?.data?.errors) {
@@ -2177,7 +2104,6 @@ export default function CreateProductPage() {
       setIsSubmitting(false)
     }
     } catch (error: any) {
-      console.error('❌ Unexpected error in submitProduct:', error)
       notifications.show({
         title: t('common.error') || 'Error',
         message: error.message || 'An unexpected error occurred',

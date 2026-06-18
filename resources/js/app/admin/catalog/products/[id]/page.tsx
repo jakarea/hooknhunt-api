@@ -294,7 +294,6 @@ export default function ProductDetailPage() {
       // Variants come pre-paired from backend (retail + wholesale merged)
       setProduct(productData)
     } catch (err: unknown) {
-      console.error('Failed to load product:', err)
 
       // Type-safe error handling
       const errorResponse = err as { response?: { data?: { message?: string } }; message?: string }
@@ -330,7 +329,6 @@ export default function ProductDetailPage() {
       setDeleteModalOpen(false)
       navigate('/catalog/products')
     } catch (error: any) {
-      console.error('Failed to delete product:', error)
       notifications.show({
         title: t('common.error') || 'Error',
         message: error.response?.data?.message || 'Failed to delete product',
@@ -393,7 +391,6 @@ export default function ProductDetailPage() {
     } catch (err) {
       // Revert on failure
       setProduct({ ...product, crossSaleProducts: previousProducts })
-      console.error('Failed to remove cross-sale:', err)
       notifications.show({ title: 'Error', message: 'Failed to remove cross-sale product', color: 'red' })
     }
   }, [product, fetchProduct])
@@ -420,7 +417,6 @@ export default function ProductDetailPage() {
     } catch (err) {
       // Revert on failure
       setProduct({ ...product, upSaleProducts: previousProducts })
-      console.error('Failed to remove up-sale:', err)
       notifications.show({ title: 'Error', message: 'Failed to remove up-sale product', color: 'red' })
     }
   }, [product, fetchProduct])
@@ -947,7 +943,7 @@ export default function ProductDetailPage() {
                   size="xs"
                   variant="default"
                   leftSection={<IconEdit size={14} />}
-                  onClick={() => navigate(`/catalog/products/${product.slug}/edit`)}
+                  onClick={() => window.open(`/catalog/products/${product.slug}/edit`, '_blank')}
                 >
                   Edit
                 </Button>

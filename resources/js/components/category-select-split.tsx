@@ -46,12 +46,10 @@ function renderCategoryTree(
   onSelect: (category: Category) => void,
   searchQuery: string = ''
 ): React.ReactNode {
-  console.log('renderCategoryTree called with', categories.length, 'categories, level:', level)
 
   return categories
     .filter(cat => cat.name.toLowerCase().includes(searchQuery.toLowerCase()))
     .map((category) => {
-      console.log('Rendering category:', category.name, 'has children:', category.children?.length || 0)
       return (
         <div key={category.id}>
         <Group
@@ -110,17 +108,14 @@ export function CategorySelectSplit({
   // Load all categories as tree when dropdown opens
   useEffect(() => {
     if (opened && allCategories.length === 0) {
-      console.log('Loading category tree...')
       fetch('/api/v2/catalog/helpers/categories/tree')
         .then(res => res.json())
         .then(data => {
-          console.log('Tree data received:', data)
           if (data?.data && Array.isArray(data.data)) {
-            console.log('Setting categories:', data.data.length)
             setAllCategories(data.data)
           }
         })
-        .catch(err => console.error('Failed to load category tree:', err))
+        .catch(() => {})
     }
   }, [opened, allCategories.length])
 
@@ -145,7 +140,6 @@ export function CategorySelectSplit({
           setStoredBreadcrumbPath(path)
         }
       } catch (error) {
-        console.error('Failed to fetch category path:', error)
       }
     }
 

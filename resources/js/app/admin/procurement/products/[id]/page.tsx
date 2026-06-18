@@ -49,13 +49,9 @@ export default function ProcurementProductDetailPage() {
     try {
       setLoading(true)
       const response: any = await getProcurementProduct(id)
-      console.log('🔍 Raw API response:', response)
       const fullProduct = response?.data || response
-      console.log('🔍 Product data:', fullProduct)
-      console.log('🔍 Product name:', fullProduct?.name)
       setProduct(fullProduct)
     } catch (error: any) {
-      console.error('Failed to load product:', error)
       notifications.show({
         title: t('common.error') || 'Error',
         message: error.message || 'Failed to load product details',

@@ -95,7 +95,6 @@ export default function TransactionsPage() {
 
       const response = await getTransactions(filters)
 
-      console.log('DEBUG: Raw response:', response)
 
       // Handle response structure - backend returns { data: { transactions: [], meta: {} } }
       let transactionsData: UnifiedTransaction[] = []
@@ -104,7 +103,6 @@ export default function TransactionsPage() {
       if (response && typeof response === 'object') {
         if ('data' in response) {
           const innerData = response.data
-          console.log('DEBUG: response.data:', innerData)
 
           if (typeof innerData === 'object' && 'transactions' in innerData) {
             // Backend returns { data: { transactions: [], meta: {} } }
@@ -124,9 +122,6 @@ export default function TransactionsPage() {
         }
       }
 
-      console.log('DEBUG: transactionsData count:', transactionsData.length)
-      console.log('DEBUG: First transaction:', transactionsData[0])
-      console.log('DEBUG: transactionDate of first:', transactionsData[0]?.transactionDate)
 
       setTransactions(transactionsData)
       if (meta) {
@@ -165,7 +160,6 @@ export default function TransactionsPage() {
         }
       }
     } catch (error) {
-      console.error('Failed to fetch statistics:', error)
     }
   }, [selectedBank, startDate, endDate])
 
@@ -184,7 +178,6 @@ export default function TransactionsPage() {
         }
         setBanks(banksData)
       } catch (error) {
-        console.error('Failed to fetch banks:', error)
       }
     }
     fetchBanks()

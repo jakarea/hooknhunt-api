@@ -76,7 +76,6 @@ export const fetchSuppliersSwr = async (params: {
     const response = await getSuppliers(params)
     return response
   } catch (error) {
-    console.error('Failed to fetch suppliers:', error)
     throw error
   }
 }

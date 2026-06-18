@@ -560,6 +560,11 @@ class OrderController extends Controller
                         ->where('sgi.id', $item->id)
                         ->select(
                             'p.id as product_id',
+                            'p.name as product_name',
+                            'p.slug as product_slug',
+                            'p.product_code as product_code',
+                            'pv.sku as variant_sku',
+                            'pv.variant_name',
                             'p.thumbnail_id as product_thumbnail_id',
                             'p.gallery_images',
                             'mf.id as thumbnail_id',
@@ -590,6 +595,15 @@ class OrderController extends Controller
 
                     $item->image_url = $imageData['image_url'];
                     $item->image_id = $imageData['image_id'];
+
+                    // Add product and variant details from thumbnail query
+                    if ($thumbnail) {
+                        $item->product_name = $thumbnail->product_name;
+                        $item->product_slug = $thumbnail->product_slug;
+                        $item->product_code = $thumbnail->product_code;
+                        $item->product_sku = $thumbnail->variant_sku;
+                        $item->variant_name = $thumbnail->variant_name;
+                    }
 
                     return $item;
                 });
@@ -983,7 +997,7 @@ class OrderController extends Controller
             $orderArray['items'] = collect($orderArray['items'])->map(function ($item) {
                 $item['total_price_formatted'] = number_format($item['total_price'], 2);
 
-                // Add thumbnail using direct SQL join (module independence maintained)
+                // Add thumbnail, product info, and variant details using direct SQL join (module independence maintained)
                 $thumbnail = DB::table('sales_order_items as sgi')
                     ->leftJoin('product_variants as pv', 'sgi.product_variant_id', '=', 'pv.id')
                     ->leftJoin('products as p', 'pv.product_id', '=', 'p.id')
@@ -991,6 +1005,11 @@ class OrderController extends Controller
                     ->where('sgi.id', $item['id'])
                     ->select(
                         'p.id as product_id',
+                        'p.name as product_name',
+                        'p.slug as product_slug',
+                        'p.product_code as product_code',
+                        'pv.sku as variant_sku',
+                        'pv.variant_name',
                         'p.thumbnail_id as product_thumbnail_id',
                         'p.gallery_images',
                         'mf.id as thumbnail_id',
@@ -1022,6 +1041,15 @@ class OrderController extends Controller
                 $item['imageUrl'] = $imageData['image_url'];
                 $item['image_url'] = $imageData['image_url'];
                 $item['image_id'] = $imageData['image_id'];
+
+                // Add product and variant details from thumbnail query
+                if ($thumbnail) {
+                    $item['product_name'] = $thumbnail->product_name;
+                    $item['product_slug'] = $thumbnail->product_slug;
+                    $item['product_code'] = $thumbnail->product_code;
+                    $item['product_sku'] = $thumbnail->variant_sku;
+                    $item['variant_name'] = $thumbnail->variant_name;
+                }
 
                 return $item;
             })->toArray();

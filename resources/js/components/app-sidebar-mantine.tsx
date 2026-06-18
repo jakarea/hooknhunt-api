@@ -379,13 +379,9 @@ export function AppSidebarMantine({
   // Filter navigation items based on search only
   const filteredNavItems = React.useMemo(() => {
     // DEBUG: Log permission objects for troubleshooting
-    console.log('[Sidebar] Permission objects count:', permissionObjects.length)
-    console.log('[Sidebar] Permission objects:', permissionObjects)
-    console.log('[Sidebar] User:', user)
 
     // Super admins see everything - no permission filtering
     if (isSuperAdmin()) {
-      console.log('[Sidebar] User is super admin - showing all items')
       let items = data.navItems
 
       // Still apply search filtering for super admins
@@ -443,7 +439,6 @@ export function AppSidebarMantine({
       }
     });
 
-    console.log('[Sidebar] Nested permissions:', nestedPermissions)
 
 
     // Helper function to check if user has any permission for a given URL/path
@@ -520,7 +515,6 @@ export function AppSidebarMantine({
             return true
           }
           const hasPermission = hasPermissionForPath(item.url)
-          console.log('[Sidebar] Item:', item.title, 'URL:', item.url, 'Has permission:', hasPermission)
           return hasPermission
         }
 
@@ -545,7 +539,6 @@ export function AppSidebarMantine({
         return item
       })
 
-      console.log('[Sidebar] Filtered items:', filtered)
       return filtered
     }
 

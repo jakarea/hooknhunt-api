@@ -136,23 +136,20 @@ Route::prefix('api/v2/store')->group(function () {
     // ===============================================
 
     Route::prefix('payments')->group(function () {
-        // Initiate payment (routes to SSLCommerz or EPS based on payment_method)
-        Route::post('/initiate', [PaymentGatewayController::class, 'initiateEPSPayment']);
+        // Initiate payment — routes to SSL Commerz or EPS based on payment_method field
+        Route::post('/initiate', [PaymentGatewayController::class, 'initiatePayment']);
 
-        // EMI options (SSLCommerz only)
+        // EMI options (SSL Commerz only)
         Route::post('/emi-options', [PaymentGatewayController::class, 'emiOptions']);
 
-        // Payment Gateway callbacks (GET for browser redirects, POST for IPN webhook)
-        Route::get('/success', [PaymentGatewayController::class, 'success'])->name('payment.success');
-        Route::get('/fail', [PaymentGatewayController::class, 'fail'])->name('payment.fail');
-        Route::get('/cancel', [PaymentGatewayController::class, 'cancel'])->name('payment.cancel');
-        Route::post('/ipn', [PaymentGatewayController::class, 'epsIPN']);
+        // Payment callbacks — SSL Commerz sends POST, EPS sends GET; both accepted
+        Route::match(['get', 'post'], '/success', [PaymentGatewayController::class, 'success'])->name('payment.success');
+        Route::match(['get', 'post'], '/fail', [PaymentGatewayController::class, 'fail'])->name('payment.fail');
+        Route::match(['get', 'post'], '/cancel', [PaymentGatewayController::class, 'cancel'])->name('payment.cancel');
 
-        // Authenticated payment status check
-        Route::middleware(['auth', \Illuminate\Routing\Middleware\SubstituteBindings::class])->group(function () {
-            Route::get('/status/{tran_id}', [PaymentGatewayController::class, 'status']);
-            Route::get('/eps/status/{order_id}', [PaymentGatewayController::class, 'epsStatus']);
-        });
+        // IPN webhooks (server-to-server)
+        Route::post('/ipn', [PaymentGatewayController::class, 'epsIPN']);
+        Route::post('/sslcommerz/ipn', [PaymentGatewayController::class, 'sslCommerzIPN']);
     });
 
     // Payment verification cron (accessible via secret key)

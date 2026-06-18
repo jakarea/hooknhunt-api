@@ -272,7 +272,6 @@ export default function PurchaseOrderDetailsPage() {
       const banksData = response?.data?.data || response?.data || []
       setBanks(Array.isArray(banksData) ? banksData : [])
     } catch (error) {
-      console.error('Failed to load banks:', error)
     }
   }
 
@@ -431,7 +430,6 @@ export default function PurchaseOrderDetailsPage() {
       setStatusModalOpen(false)
       await fetchOrder(Number(id)) // Refresh order data
     } catch (error: any) {
-      console.error('Failed to update status:', error)
       showStatusUpdateError(error, t)
     } finally {
       setUpdatingStatus(false)
@@ -473,7 +471,6 @@ export default function PurchaseOrderDetailsPage() {
       setReceivingModalOpen(false)
       await fetchOrder(Number(id))
     } catch (error: any) {
-      console.error('Failed to receive goods:', error)
       notifications.show({
         title: t('common.error'),
         message: error.response?.data?.message || error.message || t('procurement.ordersPage.notifications.errorUpdating'),
@@ -505,7 +502,6 @@ export default function PurchaseOrderDetailsPage() {
       setApproveModalOpen(false)
       await fetchOrder(Number(id))
     } catch (error: any) {
-      console.error('Failed to approve order:', error)
       notifications.show({
         title: t('common.error'),
         message: error.response?.data?.message || error.message || t('procurement.ordersPage.notifications.errorUpdating'),

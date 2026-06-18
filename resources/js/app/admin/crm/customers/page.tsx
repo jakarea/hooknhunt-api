@@ -294,7 +294,6 @@ export default function CustomersPage() {
       }
     } catch (error: any) {
       if (import.meta.env.DEV) {
-        console.error('Error exporting customers:', error)
       }
       notifications.show({
         title: t('common.error'),
@@ -347,7 +346,6 @@ export default function CustomersPage() {
         } else {
           // Debug: log when pagination data is not found
           if (import.meta.env.DEV) {
-            console.log('Pagination data not found:', data)
           }
         }
       } else {
@@ -355,7 +353,6 @@ export default function CustomersPage() {
       }
     } catch (error) {
       if (import.meta.env.DEV) {
-        console.error('Error fetching customers:', error)
       }
       notifications.show({
         title: t('common.error'),

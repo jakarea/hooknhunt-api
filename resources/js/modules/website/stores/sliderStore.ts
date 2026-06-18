@@ -65,7 +65,6 @@ export const useSliderStore = create<SliderState>((set, get) => ({
 
       set({ sliders: slidersData, loading: false })
     } catch (error: any) {
-      console.error('Failed to load sliders:', error)
       notifications.show({
         title: t('sliders.failedToLoad') || 'Failed to Load',
         message: t('sliders.failedToLoad') || 'Failed to load sliders',
@@ -92,7 +91,6 @@ export const useSliderStore = create<SliderState>((set, get) => ({
 
       return true
     } catch (error: any) {
-      console.error('Failed to create slider:', error)
       notifications.show({
         title: t('sliders.failedToCreate') || 'Failed to Create',
         message: t('sliders.failedToCreate') || 'Failed to create slider',
@@ -123,7 +121,6 @@ export const useSliderStore = create<SliderState>((set, get) => ({
 
       return true
     } catch (error: any) {
-      console.error('Failed to update slider:', error)
       notifications.show({
         title: t('sliders.failedToUpdate') || 'Failed to Update',
         message: t('sliders.failedToUpdate') || 'Failed to update slider',
@@ -149,7 +146,6 @@ export const useSliderStore = create<SliderState>((set, get) => ({
 
       return true
     } catch (error: any) {
-      console.error('Failed to delete slider:', error)
       notifications.show({
         title: t('sliders.failedToDelete') || 'Failed to Delete',
         message: t('sliders.failedToDelete') || 'Failed to delete slider',
@@ -170,7 +166,6 @@ export const useSliderStore = create<SliderState>((set, get) => ({
         }).sort((a, b) => a.sortOrder - b.sortOrder),
       }))
     } catch (error: any) {
-      console.error('Failed to reorder sliders:', error)
       notifications.show({
         title: t('sliders.failedToReorder') || 'Failed to Reorder',
         message: t('sliders.failedToReorder') || 'Failed to reorder sliders',
@@ -194,7 +189,6 @@ export const useSliderStore = create<SliderState>((set, get) => ({
         sliders: state.sliders.map((s) => (s.id === id ? updatedSlider : s)),
       }))
     } catch (error: any) {
-      console.error('Failed to toggle slider:', error)
       notifications.show({
         title: t('sliders.failedToToggle') || 'Failed to Toggle',
         message: t('sliders.failedToToggle') || 'Failed to toggle slider',

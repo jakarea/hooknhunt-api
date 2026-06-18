@@ -33,7 +33,6 @@ export function usePermissions() {
    */
   const refreshPermissions = useCallback(async () => {
     if (!user?.id || !token) {
-      console.warn('Cannot refresh permissions: No user or token')
       notifications.show({
         title: 'Cannot Refresh',
         message: 'Please login first',
@@ -81,7 +80,6 @@ export function usePermissions() {
         throw new Error('No user data in response')
       }
     } catch (err) {
-      console.error('Failed to refresh permissions:', err)
       notifications.show({
         title: 'Error',
         message: 'Failed to refresh permissions. Please try again.',

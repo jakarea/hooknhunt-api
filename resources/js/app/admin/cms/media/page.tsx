@@ -283,7 +283,6 @@ export default function MediaLibraryPage() {
       currentPageRef.current = 1
       await fetchFiles(false)
     } catch (error: any) {
-      console.error('Upload error:', error)
 
       // Handle validation errors with detailed messages
       if (error.response?.status === 422 && error.response?.data?.errors) {

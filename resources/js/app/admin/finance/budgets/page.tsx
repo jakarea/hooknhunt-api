@@ -136,7 +136,6 @@ export default function BudgetsPage() {
       const accountsData = Array.isArray(response) ? response : (response.data?.data || response.data || [])
       setAccounts(accountsData)
     } catch (error: any) {
-      console.error('Failed to fetch accounts:', error)
       setAccounts([])
     }
   }
@@ -146,7 +145,6 @@ export default function BudgetsPage() {
       const response = await getBudgetStatistics(filters.fiscal_year || undefined)
       setStatistics(response.data)
     } catch (error: any) {
-      console.error('Failed to fetch statistics:', error)
       // Set default statistics to avoid page break
       setStatistics({
         total_budgets: 0,

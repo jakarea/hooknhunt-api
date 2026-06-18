@@ -107,7 +107,6 @@ export default function EditProcurementProductPage() {
         setSuppliers(transformedSuppliers)
       }
     } catch (error: any) {
-      console.error('Failed to load product:', error)
       notifications.show({
         title: t('common.error') || 'Error',
         message: error.message || 'Failed to load product details',
@@ -132,8 +131,6 @@ export default function EditProcurementProductPage() {
       const brandsData = brandsRes?.data || brandsRes || []
       const suppliersData = suppliersRes?.data?.data || suppliersRes?.data || suppliersRes || []
 
-      console.log('🔍 Suppliers API response:', suppliersRes)
-      console.log('🔍 Suppliers data extracted:', suppliersData)
 
       setCategories(
         categoriesData.map((c: any) => ({ value: String(c.id), label: c.name }))
@@ -141,7 +138,6 @@ export default function EditProcurementProductPage() {
       setBrands(brandsData.map((b: any) => ({ value: String(b.id), label: b.name })))
       setAllSuppliers(Array.isArray(suppliersData) ? suppliersData : [])
     } catch (error: any) {
-      console.error('Failed to load dropdowns:', error)
     } finally {
       setLoadingDropdowns(false)
     }
@@ -195,7 +191,6 @@ export default function EditProcurementProductPage() {
 
       navigate(`/procurement/products/${id}`)
     } catch (error: any) {
-      console.error('Failed to update product:', error)
       notifications.show({
         title: t('common.error') || 'Error',
         message: error.response?.data?.message || error.message || 'Failed to update product',

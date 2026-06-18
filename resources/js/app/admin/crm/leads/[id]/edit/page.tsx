@@ -175,7 +175,6 @@ export default function EditLeadPage() {
         setStaffList(users)
       }
     } catch (error) {
-      console.error('Error fetching staff:', error)
       notifications.show({
         title: 'Warning',
         message: 'Could not load staff list',
@@ -325,8 +324,6 @@ export default function EditLeadPage() {
         throw new Error(response.data?.message || 'Failed to log activity')
       }
     } catch (error: any) {
-      console.error('Activity logging error:', error)
-      console.error('Error response:', error.response?.data)
 
       // Show validation errors if any
       if (error.response?.data?.errors) {

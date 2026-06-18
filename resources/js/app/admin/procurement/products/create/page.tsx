@@ -300,7 +300,6 @@ export default function CreateProcurementProductPage() {
       setBrands(transformBrandsToSelectOptions(brandsData))
       setAllSuppliers(Array.isArray(suppliersData) ? suppliersData : [])
     } catch (error: any) {
-      console.error('Failed to load dropdowns:', error)
       notifications.show({
         title: t('common.error') || 'Error',
         message: 'Failed to load form options',
@@ -382,7 +381,6 @@ export default function CreateProcurementProductPage() {
         navigate('/procurement/products')
       }
     } catch (error: any) {
-      console.error('Failed to create product:', error)
       notifications.show({
         title: t('common.error') || 'Error',
         message: error.response?.data?.message || error.message || 'Failed to create product',

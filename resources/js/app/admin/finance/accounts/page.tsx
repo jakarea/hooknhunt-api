@@ -131,7 +131,6 @@ export default function AccountsPage() {
 
       setAccounts(accountsData)
     } catch (error) {
-      console.error('Error fetching accounts:', error)
       notifications.show({
         title: t('common.error') || 'Error',
         message: t('common.somethingWentWrong') || 'Failed to load accounts',
@@ -157,7 +156,6 @@ export default function AccountsPage() {
       const response = await getTrialBalance(params)
       setTrialBalanceData(response.data)
     } catch (error) {
-      console.error('Error fetching trial balance:', error)
       notifications.show({
         title: t('common.error') || 'Error',
         message: t('common.somethingWentWrong') || 'Failed to load trial balance',
@@ -175,7 +173,6 @@ export default function AccountsPage() {
       const response = await getAccountBalanceSummary()
       setBalanceSummary(response.data)
     } catch (error) {
-      console.error('Error fetching balance summary:', error)
       notifications.show({
         title: t('common.error') || 'Error',
         message: t('common.somethingWentWrong') || 'Failed to load balance summary',

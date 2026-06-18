@@ -23,7 +23,6 @@ const updateSW = registerSW({
     }
   },
   onRegisterError(error) {
-    console.error('❌ PWA: Service worker registration failed', error)
   }
 })
 

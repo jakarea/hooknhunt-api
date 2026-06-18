@@ -174,7 +174,6 @@ export default function EditSupplierPage() {
         navigate('/procurement/suppliers')
       }
     } catch (error: any) {
-      console.error('Failed to load supplier:', error)
       notifications.show({
         title: t('common.error') || 'Error',
         message: error.message || 'Failed to load supplier',

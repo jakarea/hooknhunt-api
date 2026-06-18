@@ -13,6 +13,7 @@ use App\Http\Middleware\XssSanitization;
 use App\Http\Middleware\CamelCaseResponse;
 use App\Http\Middleware\LazychatAuth;
 use App\Http\Middleware\SanitizeInput;
+use App\Http\Middleware\CompressResponse;
 use Illuminate\Console\Scheduling\Schedule;
 
 
@@ -49,8 +50,9 @@ return Application::configure(basePath: dirname(__DIR__))
             $middleware->append(XssSanitization::class);
             $middleware->append(\App\Http\Middleware\AuditLogMiddleware::class);
 
-            // Apply CamelCaseResponse middleware to API routes only
+            // Apply CamelCaseResponse and compression middleware to API routes only
             $middleware->api(CamelCaseResponse::class);
+            $middleware->api(CompressResponse::class);
 
             // Configure authentication redirect - API routes should NOT redirect
             // CRITICAL: This prevents "Route [login] not defined" errors

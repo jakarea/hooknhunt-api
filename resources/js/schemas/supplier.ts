@@ -194,37 +194,21 @@ export type SupplierSearchInput = z.infer<typeof supplierSearchSchema>
 export const formatZodErrors = (error: z.ZodError): Record<string, string> => {
   const errors: Record<string, string> = {}
 
-  console.log('🔍 formatZodErrors received:', {
-    error,
-    errorKeys: Object.keys(error || {}),
-    hasErrors: !!error?.errors,
-    errorsType: typeof error?.errors,
-    errorsIsArray: Array.isArray(error?.errors),
-    hasIssues: !!error?.issues,
-    issuesType: typeof error?.issues,
-    issuesIsArray: Array.isArray(error?.issues),
-    issuesLength: error?.issues?.length
-  })
-
   // Try to get errors from different possible properties
   const errorList = error.issues || error.errors || error.errorList || []
 
-  console.log('🔍 Using error list:', errorList)
 
   if (!Array.isArray(errorList) || errorList.length === 0) {
-    console.error('❌ No error array found on ZodError object')
     return { general: 'Validation error: Please check your input' }
   }
 
   // Map each error to its field name
   errorList.forEach((err: any, index: number) => {
-    console.log(`🔍 Processing error ${index}:`, err)
     // Use first path element as field name (e.g., "email" from ["email"])
     const field = err.path && err.path.length > 0 ? String(err.path[0]) : 'general'
     errors[field] = err.message
   })
 
-  console.log('✅ Final formatted errors:', errors)
   return errors
 }
 

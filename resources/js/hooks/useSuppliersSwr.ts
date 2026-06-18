@@ -96,7 +96,6 @@ export function useSuppliers(options: UseSuppliersOptions = {}): UseSuppliersRet
       dedupingInterval: 2000, // Don't make same request within 2 seconds
       errorRetryCount: 3,
       onError: (error) => {
-        console.error('Failed to fetch suppliers:', error)
         if (error?.status !== 401) {
           // Don't show notification for auth errors (handled globally)
           notifications.show({

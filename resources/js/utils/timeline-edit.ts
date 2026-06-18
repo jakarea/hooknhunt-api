@@ -294,7 +294,6 @@ export const saveTimelineUpdate = async (
 
     return { success: true }
   } catch (error: any) {
-    console.error('Failed to update timeline:', error)
     notifications.show({
       title: t('common.error'),
       message: error.response?.data?.message || error.message || t('procurement.ordersPage.notifications.errorUpdating'),

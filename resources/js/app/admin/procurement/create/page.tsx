@@ -111,7 +111,6 @@ export default function CreatePurchaseOrderPage() {
         })
       }
     } catch (error) {
-      console.error('Failed to fetch exchange rate:', error)
     } finally {
       setLoadingExchangeRate(false)
     }
@@ -124,7 +123,6 @@ export default function CreatePurchaseOrderPage() {
       const suppliersData = response?.data?.data || response?.data || response || []
       setSuppliers(Array.isArray(suppliersData) ? suppliersData : [])
     } catch (error) {
-      console.error('Failed to load suppliers:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load suppliers',
@@ -158,7 +156,6 @@ export default function CreatePurchaseOrderPage() {
 
       setOrderItems(initialItems)
     } catch (error) {
-      console.error('Failed to load products:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load products',
@@ -260,7 +257,6 @@ export default function CreatePurchaseOrderPage() {
 
       navigate('/procurement/orders')
     } catch (error: any) {
-      console.error('Failed to create PO:', error)
       notifications.show({
         title: 'Error',
         message: error.response?.data?.message || error.message || 'Failed to create purchase order',

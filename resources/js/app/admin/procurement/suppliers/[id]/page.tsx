@@ -101,7 +101,6 @@ export default function SupplierDetailsPage() {
 
       setLostItems(allLostItems)
     } catch (error) {
-      console.error('Failed to fetch lost items:', error)
     } finally {
       setLostItemsLoading(false)
     }
@@ -114,7 +113,6 @@ export default function SupplierDetailsPage() {
       const productsData = response?.data?.data || response?.data || []
       setProducts(Array.isArray(productsData) ? productsData : [])
     } catch (error) {
-      console.error('Failed to fetch products:', error)
     } finally {
       setProductsLoading(false)
     }
@@ -578,7 +576,6 @@ export default function SupplierDetailsPage() {
                                 })
                               }}
                               onError={(e) => {
-                                console.error('Failed to load WeChat QR code:', qrSrc)
                               }}
                             />
                           ) : null
@@ -639,7 +636,6 @@ export default function SupplierDetailsPage() {
                                 })
                               }}
                               onError={(e) => {
-                                console.error('Failed to load Alipay QR code:', qrSrc)
                               }}
                             />
                           ) : null

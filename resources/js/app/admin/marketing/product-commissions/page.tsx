@@ -163,7 +163,6 @@ export default function ProductCommissionsPage() {
 
       setHasMore(newCommissions.length === 24)
     } catch (error) {
-      console.error('Failed to fetch commissions:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load commissions.',
@@ -188,7 +187,6 @@ export default function ProductCommissionsPage() {
       }
       setProducts(productsData)
     } catch (error) {
-      console.error('Failed to fetch products:', error)
       setProducts([])
     }
   }
@@ -199,7 +197,6 @@ export default function ProductCommissionsPage() {
       const affiliatesData = response.data.data?.affiliates || response.data.data?.data || response.data.affiliates || []
       setAffiliates(Array.isArray(affiliatesData) ? affiliatesData : [])
     } catch (error) {
-      console.error('Failed to fetch affiliates:', error)
       setAffiliates([])
     }
   }
@@ -243,7 +240,6 @@ export default function ProductCommissionsPage() {
           })
           fetchCommissions(false)
         } catch (error) {
-          console.error('Failed to delete commission:', error)
           notifications.show({
             title: 'Error',
             message: 'Failed to delete commission.',
@@ -612,7 +608,6 @@ function CommissionForm({
 
       onSuccess()
     } catch (error) {
-      console.error('Failed to save commission:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to save commission. Please try again.',

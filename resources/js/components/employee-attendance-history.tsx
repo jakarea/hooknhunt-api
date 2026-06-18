@@ -99,7 +99,6 @@ export default function EmployeeAttendanceHistory({
 
         setHrmSettings(settings)
       } catch (error: unknown) {
-        console.error('Failed to fetch HRM settings:', error)
       }
     }
     fetchSettings()
@@ -140,7 +139,6 @@ export default function EmployeeAttendanceHistory({
 
         setAttendance(normalizedAttendance)
       } catch (error: unknown) {
-        console.error('Failed to fetch attendance:', error)
         notifications.show({
           title: t('common.error'),
           message: t('hrm.attendance.error.loadFailed'),

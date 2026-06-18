@@ -123,7 +123,6 @@ export default function FinanceAuditPage() {
       })
       setStatistics(response.data)
     } catch (error: any) {
-      console.error('Failed to fetch statistics:', error)
     }
   }
 

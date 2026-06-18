@@ -275,24 +275,13 @@ class ProductController extends Controller
             $galleryImages = json_decode($galleryImages, true) ?? [];
         }
 
-        // Convert gallery_images (array of media IDs) to URLs first
+        // Convert gallery_images (array of media IDs) to URLs - no separate query needed
         $galleryUrls = [];
         if (!empty($galleryImages) && is_array($galleryImages)) {
-            // Fetch media files for all gallery image IDs
+            // Filter to only numeric IDs and use /media/{id} format directly
             $mediaIds = array_filter($galleryImages, fn($id) => is_numeric($id) && $id > 0);
-            if (!empty($mediaIds)) {
-                $mediaFiles = DB::table('media_files')
-                    ->whereIn('id', $mediaIds)
-                    ->select('id', 'path', 'url')
-                    ->get();
-
-                foreach ($mediaIds as $mediaId) {
-                    $media = $mediaFiles->firstWhere('id', $mediaId);
-                    if ($media) {
-                        // Use /media/{id} format for consistency
-                        $galleryUrls[] = url('/media/' . $mediaId);
-                    }
-                }
+            foreach ($mediaIds as $mediaId) {
+                $galleryUrls[] = url('/media/' . $mediaId);
             }
         }
 
@@ -411,28 +400,37 @@ class ProductController extends Controller
                 'id' => $product->brand_id,
                 'name' => $product->brand_name,
             ] : null,
-            'variants' => $variants->map(fn($v) => [
-                'id' => $v->id,
-                'variantName' => $v->variant_name,
-                'variantSlug' => $v->variant_slug,
-                'sku' => $v->sku,
-                'price' => (float) $v->price,
-                'offerPrice' => (float) $v->offer_price,
-                'offerStarts' => $v->offer_starts,
-                'offerEnds' => $v->offer_ends,
-                'stock' => (int) $v->stock,
-                'weight' => $v->weight,
-                'size' => $v->size,
-                'color' => $v->color,
-                'isActive' => true,
-                'imageUrl' => $this->formatVariantThumbnailFromMedia(
-                    $v->thumbnail_id,
-                    $v->thumbnail_path,
-                    $v->thumbnail_url,
-                    null,
-                    $thumbnailUrl
-                ),
-            ])->values()->toArray(),
+            'variants' => (function() use ($variants, $thumbnailUrl) {
+                // Get variants with images
+                $withImages = $variants->filter(fn($var) => !empty($var->thumbnail_id));
+                // If some variants have images, return only those. Otherwise return all
+                $variantsToShow = $withImages->count() > 0 ? $withImages : $variants;
+                return $variantsToShow->map(fn($v) => [
+                    'id' => $v->id,
+                    'variantName' => $v->variant_name,
+                    'variantSlug' => $v->variant_slug,
+                    'sku' => $v->sku,
+                    'price' => (float) $v->price,
+                    'offerPrice' => (float) $v->offer_price,
+                    'offerStarts' => $v->offer_starts,
+                    'offerEnds' => $v->offer_ends,
+                    'stock' => (int) $v->stock,
+                    'weight' => $v->weight,
+                    'size' => $v->size,
+                    'color' => $v->color,
+                    'isActive' => true,
+                    // Return variant image URL only if variant has thumbnail_id, not fallback
+                    'imageUrl' => !empty($v->thumbnail_id)
+                        ? $this->formatVariantThumbnailFromMedia(
+                            $v->thumbnail_id,
+                            $v->thumbnail_path,
+                            $v->thumbnail_url,
+                            null,
+                            null // NO fallback - return actual image only
+                        )
+                        : null,
+                ])->values()->toArray();
+            })(),
             'crossSaleProducts' => [],
             'upSaleProducts' => [],
             'isThankYou' => (bool) $product->thank_you,

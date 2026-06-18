@@ -124,7 +124,6 @@ export default function AffiliateDetailPage() {
       const response = await api.get<{ success: boolean; data: AffiliateDetail }>(`/admin/affiliates/${id}`)
       setAffiliate(response.data.data)
     } catch (error: any) {
-      console.error('Failed to fetch affiliate:', error)
       setError(error?.message || 'Failed to load affiliate details')
       notifications.show({
         title: 'Error',
@@ -361,7 +360,6 @@ function EarningsTab({ affiliateId }: { affiliateId: number }) {
       const response = await api.get<{ data: { earnings: Earning[] } }>(`/admin/affiliates/${affiliateId}/earnings`, { params })
       setEarnings(response.data.data.earnings || [])
     } catch (error) {
-      console.error('Failed to fetch earnings:', error)
     } finally {
       setLoading(false)
     }
@@ -454,7 +452,6 @@ function PayoutsTab({ affiliateId }: { affiliateId: number }) {
       const response = await api.get<{ data: { payouts: Payout[] } }>(`/admin/affiliates/${affiliateId}/payouts`)
       setPayouts(response.data.data.payouts || [])
     } catch (error) {
-      console.error('Failed to fetch payouts:', error)
     } finally {
       setLoading(false)
     }
@@ -535,7 +532,6 @@ function ReferralsTab({ affiliateId }: { affiliateId: number }) {
       const response = await api.get<{ data: { referrals: Referral[] } }>(`/admin/affiliates/${affiliateId}/referrals`, { params })
       setReferrals(response.data.data.referrals || [])
     } catch (error) {
-      console.error('Failed to fetch referrals:', error)
     } finally {
       setLoading(false)
     }

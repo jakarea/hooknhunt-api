@@ -112,7 +112,6 @@ export const useWebsiteOrdersStore = create<WebsiteOrdersState>((set, get) => ({
         loading: false,
       })
     } catch (error: any) {
-      console.error('Failed to fetch orders:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load orders',
@@ -130,7 +129,6 @@ export const useWebsiteOrdersStore = create<WebsiteOrdersState>((set, get) => ({
       const statsData = response.data?.data || null
       set({ stats: statsData })
     } catch (error: any) {
-      console.error('Failed to fetch stats:', error)
     }
   },
 
@@ -173,7 +171,6 @@ export const useWebsiteOrdersStore = create<WebsiteOrdersState>((set, get) => ({
 
       return { success: true }
     } catch (error: any) {
-      console.error('Failed to delete order:', error)
       notifications.show({
         title: 'Error',
         message: error.response?.data?.message || 'Failed to delete order',
@@ -218,7 +215,6 @@ export const useWebsiteOrdersStore = create<WebsiteOrdersState>((set, get) => ({
 
       return { success: true, data: res.data?.data }
     } catch (error: any) {
-      console.error('Failed to bulk delete orders:', error)
       notifications.show({
         title: 'Error',
         message: error.response?.data?.message || 'Failed to delete orders',

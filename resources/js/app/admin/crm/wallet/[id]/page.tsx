@@ -102,7 +102,6 @@ export default function CustomerWalletPage() {
         throw new Error('Failed to fetch wallet details')
       }
     } catch (error) {
-      console.error('Error fetching wallet details:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load wallet details',
@@ -141,7 +140,6 @@ export default function CustomerWalletPage() {
       }
       return []
     } catch (error) {
-      console.error('Error fetching transactions:', error)
       return []
     }
   }

@@ -94,7 +94,6 @@ export default function TrialBalancePage() {
       setTrialBalance(data)
 
     } catch (error: any) {
-      console.error('Failed to fetch trial balance:', error)
       notifications.show({
         title: 'Error',
         message: error.response?.data?.message || 'Failed to load trial balance',

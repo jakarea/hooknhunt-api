@@ -120,7 +120,6 @@ export default function PayoutsPage() {
       if (statusFilter && statusFilter !== 'all') params.status = statusFilter
 
       const response = await api.get<PaginatedResponse>('/admin/affiliate-payouts', { params })
-      console.log('Payouts response:', response.data)
       const apiData = response.data?.data || response.data
       setPayouts(apiData?.payouts || [])
       setPagination({
@@ -130,7 +129,6 @@ export default function PayoutsPage() {
         last_page: apiData?.pagination?.last_page || 1,
       })
     } catch (error) {
-      console.error('Failed to fetch payouts:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load payouts.',
@@ -169,7 +167,6 @@ export default function PayoutsPage() {
       })
       fetchPayouts(false)
     } catch (error) {
-      console.error('Failed to update payout:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to update payout.',
@@ -191,7 +188,6 @@ export default function PayoutsPage() {
       })
       fetchPayouts(false)
     } catch (error) {
-      console.error('Failed to complete payout:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to complete payout.',
@@ -465,7 +461,6 @@ function ActionForm({
 
       onSuccess()
     } catch (error) {
-      console.error('Failed to process payout:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to process payout. Please try again.',

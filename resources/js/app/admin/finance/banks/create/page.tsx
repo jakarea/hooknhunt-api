@@ -149,7 +149,6 @@ export default function CreateBankPage() {
       // Navigate back to banks list after successful creation
       navigate('/finance/banks')
     } catch (err: any) {
-      console.error('Error creating bank:', err)
 
       // Handle validation errors from API
       if (err.response?.data?.errors) {

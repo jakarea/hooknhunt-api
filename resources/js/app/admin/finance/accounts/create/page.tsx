@@ -122,7 +122,6 @@ export default function CreateAccountPage() {
         }
         setExistingCodes(accountsData.map((acc) => acc.code))
       } catch (error) {
-        console.error('Failed to fetch existing codes:', error)
       } finally {
         setLoading(false)
       }

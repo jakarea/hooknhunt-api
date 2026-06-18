@@ -361,7 +361,6 @@ export default function DashboardPage() {
       }
       return `${minutes}m`
     } catch (error) {
-      console.error('Error calculating duration:', error)
       return '--:--'
     }
   }

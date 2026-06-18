@@ -3824,7 +3824,7 @@ export type Product = {
   name: string
   slug: string
   productCode?: string | null
-  categoryId: number
+  categoryId?: number | null
   brandId?: number | null
   thumbnailId?: number | null
   thumbnailUrl?: string | null
@@ -3836,8 +3836,8 @@ export type Product = {
   sortOrder?: number
   thankYou?: boolean
   hideFromWebsite?: boolean
-  createdAt: string
-  updatedAt: string
+  createdAt?: string
+  updatedAt?: string
   stock?: number
   stock_status?: string
   in_stock?: boolean
@@ -3845,13 +3845,16 @@ export type Product = {
   min_price?: number
   max_price?: number
   price_range?: string
+  variantsCount?: number // For list view - count of variants
   category?: {
     id: number
     name: string
+    slug?: string
   }
   brand?: {
     id: number
     name: string
+    slug?: string
   }
   thumbnail?: {
     id: number
@@ -3917,7 +3920,12 @@ export const getProducts = async (filters?: ProductFilters) => {
   if (filters?.category_id) params.append('category_id', filters.category_id.toString())
   if (filters?.brand_id) params.append('brand_id', filters.brand_id.toString())
   if (filters?.status) params.append('status', filters.status)
-  if (filters?.sort_by) params.append('sort_by', filters.sort_by)
+  if (filters?.sort_by) {
+    // e.g. "created_at_desc" → sort_by=created_at, sort_order=desc
+    const lastUnderscore = filters.sort_by.lastIndexOf('_')
+    params.append('sort_by', filters.sort_by.substring(0, lastUnderscore))
+    params.append('sort_order', filters.sort_by.substring(lastUnderscore + 1))
+  }
   if (filters?.per_page) params.append('per_page', filters.per_page.toString())
   if (filters?.page) params.append('page', filters.page.toString())
 

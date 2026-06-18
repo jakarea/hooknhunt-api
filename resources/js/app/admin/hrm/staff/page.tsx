@@ -118,7 +118,6 @@ export default function StaffPage() {
         total: paginatedData.total || 0
       })
     } catch (error) {
-      console.error('Failed to fetch staff:', error)
       notifications.show({
         title: t('common.error'),
         message: t('hrm.staff.errorLoading'),

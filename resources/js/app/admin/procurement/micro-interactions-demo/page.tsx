@@ -104,14 +104,14 @@ export default function MicroInteractionsDemo() {
         <Group>
           <AnimatedButton
             leftSection={<IconPlus size={16} />}
-            onClick={() => console.log('Add clicked')}
+            onClick={() => {}}
           >
             Add Supplier
           </AnimatedButton>
           <AnimatedButton
             color="red"
             leftSection={<IconTrash size={16} />}
-            onClick={() => console.log('Delete clicked')}
+            onClick={() => {}}
           >
             Delete
           </AnimatedButton>
@@ -126,7 +126,7 @@ export default function MicroInteractionsDemo() {
           <AnimatedButton
             variant="light"
             leftSection={<IconRefresh size={16} />}
-            onClick={() => console.log('Refresh clicked')}
+            onClick={() => {}}
           >
             Refresh
           </AnimatedButton>

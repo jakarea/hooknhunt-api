@@ -106,7 +106,6 @@ export default function CurrenciesPage() {
       const response = await getDefaultCurrency()
       setDefaultCurrency(response.data)
     } catch (error: any) {
-      console.error('Failed to fetch default currency:', error)
     }
   }
 

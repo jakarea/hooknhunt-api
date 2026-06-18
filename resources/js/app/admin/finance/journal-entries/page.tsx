@@ -138,7 +138,6 @@ export default function JournalEntriesPage() {
       const accountsData = response?.data || response || []
       setAccounts(Array.isArray(accountsData) ? accountsData : [])
     } catch (error: any) {
-      console.error('Failed to fetch accounts:', error)
       setAccounts([])
     }
   }, [])
@@ -149,7 +148,6 @@ export default function JournalEntriesPage() {
       setNextNumber(response.data?.next_entry_number || 'JE-000001')
       form.setFieldValue('entry_number', response.data?.next_entry_number || 'JE-000001')
     } catch (error: any) {
-      console.error('Failed to fetch next number:', error)
     }
   }, [])
 
@@ -171,12 +169,9 @@ export default function JournalEntriesPage() {
 
   const handleOpenEdit = useCallback(async (id: number) => {
     try {
-      console.log('Fetching journal entry:', id)
       const response = await getJournalEntry(id)
-      console.log('API response:', response)
 
       const entry = response.data?.data || response.data
-      console.log('Entry data:', entry)
 
       if (!entry) {
         throw new Error('No entry data received')
@@ -202,7 +197,6 @@ export default function JournalEntriesPage() {
       })
       setModalOpened(true)
     } catch (error: any) {
-      console.error('Failed to load journal entry:', error)
       notifications.show({
         title: 'Error',
         message: error.response?.data?.message || error.message || 'Failed to load journal entry',

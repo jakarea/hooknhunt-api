@@ -372,7 +372,6 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
         files: state.files.map((f) => f.id === previewFile.id ? updatedFile : f),
       }))
     } catch (error) {
-      console.error('Save failed:', error)
       notifications.show({ title: 'Error', message: 'Update failed', color: 'red' })
     } finally {
       set({ savingFileChanges: false })

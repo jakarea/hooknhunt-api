@@ -323,7 +323,6 @@ export default function StaffProfilePage() {
 
         setPermissions(finalPermissions)
       } catch (error: unknown) {
-        console.error('Failed to fetch user:', error)
         notifications.show({
           title: 'Error',
           message: 'Failed to load staff data. Please try again.',
@@ -351,7 +350,6 @@ export default function StaffProfilePage() {
         const leavesData = response.data.data?.data || response.data.data || []
         setLeaves(Array.isArray(leavesData) ? leavesData : [])
       } catch (error: unknown) {
-        console.error('Failed to fetch leaves:', error)
         setLeaves([]) // Set empty array on error
       }
     }
@@ -372,7 +370,6 @@ export default function StaffProfilePage() {
         const attendanceData = response.data.data?.data || response.data.data || []
         setAttendance(Array.isArray(attendanceData) ? attendanceData : [])
       } catch (error: unknown) {
-        console.error('Failed to fetch attendance:', error)
         setAttendance([]) // Set empty array on error
       }
     }
@@ -393,7 +390,6 @@ export default function StaffProfilePage() {
         const payrollData = response.data.data?.data || response.data.data || []
         setPayroll(Array.isArray(payrollData) ? payrollData : [])
       } catch (error: unknown) {
-        console.error('Failed to fetch payroll:', error)
         setPayroll([]) // Set empty array on error
       }
     }

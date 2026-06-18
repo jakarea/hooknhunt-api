@@ -142,15 +142,11 @@ export default function ProductsPage() {
 
       const response = await getProducts(filters)
 
-      // Handle paginated response
-      if (response.data) {
-        setProducts(response.data.data || response.data)
-        if (response.data.total) {
-          setTotal(response.data.total)
-          setTotalPages(response.data.last_page || Math.ceil(response.data.total / perPageRef.current))
-        }
-      } else {
-        setProducts(response.data || [])
+      // Backend returns { data: [...items], pagination: { total, last_page, ... } }
+      setProducts(response.data || [])
+      if (response.pagination?.total !== undefined) {
+        setTotal(response.pagination.total)
+        setTotalPages(response.pagination.last_page || Math.ceil(response.pagination.total / perPageRef.current))
       }
     } catch (error) {
       notifications.show({
@@ -179,7 +175,6 @@ export default function ProductsPage() {
         setBrands(brandsRes.data.map((b: any) => ({ value: b.id.toString(), label: b.name })))
       }
     } catch (error) {
-      console.error('Failed to load dropdown data:', error)
     }
   }
 
@@ -249,7 +244,7 @@ export default function ProductsPage() {
 
   // Stock indicator helper
   const getStockBadge = (product: Product) => {
-    const totalStock = product.variants?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0
+    const totalStock = product.stock || 0
     const lowStockThreshold = 10
 
     if (totalStock === 0) {
@@ -451,7 +446,7 @@ export default function ProductsPage() {
     }
 
     // Calculate total stock for background color
-    const totalStock = product.variants?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0
+    const totalStock = product.stock || 0
     const isOutOfStock = totalStock === 0
 
     return (
@@ -488,6 +483,7 @@ export default function ProductsPage() {
                   h={40}
                   fit="cover"
                   radius="sm"
+                  loading="lazy"
                 />
               ) : (
                 <IconPhoto size={20} className="text-gray-400" />
@@ -513,9 +509,9 @@ export default function ProductsPage() {
                     {product.productCode}
                   </Badge>
                 )}
-                {product.variants && product.variants.length > 0 && (
+                {(product.variantsCount ?? 0) > 0 && (
                   <Text className="text-xs md:text-sm" c="dimmed">
-                    {product.variants.length} {t('catalog.productsPage.table.variants') || 'variant(s)'}
+                    {product.variantsCount} {t('catalog.productsPage.table.variants') || 'variant(s)'}
                   </Text>
                 )}
               </Group>
@@ -605,7 +601,7 @@ export default function ProductsPage() {
           transition: 'background-color 0.3s ease',
           border: duplicatedProductId === product.id ? '2px solid #20c997' : undefined,
           backgroundColor: (() => {
-            const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0
+            const totalStock = product.stock || 0
             if (totalStock === 0) return 'rgba(253, 186, 116, 0.12)'
             if (duplicatedProductId === product.id) return '#ccfbf1'
             return undefined
@@ -629,6 +625,7 @@ export default function ProductsPage() {
                     h={60}
                     fit="cover"
                     radius="md"
+                    loading="lazy"
                   />
                 ) : (
                   <IconPhoto size={24} className="text-gray-400" />
@@ -691,7 +688,7 @@ export default function ProductsPage() {
                 {t('catalog.productsPage.table.variants') || 'Variants'}:
               </Text>
               <Text className="text-xs md:text-sm" fw={500}>
-                {product.variants?.length || 0}
+                {product.variantsCount || 0}
               </Text>
             </Group>
           </Group>

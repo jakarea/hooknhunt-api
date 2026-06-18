@@ -120,7 +120,6 @@ export default function CreateCustomerPage() {
           setRoles(response.data.data || [])
         }
       } catch (error) {
-        console.error('Error fetching roles:', error)
       } finally {
         setLoading(false)
       }
@@ -244,7 +243,6 @@ export default function CreateCustomerPage() {
         throw new Error(response.data?.message || 'Failed to create customer')
       }
     } catch (error: any) {
-      console.error('Error creating customer:', error)
 
       // Handle validation errors from backend
       if (error.response?.data?.errors) {

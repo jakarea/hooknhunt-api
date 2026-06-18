@@ -314,7 +314,7 @@ class SSLCommerzService
     /**
      * Verify hash signature from SSL Commerz.
      */
-    protected function verifyHash(array $data): bool
+    public function verifyHash(array $data): bool
     {
         if (!isset($data['verify_sign']) || !isset($data['verify_key'])) {
             return false;

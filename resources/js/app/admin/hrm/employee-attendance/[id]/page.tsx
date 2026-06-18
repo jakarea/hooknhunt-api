@@ -152,7 +152,6 @@ export default function EmployeeAttendancePage() {
 
         setHrmSettings(settings)
       } catch (error: unknown) {
-        console.error('Failed to fetch HRM settings:', error)
       }
     }
     fetchSettings()
@@ -180,7 +179,6 @@ export default function EmployeeAttendancePage() {
         }
 
         const response = await api.get('/hrm/attendance', { params })
-        console.log('Employee attendance response:', response.data)
 
         // Handle different response structures
         let attendanceData = response.data?.data?.data || response.data?.data || response.data || []
@@ -190,7 +188,6 @@ export default function EmployeeAttendancePage() {
           attendanceData = attendanceData.data
         }
 
-        console.log('Normalized attendance data:', attendanceData)
 
         const normalizedAttendance = (Array.isArray(attendanceData) ? attendanceData : []).map((record: any) => ({
           id: record.id,
@@ -219,12 +216,10 @@ export default function EmployeeAttendancePage() {
             const userData = userResponse.data?.data?.user || userResponse.data?.data || {}
             setEmployeeName(userData.name || userData.first_name || 'Employee')
           } catch (err) {
-            console.error('Failed to fetch employee name:', err)
             setEmployeeName('Employee')
           }
         }
       } catch (error: unknown) {
-        console.error('Failed to fetch attendance:', error)
         notifications.show({
           title: t('common.error'),
           message: t('hrm.attendance.error.loadFailed'),

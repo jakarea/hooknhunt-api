@@ -68,21 +68,12 @@ export const validateSupplierForm = (
   // ✅ Use safeParse() instead of parse() - doesn't throw, returns result object
   const result = schema.safeParse(cleanedData)
 
-  console.log('🔍 SafeParse result:', {
-    success: result.success,
-    hasError: !!result.error,
-    errorType: result.error?.constructor?.name,
-    error: result.error
-  })
-
   if (result.success) {
     return { isValid: true, errors: {} }
   }
 
   // Validation failed - format the errors from the ZodError
-  console.log('🔍 About to call formatZodErrors with:', result.error)
   const formattedErrors = formatZodErrors(result.error)
-  console.log('✅ Formatted validation errors:', formattedErrors)
 
   return {
     isValid: false,

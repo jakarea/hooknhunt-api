@@ -64,7 +64,6 @@ export default function DepartmentsPage() {
       const response = await api.get('/hrm/departments')
       setDepartments(response.data.data || [])
     } catch (error) {
-      console.error('Failed to fetch departments:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load departments. Please try again.',
@@ -169,7 +168,6 @@ export default function DepartmentsPage() {
       setModalOpened(false)
       fetchDepartments()
     } catch (error) {
-      console.error('Failed to save department:', error)
       notifications.show({
         title: 'Error',
         message: (error as any).response?.data?.message || 'Failed to save department. Please try again.',
@@ -210,7 +208,6 @@ export default function DepartmentsPage() {
           })
           fetchDepartments()
         } catch (error) {
-          console.error('Failed to delete department:', error)
           notifications.show({
             title: 'Error',
             message: (error as any).response?.data?.message || 'Failed to delete department. Please try again.',

@@ -46,10 +46,8 @@ export default function Page() {
     try {
       setLoading(true)
       const data = await apiMethods.get<{ success: boolean; data: PaymentSettings }>('/system/settings/payment')
-      console.log({ data })
       setSettings(data.data)
     } catch (error) {
-      console.error('Error fetching settings:', error)
       showMessage('error', 'Failed to load payment settings')
     } finally {
       setLoading(false)
@@ -58,14 +56,11 @@ export default function Page() {
 
   const switchGateway = async (gateway: string) => {
     try {
-      console.log('[switchGateway] Starting switch to:', gateway)
       setSwitching(gateway)
       const data = await apiMethods.put<{ success: boolean; data: { activeGateway: string } }>('/system/settings/payment/gateway', { gateway })
-      console.log('[switchGateway] Response:', data)
       setSettings(prev => ({ ...prev!, activeGateway: data.data.activeGateway }))
       showMessage('success', `Switched to ${gateway.toUpperCase()} successfully`)
     } catch (error) {
-      console.error('[switchGateway] Error:', error)
       showMessage('error', 'Failed to switch payment gateway')
     } finally {
       setSwitching(null)
@@ -78,7 +73,6 @@ export default function Page() {
       await apiMethods.post('/system/settings/payment/eps/test', { mode })
       showMessage('success', `EPS ${mode} connection test successful`)
     } catch (error) {
-      console.error('Error testing EPS:', error)
       showMessage('error', `EPS ${mode} connection test failed`)
     } finally {
       setTesting(null)

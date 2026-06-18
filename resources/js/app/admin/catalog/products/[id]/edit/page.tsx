@@ -1695,12 +1695,10 @@ export default function EditProductPage() {
 
           setPricingSettings(parsedSettings)
         } catch (settingsError) {
-          console.error('❌ Failed to fetch pricing settings:', settingsError)
           // Keep default values
         }
 
       } catch (error) {
-        console.error('Failed to fetch data:', error)
         notifications.show({
           title: t('common.error') || 'Error',
           message: 'Failed to load required data',
@@ -1831,9 +1829,7 @@ export default function EditProductPage() {
         setSeoDescription(productData.seoDescription || productData.metaDescription || '')
         // Handle seoTags: can be array or string from API
         const tagsValue = productData.seoTags || productData.seo_tags || []
-        console.log('Product tags from API:', tagsValue, 'Type:', typeof tagsValue, 'Is Array:', Array.isArray(tagsValue))
         const parsedTags = Array.isArray(tagsValue) ? tagsValue : (typeof tagsValue === 'string' && tagsValue ? tagsValue.split(',').map(t => t.trim()).filter(t => t) : [])
-        console.log('Parsed tags:', parsedTags)
         setSeoTags(parsedTags)
 
         // Affiliate Commission - from API response (added to show() method)
@@ -1875,16 +1871,8 @@ export default function EditProductPage() {
           const isAlreadyMerged = productData.variants.some((v: any) => (v.retailId || v.retail_id) && (v.wholesaleId || v.wholesale_id) && !v.channel)
           const hasChannelField = productData.variants.some((v: any) => v.channel)
 
-          console.log('📦 Variants analysis:', {
-            total: productData.variants.length,
-            isAlreadyMerged,
-            hasChannelField,
-            sampleVariant: productData.variants[0]
-          })
-
           if (isAlreadyMerged) {
             // Variants are already merged by the backend - map them directly
-            console.log('✅ Using pre-merged variants from backend')
             const mappedVariants = productData.variants.map((variant: any, index: number) => {
               const sku = variant.sku || variant.custom_sku || variant.sellerSku || ''
               return {
@@ -1908,7 +1896,6 @@ export default function EditProductPage() {
                 thumbnailId: variant.thumbnail_id || variant.thumbnailId || null
               }
             })
-            console.log('🔄 Mapped variants:', mappedVariants)
             setVariants(mappedVariants)
           } else if (hasChannelField) {
             // Merge by channel (old API format)
@@ -1996,7 +1983,6 @@ export default function EditProductPage() {
         setInitialDataLoaded(true)
 
       } catch (error: any) {
-        console.error('Failed to load product:', error)
         notifications.show({
           title: t('common.error') || 'Error',
           message: error?.response?.data?.message || error?.message || 'Failed to load product',
@@ -2235,7 +2221,6 @@ export default function EditProductPage() {
   const handleSubmit = useCallback(async (event: React.FormEvent) => {
     event.preventDefault()
 
-    console.log('handleSubmit called', { productName, category, brand, description, variantsCount: variants?.length })
 
     // Clear previous errors
     setErrors({})
@@ -2277,9 +2262,14 @@ export default function EditProductPage() {
       const uniqueDuplicates = [...new Set(duplicateNames)]
       newErrors.variants = t('catalog.productsEdit.validation.duplicateVariantNames', { names: uniqueDuplicates.join(', ') }) ||
         `Variant names must be unique. Duplicate(s): ${uniqueDuplicates.join(', ')}`
+      // Mark each duplicate variant name input individually
+      variants.forEach((variant, index) => {
+        if (uniqueDuplicates.includes(variant.name.trim())) {
+          newErrors[`variant.${index}.name`] = 'Duplicate name'
+        }
+      })
     }
 
-    console.log('Validation errors:', newErrors)
 
     // If there are errors, set them and stop
     if (Object.keys(newErrors).length > 0) {
@@ -2360,7 +2350,6 @@ export default function EditProductPage() {
       }, 1500)
 
     } catch (error: any) {
-      console.error('API Error:', error)
 
       // Handle validation errors from server
       if (error.response?.status === 422 && error.response?.data?.errors) {
@@ -2368,17 +2357,24 @@ export default function EditProductPage() {
         const formattedErrors: Record<string, string> = {}
 
         Object.keys(serverErrors).forEach(field => {
-          // Transform backend error keys to match frontend format
-          // Backend sends: variants.0.field (plural)
-          // Frontend expects: variant.0.field (singular)
           const transformedField = field.replace(/^variants\./, 'variant.')
-
-          // Clean up error message - remove field path prefix like "variants.0."
           let errorMessage = serverErrors[field]?.[0] || 'Validation error'
           errorMessage = errorMessage.replace(/^variants\.\d+\./, '').replace(/^variant\.\d+\./, '')
-
           formattedErrors[transformedField] = errorMessage
         })
+
+        // If the API returned a general variants duplicate-names error, mark each offending input
+        if (formattedErrors.variants) {
+          const match = formattedErrors.variants.match(/Duplicate\(s\):\s*(.+)$/)
+          if (match) {
+            const duplicateNames = match[1].split(',').map(s => s.trim())
+            variants.forEach((variant, index) => {
+              if (duplicateNames.includes(variant.name.trim())) {
+                formattedErrors[`variant.${index}.name`] = 'Duplicate name'
+              }
+            })
+          }
+        }
 
         setErrors(formattedErrors)
 
@@ -2467,6 +2463,12 @@ export default function EditProductPage() {
       const uniqueDuplicates = [...new Set(duplicateNames)]
       newErrors.variants = t('catalog.productsEdit.validation.duplicateVariantNames', { names: uniqueDuplicates.join(', ') }) ||
         `Variant names must be unique. Duplicate(s): ${uniqueDuplicates.join(', ')}`
+      // Mark each duplicate variant name input individually
+      variants.forEach((variant, index) => {
+        if (uniqueDuplicates.includes(variant.name.trim())) {
+          newErrors[`variant.${index}.name`] = 'Duplicate name'
+        }
+      })
     }
 
     // If there are errors, set them and stop
@@ -2537,20 +2539,6 @@ export default function EditProductPage() {
         }))
       }
 
-      console.log('📤 Sending to API:', {
-        productId: id,
-        variantsCount: variants.length,
-        firstVariant: variants[0],
-        allVariants: variants.map((v, i) => ({
-          index: i,
-          id: v.id,
-          dbId: v.dbId,
-          name: v.name,
-          thumbnailId: v.thumbnailId,
-          hasThumbnailId: !!v.thumbnailId
-        }))
-      })
-
       // Call API - PUT for update
       const response = await apiMethods.put(`catalog/products/${id}`, payload)
 
@@ -2568,23 +2556,30 @@ export default function EditProductPage() {
         navigate(`/catalog/products/${id}`)
       }, 1500)
     } catch (error: any) {
-      console.error('Update failed:', error)
 
       if (error.response?.status === 422 && error.response?.data?.errors) {
         const serverErrors = error.response.data.errors
         const formattedErrors: Record<string, string> = {}
 
-        // Transform Laravel-style nested error keys (variants.0.name) to frontend format
         Object.keys(serverErrors).forEach((field) => {
-          // Frontend expects: variant.0.field (singular)
           const transformedField = field.replace(/^variants\./, 'variant.')
-
-          // Clean up error message - remove field path prefix like "variants.0."
           let errorMessage = serverErrors[field]?.[0] || 'Validation error'
           errorMessage = errorMessage.replace(/^variants\.\d+\./, '').replace(/^variant\.\d+\./, '')
-
           formattedErrors[transformedField] = errorMessage
         })
+
+        // If the API returned a general variants duplicate-names error, mark each offending input
+        if (formattedErrors.variants) {
+          const match = formattedErrors.variants.match(/Duplicate\(s\):\s*(.+)$/)
+          if (match) {
+            const duplicateNames = match[1].split(',').map(s => s.trim())
+            variants.forEach((variant, index) => {
+              if (duplicateNames.includes(variant.name.trim())) {
+                formattedErrors[`variant.${index}.name`] = 'Duplicate name'
+              }
+            })
+          }
+        }
 
         setErrors(formattedErrors)
 
@@ -3287,6 +3282,10 @@ export default function EditProductPage() {
                       </Paper>
                     </Stack>
 
+
+                    {errors.variants && (
+                      <Text size="sm" c="red" fw={500}>{errors.variants}</Text>
+                    )}
 
                     {/* Table Header */}
                     <Box className="overflow-x-auto">

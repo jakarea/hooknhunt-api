@@ -77,7 +77,6 @@ export default function PermissionsListPage() {
           setPermissions(allPerms)
         }
       } catch (error: unknown) {
-        console.error('Failed to fetch permissions:', error)
         notifications.show({
           title: 'Error',
           message: 'Failed to load permissions',

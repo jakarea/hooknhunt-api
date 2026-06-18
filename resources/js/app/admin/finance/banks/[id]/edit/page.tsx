@@ -107,7 +107,6 @@ export default function EditBankPage() {
           status: bankData.status || 'active',
         })
       } catch (err: any) {
-        console.error('Error fetching bank:', err)
         setError(err.message || 'Failed to load bank details')
         notifications.show({
           title: 'Error',
@@ -197,7 +196,6 @@ export default function EditBankPage() {
       // Redirect to bank details page
       navigate('/finance/banks/' + id)
     } catch (err: any) {
-      console.error('Error updating bank:', err)
 
       // Handle validation errors from API
       if (err.response?.data?.errors) {

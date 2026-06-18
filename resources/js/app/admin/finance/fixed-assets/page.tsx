@@ -170,7 +170,6 @@ export default function FixedAssetsPage() {
         setSummary(response.data)
       }
     } catch (error) {
-      console.error('Failed to load summary:', error)
     }
   }
 

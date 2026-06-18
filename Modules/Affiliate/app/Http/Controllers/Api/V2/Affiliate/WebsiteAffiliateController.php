@@ -4,6 +4,7 @@ namespace App\Modules\Affiliate\Http\Controllers\Api\V2\Affiliate;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Affiliate\Models\Affiliate;
+use App\Modules\Affiliate\Models\AffiliateEarning;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -270,8 +271,18 @@ class WebsiteAffiliateController extends Controller
                 ], 403);
             }
 
-            // Get recent referrals
+            // Get period from request (default: 30days)
+            $period = $request->query('period', '30days');
+            $dateFrom = match($period) {
+                '7days' => now()->subDays(7),
+                '90days' => now()->subDays(90),
+                '1year' => now()->subYear(),
+                default => now()->subDays(30), // 30days is default
+            };
+
+            // Get period-specific referrals
             $recentReferrals = $affiliate->referrals()
+                ->where('clicked_at', '>=', $dateFrom)
                 ->orderBy('clicked_at', 'desc')
                 ->limit(10)
                 ->get()
@@ -290,8 +301,9 @@ class WebsiteAffiliateController extends Controller
                     ];
                 });
 
-            // Get recent earnings
+            // Get period-specific earnings
             $recentEarnings = $affiliate->earnings()
+                ->where('created_at', '>=', $dateFrom)
                 ->orderBy('created_at', 'desc')
                 ->limit(10)
                 ->get()
@@ -309,8 +321,9 @@ class WebsiteAffiliateController extends Controller
                     ];
                 });
 
-            // Get recent payouts
+            // Get period-specific payouts
             $recentPayouts = $affiliate->payouts()
+                ->where('created_at', '>=', $dateFrom)
                 ->orderBy('created_at', 'desc')
                 ->limit(10)
                 ->get()
@@ -358,6 +371,30 @@ class WebsiteAffiliateController extends Controller
                     ];
                 });
 
+            // Calculate period-specific stats
+            $periodClicks = $affiliate->referrals()
+                ->where('clicked_at', '>=', $dateFrom)
+                ->count();
+
+            $periodConversions = $affiliate->referrals()
+                ->where('clicked_at', '>=', $dateFrom)
+                ->where('status', 'converted')
+                ->count();
+
+            $periodEarnings = AffiliateEarning::where('affiliate_id', $affiliate->id)
+                ->where('created_at', '>=', $dateFrom)
+                ->where('status', 'confirmed')
+                ->sum('commission_amount');
+
+            $periodConversionRate = $periodClicks > 0 ? round(($periodConversions / $periodClicks) * 100, 2) : 0;
+
+            // Get last conversion date
+            $lastConversionDate = $affiliate->referrals()
+                ->where('status', 'converted')
+                ->orderBy('converted_at', 'desc')
+                ->pluck('converted_at')
+                ->first();
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -374,6 +411,14 @@ class WebsiteAffiliateController extends Controller
                         'conversion_rate' => $affiliate->conversion_rate,
                         'is_approved' => $affiliate->is_approved,
                         'created_at' => $affiliate->created_at->toDateTimeString(),
+                        'last_conversion_at' => $lastConversionDate?->toDateTimeString(),
+                    ],
+                    'period_stats' => [
+                        'period' => $period,
+                        'clicks' => $periodClicks,
+                        'conversions' => $periodConversions,
+                        'earnings' => (float) $periodEarnings,
+                        'conversion_rate' => $periodConversionRate,
                     ],
                     'recent_referrals' => $recentReferrals,
                     'recent_earnings' => $recentEarnings,

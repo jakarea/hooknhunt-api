@@ -105,7 +105,6 @@ export const useUpSaleStore = create<UpSaleState>((set, get) => ({
 
       set({ products: compactProducts, loading: false })
     } catch (error: any) {
-      console.error('Failed to fetch products:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load products',
@@ -160,7 +159,6 @@ export const useUpSaleStore = create<UpSaleState>((set, get) => ({
       set({ modalOpen: false })
       return true
     } catch (error) {
-      console.error('Failed to save up-sale products:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to save up-sale products',

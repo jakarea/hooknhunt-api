@@ -145,7 +145,6 @@ export default function CustomerDetailsPage() {
           throw new Error('Failed to fetch customer')
         }
       } catch (error) {
-        console.error('Error fetching customer:', error)
         notifications.show({
           title: 'Error',
           message: 'Failed to load customer details. Please try again.',

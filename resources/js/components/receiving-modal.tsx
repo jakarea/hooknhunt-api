@@ -705,13 +705,6 @@ export default function ReceivingModal({
         }, 0)
         const extraWeightG = Math.max(0, totalWeightG - totalItemsWeightG)
 
-        console.log('🐛 Auto-calculating extra weights:', {
-          totalWeightKg: totalWeight,
-          totalItemsWeightG: totalItemsWeightG / 1000,
-          extraWeightG: extraWeightG,
-          extraWeightKg: extraWeightG / 1000
-        })
-
         // Update extra weights for all items
         setItemInputs(prev => {
           const updated = { ...prev }
@@ -727,14 +720,6 @@ export default function ReceivingModal({
 
               // Only update if value changed
               if (input.extra_weight !== extraWeightPerUnitG) {
-                console.log(`🐛 Item ${item.id}:`, {
-                  unitWeight: input.unit_weight,
-                  receivedQty: input.received_quantity,
-                  weightRatio: (weightRatio * 100).toFixed(2) + '%',
-                  oldExtraWeight: input.extra_weight,
-                  newExtraWeight: extraWeightPerUnitG
-                })
-
                 updated[item.id] = {
                   ...input,
                   extra_weight: extraWeightPerUnitG
@@ -877,7 +862,6 @@ export default function ReceivingModal({
       await onSubmit(submitData)
       onClose()
     } catch (error: any) {
-      console.error('Failed to submit receiving:', error)
       // Error handling is done in the parent component
     } finally {
       setSubmitting(false)

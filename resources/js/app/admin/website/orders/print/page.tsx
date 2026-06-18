@@ -56,7 +56,6 @@ export default function BulkPrintPage() {
           const orderData = response.data
           return { id, success: true, data: orderData }
         } catch (error: any) {
-          console.error(`Order ${id} failed:`, error?.response?.data || error?.message || error)
           return { id, success: false, error }
         }
       })
@@ -122,7 +121,6 @@ export default function BulkPrintPage() {
           setError('Failed to load any orders. Check browser console for error details.')
         }
       } catch (err: any) {
-        console.error('Fetch orders error:', err)
         const errorMessage = err?.response?.data?.message || err?.message || 'Unknown error'
         setError(`Failed to load orders: ${errorMessage}`)
         notifications.show({

@@ -152,7 +152,6 @@ export default function AffiliatesPage() {
         last_page: response.data.data?.pagination?.last_page || 1,
       })
     } catch (error) {
-      console.error('Failed to fetch affiliates:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load affiliates. Please try again.',
@@ -170,10 +169,8 @@ export default function AffiliatesPage() {
   const fetchStats = async () => {
     try {
       const response = await api.get<{ success: boolean; data: AffiliateStats }>('/admin/affiliates/stats')
-      console.log('Stats response:', response.data)
       setStats(response.data.data)
     } catch (error) {
-      console.error('Failed to fetch stats:', error)
       // Set default stats to prevent undefined errors
       setStats({
         totalAffiliates: 0,
@@ -204,7 +201,6 @@ export default function AffiliatesPage() {
       fetchAffiliates(false)
       fetchStats()
     } catch (error) {
-      console.error('Failed to approve affiliate:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to approve affiliate. Please try again.',
@@ -227,7 +223,6 @@ export default function AffiliatesPage() {
       fetchAffiliates(false)
       fetchStats()
     } catch (error) {
-      console.error('Failed to reject affiliate:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to reject affiliate. Please try again.',
@@ -274,21 +269,16 @@ export default function AffiliatesPage() {
    * Open add affiliate modal
    */
   const openAddAffiliateModal = async () => {
-    console.log('Add Affiliate button clicked!')
 
     // Fetch users before opening modal
     try {
       setUsersLoading(true)
-      console.log('Fetching users from /admin/users/not-affiliates')
       const response = await api.get<{
         success: boolean
         data: Array<{ id: number; name: string; email: string; phone: string }>
       }>('/admin/users/not-affiliates')
 
-      console.log('Users API response:', response)
-      console.log('Users data from response:', response.data)
       const usersList = response.data.data || []
-      console.log('Users list:', usersList)
       setUsers(usersList)
 
       if (usersList.length === 0) {
@@ -300,7 +290,6 @@ export default function AffiliatesPage() {
         return
       }
 
-      console.log('Opening modal with', usersList.length, 'users')
 
       // Open modal using Mantine modals
       modals.open({
@@ -316,7 +305,6 @@ export default function AffiliatesPage() {
         size: 'lg',
       })
     } catch (error) {
-      console.error('Failed to fetch users:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load users.',
@@ -371,7 +359,6 @@ export default function AffiliatesPage() {
       // Clean up window object
       delete (window as any).affiliateFormValues
     } catch (error: any) {
-      console.error('Failed to create affiliate:', error)
       const message = error.response?.data?.message || 'Failed to create affiliate.'
       notifications.show({
         title: 'Error',

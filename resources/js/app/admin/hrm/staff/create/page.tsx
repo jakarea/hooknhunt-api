@@ -194,7 +194,6 @@ export default function CreateStaffPage() {
         const deptData = deptResponse.data.data?.data || deptResponse.data.data || []
         setDepartments(Array.isArray(deptData) ? deptData : [])
       } catch (error: unknown) {
-        console.error('Failed to load dropdown data:', error)
         notifications.show({
           title: 'Error',
           message: 'Failed to load required data. Please refresh.',
@@ -442,7 +441,6 @@ export default function CreateStaffPage() {
       // Navigate to staff list
       navigate('/hrm/staff')
     } catch (error) {
-      console.error('Failed to create staff:', error)
 
       // Check for validation errors
       if ((error as any).response?.data?.errors) {

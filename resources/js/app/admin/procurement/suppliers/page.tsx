@@ -85,7 +85,6 @@ export default function SuppliersPage() {
           await deleteSupplierMutation(supplier, () => deleteSupplierApi(supplier.id))
         } catch (error) {
           // Error is already handled by the mutation hook
-          console.error('Delete failed:', error)
         }
       },
     })

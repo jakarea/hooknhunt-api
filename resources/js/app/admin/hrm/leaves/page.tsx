@@ -140,7 +140,6 @@ export default function LeavesPage() {
 
       setLeaves(normalizedLeaves)
     } catch (error: unknown) {
-      console.error('Failed to fetch leaves:', error)
       notifications.show({
         title: 'Error',
         message: 'Failed to load leaves. Please try again.',
@@ -163,7 +162,6 @@ export default function LeavesPage() {
       const employeesData = response.data.data?.data || response.data.data || []
       setEmployees(Array.isArray(employeesData) ? employeesData : [])
     } catch (error: unknown) {
-      console.error('Failed to fetch employees:', error)
     }
   }
 
@@ -327,7 +325,6 @@ export default function LeavesPage() {
       setModalOpened(false)
       fetchLeaves()
     } catch (error: unknown) {
-      console.error('Failed to save leave:', error)
       const errorObj = error as { response?: { data?: { message?: string } } }
       notifications.show({
         title: 'Error',
@@ -374,7 +371,6 @@ export default function LeavesPage() {
           })
           fetchLeaves()
         } catch (error: unknown) {
-          console.error('Failed to delete leave:', error)
           const errorObj = error as { response?: { data?: { message?: string } } }
           notifications.show({
             title: 'Error',

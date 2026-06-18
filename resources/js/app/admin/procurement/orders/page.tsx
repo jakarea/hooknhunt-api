@@ -847,7 +847,6 @@ export default function PurchaseOrdersPage() {
       const totalPages = extractTotalPages(response)
       useProcurementOrdersStore.getState().setTotalPages(totalPages)
     } catch (error) {
-      console.error('Failed to load orders:', error)
       notifications.show({
         title: t('common.error'),
         message: t('procurement.ordersPage.notifications.errorLoading'),
@@ -866,7 +865,6 @@ export default function PurchaseOrdersPage() {
       const suppliersData = await fetchSuppliersData()
       useProcurementOrdersStore.getState().setSuppliers(suppliersData)
     } catch (error) {
-      console.error('Failed to load suppliers:', error)
     }
   }, [])
 
@@ -878,7 +876,6 @@ export default function PurchaseOrdersPage() {
       const statsData = await fetchStatisticsData()
       useProcurementOrdersStore.getState().setStatistics(statsData)
     } catch (error) {
-      console.error('Failed to load statistics:', error)
     }
   }, [])
 
@@ -920,7 +917,6 @@ export default function PurchaseOrdersPage() {
       useProcurementOrdersStore.getState().closeDeleteModal()
       await fetchAllData()
     } catch (error: any) {
-      console.error('Failed to delete PO:', error)
       notifications.show({
         title: t('common.error'),
         message:

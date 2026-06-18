@@ -115,7 +115,6 @@ export const useCategoriesStore = create<CategoriesState>()((set, get) => ({
 
       set({ categoryTree: treeData })
     } catch (error) {
-      console.error('Failed to load category tree:', error)
     }
   },
 
