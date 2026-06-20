@@ -987,9 +987,8 @@ class ProductController extends Controller
             // Manually fire the event since we bypassed the Model update
             \App\Modules\Catalog\Events\ProductUpdated::dispatch($product);
 
-            // Clear cache
+            // Clear related cache keys
             Cache::forget("product:v2:slug:{$product->slug}");
-            Cache::tags('products')->flush();
 
             return response()->json([
                 'success' => true,
