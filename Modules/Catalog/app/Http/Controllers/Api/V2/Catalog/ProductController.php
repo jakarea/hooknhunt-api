@@ -954,6 +954,57 @@ class ProductController extends Controller
         }
     }
 
+    /**
+     * Update product status (publish/draft/archive)
+     * PATCH /api/v2/catalog/products/{id}/status
+     *
+     * @param Request $request
+     * @param int $id
+     * @return JsonResponse
+     */
+    public function updateStatus(Request $request, int $id): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'status' => 'required|in:draft,published,archived',
+            ]);
+
+            $product = Product::findOrFail($id);
+            $product->update(['status' => $validated['status']]);
+
+            // Clear cache
+            Cache::forget("product:v2:slug:{$product->slug}");
+            Cache::forget('products:v2:*');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Product status updated successfully',
+                'data' => $product->only(['id', 'status'])
+            ], 200);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Product not found',
+                'error' => 'The requested product does not exist'
+            ], 404);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid status value',
+                'errors' => $e->errors()
+            ], 422);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update product status',
+                'error' => config('app.debug') ? $e->getMessage() : 'An error occurred'
+            ], 500);
+        }
+    }
+
     // ================================================
     // STOREFRONT PUBLIC METHODS (Safe Data Only)
     // ================================================

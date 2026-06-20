@@ -39,6 +39,7 @@ Route::prefix('v2/catalog')->group(function () {
         Route::get('/products', [ProductController::class, 'index'])->middleware('permission:catalog.products.index');
         Route::get('/products/{slug}', [ProductController::class, 'show'])->middleware('permission:catalog.products.index');
         Route::post('/products', [ProductController::class, 'store'])->middleware('permission:catalog.products.create');
+        Route::patch('/products/{id}/status', [ProductController::class, 'updateStatus'])->middleware('permission:catalog.products.edit');
         Route::put('/products/{identifier}', [ProductController::class, 'update'])->middleware('permission:catalog.products.edit');
         Route::delete('/products/{identifier}', [ProductController::class, 'destroy'])->middleware('permission:catalog.products.delete');
 
