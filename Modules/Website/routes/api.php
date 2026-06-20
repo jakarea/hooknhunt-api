@@ -63,7 +63,24 @@ Route::prefix('api/v2/website-admin')->group(function () {
     Route::get('/orders', [WebsiteAdminOrderController::class, 'index']);
     Route::get('/orders/statistics', [WebsiteAdminOrderController::class, 'statistics']);
     Route::get('/orders/{id}', [WebsiteAdminOrderController::class, 'show']);
+    Route::put('/orders/{id}', [WebsiteAdminOrderController::class, 'update']);
     Route::put('/orders/{id}/status', [WebsiteAdminOrderController::class, 'updateStatus']);
+    Route::put('/orders/{id}/payment', [WebsiteAdminOrderController::class, 'updatePayment']);
+    Route::post('/orders/{id}/items', [WebsiteAdminOrderController::class, 'addItem']);
+    Route::put('/orders/{id}/items/{itemId}', [WebsiteAdminOrderController::class, 'updateItem']);
+    Route::delete('/orders/{id}/items/{itemId}', [WebsiteAdminOrderController::class, 'removeItem']);
+    Route::post('/orders/{id}/send-to-courier', [WebsiteAdminOrderController::class, 'sendToCourier']);
+    Route::post('/orders/{id}/sync-courier', [WebsiteAdminOrderController::class, 'syncCourierStatus']);
+    Route::post('/orders/{id}/send-sms', [WebsiteAdminOrderController::class, 'sendSms']);
+    Route::post('/orders/bulk-update-status', [WebsiteAdminOrderController::class, 'bulkUpdateStatus']);
+    Route::post('/orders/bulk-send-to-courier', [WebsiteAdminOrderController::class, 'bulkSendToCourier']);
+    Route::delete('/orders/{id}', [WebsiteAdminOrderController::class, 'destroy']);
+
+    // Product search and variants for order management
+    Route::get('/products/search', [WebsiteAdminOrderController::class, 'searchProducts']);
+    Route::post('/products/search', [WebsiteAdminOrderController::class, 'searchProducts']);
+    Route::get('/products/{id}/variants', [WebsiteAdminOrderController::class, 'productVariants']);
+    Route::get('/products/search-products', [WebsiteAdminOrderController::class, 'searchProductsList']);
 
     // CRM Leads admin routes
     Route::prefix('crm')->group(function () {

@@ -910,6 +910,7 @@ class OrderController extends Controller
                 ->select(
                     'pv.id',
                     'pv.sku',
+                    'pv.variant_name',
                     'pv.price',
                     'pv.offer_price as original_price',
                     'pv.purchase_cost as cost',
@@ -931,6 +932,7 @@ class OrderController extends Controller
             ->select(
                 'pv.id',
                 'pv.sku',
+                'pv.variant_name',
                 'pv.price',
                 'pv.offer_price as original_price',
                 'pv.purchase_cost as cost',

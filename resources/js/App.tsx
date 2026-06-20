@@ -5,6 +5,7 @@ import { MantineProvider } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { ModalsProvider } from '@mantine/modals';
 import { GlobalMediaSelectorProvider } from '@/hooks/useMediaSelector';
+import { useAffiliateTracking } from '@/hooks/useAffiliateTracking';
 import { theme } from '@/lib/mantine-theme';
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { AdminLayout } from '@/components/admin-layout'
@@ -168,6 +169,9 @@ import VerifyOtpPage from "@/app/verify-otp/page"
 import SuperAdminSignupPage from "@/app/register-super-admin/page"
 
 function App() {
+  // Track affiliate referral codes from URL
+  useAffiliateTracking()
+
   return (
     <MantineProvider theme={theme} defaultColorScheme="auto">
       <ModalsProvider>

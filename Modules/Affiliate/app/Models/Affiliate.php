@@ -5,6 +5,8 @@ namespace App\Modules\Affiliate\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class Affiliate extends Model
 {
@@ -243,23 +245,68 @@ class Affiliate extends Model
                 }
             }
 
-            // Calculate commission amount
-            $totalAmount = (float) ($order->total_amount ?? $order->paid_amount ?? 0);
-            $commissionRate = $this->commission_rate; // Use affiliate's default rate
+            // REQUIREMENT 1: Calculate commission ONLY on product prices (offer_price)
+            // Get order items with product variant pricing
+            $orderItems = \DB::table('sales_order_items as soi')
+                ->leftJoin('product_variants as pv', 'soi.product_variant_id', '=', 'pv.id')
+                ->where('soi.sales_order_id', $order->id)
+                ->select('soi.quantity', 'soi.product_variant_id', 'pv.offer_price', 'pv.product_id')
+                ->get();
 
-            // You could implement product/category specific rates here
-            // For now, using the affiliate's default rate
+            if ($orderItems->isEmpty()) {
+                \Log::info('No items found for order, skipping commission', ['order_id' => $order->id]);
+                return false;
+            }
 
-            $commissionAmount = ($totalAmount * $commissionRate) / 100;
+            $totalProductAmount = 0;
+            $commissionAmount = 0;
+
+            // Calculate commission for each item based on hierarchy
+            foreach ($orderItems as $item) {
+                $itemPrice = (float) ($item->offer_price ?? 0);
+                $quantity = (int) ($item->quantity ?? 1);
+                $itemTotal = $itemPrice * $quantity;
+                $totalProductAmount += $itemTotal;
+
+                // REQUIREMENT 3: Commission hierarchy - Category → Product → Default 5%
+                $itemCommissionRate = 5.00; // Default 5%
+
+                // Check product-specific commission
+                $productCommission = \DB::table('product_affiliate_commissions')
+                    ->where('product_id', $item->product_id)
+                    ->where('affiliate_id', $this->id)
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($productCommission) {
+                    $itemCommissionRate = $productCommission->commission_rate;
+                } else {
+                    // Check category-specific commission if product rate not found
+                    $categoryCommission = \DB::table('category_affiliate_commissions as cac')
+                        ->join('product_categories as pc', 'cac.category_id', '=', 'pc.category_id')
+                        ->where('pc.product_id', $item->product_id)
+                        ->where('cac.affiliate_id', $this->id)
+                        ->where('cac.is_active', true)
+                        ->first();
+
+                    if ($categoryCommission) {
+                        $itemCommissionRate = $categoryCommission->commission_rate;
+                    }
+                }
+
+                $commissionAmount += ($itemTotal * $itemCommissionRate) / 100;
+            }
 
             if ($commissionAmount <= 0) {
                 \Log::info('Commission amount is zero, skipping', [
                     'order_id' => $order->id,
-                    'total_amount' => $totalAmount,
-                    'commission_rate' => $commissionRate,
+                    'total_product_amount' => $totalProductAmount,
                 ]);
                 return false;
             }
+
+            // REQUIREMENT 2: Status "pending" until order is PAID (payment_status = 'paid')
+            $earningStatus = ($order->payment_status === 'paid') ? 'confirmed' : 'pending';
 
             // Update order with affiliate information
             $order->update([
@@ -267,7 +314,7 @@ class Affiliate extends Model
                 'affiliate_referral_code' => $referralCode,
                 'affiliate_referral_id' => $referralId,
                 'affiliate_commission_amount' => $commissionAmount,
-                'affiliate_commission_rate' => $commissionRate,
+                'affiliate_commission_rate' => $this->commission_rate,
                 'affiliate_commission_calculated_at' => now(),
             ]);
 
@@ -276,7 +323,7 @@ class Affiliate extends Model
                 $referral->update([
                     'converted_at' => now(),
                     'sales_order_id' => $order->id,
-                    'order_amount' => $totalAmount,
+                    'order_amount' => $totalProductAmount,
                     'commission_amount' => $commissionAmount,
                     'status' => 'converted',
                 ]);
@@ -287,24 +334,27 @@ class Affiliate extends Model
                 'affiliate_id' => $this->id,
                 'sales_order_id' => $order->id,
                 'order_invoice' => $order->order_number ?? $order->id,
-                'order_amount' => $totalAmount,
+                'order_amount' => $totalProductAmount,
                 'commission_amount' => $commissionAmount,
-                'commission_rate' => $commissionRate,
+                'commission_rate' => $this->commission_rate,
                 'customer_id' => $order->customer_id,
                 'customer_name' => $order->customer_name ?? 'Guest',
                 'customer_email' => $order->customer_email ?? null,
-                'status' => 'pending', // Pending until order is completed/paid
+                'status' => $earningStatus, // "pending" until paid, "confirmed" if paid
             ]);
 
-            // Update affiliate stats
-            $this->increment('total_earned', $commissionAmount);
+            // Update affiliate stats - only count if paid
+            if ($earningStatus === 'confirmed') {
+                $this->increment('total_earned', $commissionAmount);
+            }
             $this->update(['last_conversion_at' => now()]);
 
             \Log::info('Affiliate commission calculated and recorded', [
                 'affiliate_id' => $this->id,
                 'order_id' => $order->id,
+                'product_amount' => $totalProductAmount,
                 'commission_amount' => $commissionAmount,
-                'commission_rate' => $commissionRate,
+                'earning_status' => $earningStatus,
             ]);
 
             return true;

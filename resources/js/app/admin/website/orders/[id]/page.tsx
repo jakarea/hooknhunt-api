@@ -38,8 +38,15 @@ type OrderData = WebsiteOrderDetail & {
   canSendToCourier?: boolean
 }
 
+function getSafeDate(dateInput: any): Date {
+  if (!dateInput) return new Date()
+  const date = new Date(dateInput)
+  if (isNaN(date.getTime())) return new Date()
+  return date
+}
+
 function getProcessingTime(createdAt: string, status: string): string {
-  const start = new Date(createdAt)
+  const start = getSafeDate(createdAt)
   const end = status === 'completed' || status === 'cancelled'
     ? new Date()
     : new Date()
@@ -723,7 +730,7 @@ export default function WebsiteOrderDetailPage() {
 
   const statusOptions = getStatusOptions()
 
-  const orderDate = new Date(order.timestamps?.createdAt || (order as any).createdAt)
+  const orderDate = getSafeDate(order.timestamps?.createdAt || (order as any).createdAt)
   const customerSummary = (order.customerInfo as any)?.summary
   const shipping = order.shipping
   const totalWeight = order.items?.reduce((sum, item) => sum + ((item.variantWeight || 0) * item.quantity), 0) || 0
@@ -855,7 +862,7 @@ export default function WebsiteOrderDetailPage() {
                     )}
                     {h.comment && <Text size="xs" c="dimmed">— {h.comment}</Text>}
                     {h.changedBy && <Text size="xs" c="dimmed">by {h.changedBy}</Text>}
-                    <Text size="xs" c="dimmed">{new Date(h.createdAt).toLocaleString()}</Text>
+                    <Text size="xs" c="dimmed">{getSafeDate(h.createdAt).toLocaleString()}</Text>
                   </Group>
                 ))}
                 {order.note && (() => {
@@ -1601,7 +1608,7 @@ export default function WebsiteOrderDetailPage() {
 
 // Generate professional invoice HTML for printing (optimized for thermal/pad printing)
 function generateInvoiceHTML(order: OrderData): string {
-  const orderDate = new Date(order.timestamps?.createdAt || (order as any).createdAt)
+  const orderDate = getSafeDate(order.timestamps?.createdAt || (order as any).createdAt)
   const shipping = order.shipping
   const items = order.items || []
 

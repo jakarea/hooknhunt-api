@@ -20,7 +20,7 @@ Route::group([
     'middleware' => ['auth']
 ], function () {
     Route::apiResource('affiliates', 'AffiliateController')
-        ->only(['index', 'store', 'update', 'destroy'])
+        ->only(['index', 'show', 'store', 'update', 'destroy'])
         ->names('crm.affiliates')
         ->middleware([
             'store' => 'permission:crm.affiliates.create',

@@ -15,6 +15,106 @@ class AffiliateController extends Controller
     use ApiResponse;
 
     /**
+     * Get all affiliates (for admin).
+     * GET /api/v2/crm/affiliates
+     */
+    public function index(Request $request)
+    {
+        try {
+            $query = Affiliate::with('user')->orderBy('created_at', 'desc');
+
+            if ($request->has('search')) {
+                $search = $request->input('search');
+                $query->whereHas('user', function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%");
+                })->orWhere('referral_code', 'like', "%{$search}%");
+            }
+
+            $perPage = $request->input('per_page', 15);
+            $affiliates = $query->paginate($perPage);
+
+            $affiliates->getCollection()->transform(function ($affiliate) {
+                return [
+                    'id' => $affiliate->id,
+                    'userId' => $affiliate->user_id,
+                    'name' => $affiliate->user?->name ?? 'N/A',
+                    'email' => $affiliate->user?->email ?? 'N/A',
+                    'phone' => $affiliate->user?->phone_number ?? 'N/A',
+                    'referralCode' => $affiliate->referral_code,
+                    'referralLink' => url('/?ref=' . $affiliate->referral_code),
+                    'commissionRate' => (float) $affiliate->commission_rate,
+                    'totalEarned' => (float) $affiliate->total_earned,
+                    'withdrawnAmount' => (float) $affiliate->withdrawn_amount,
+                    'availableBalance' => (float) $affiliate->available_balance,
+                    'totalClicks' => $affiliate->total_clicks,
+                    'totalConversions' => $affiliate->total_conversions,
+                    'conversionRate' => $affiliate->conversion_rate,
+                    'isApproved' => $affiliate->is_approved,
+                    'joinedAt' => $affiliate->created_at->toDateTimeString(),
+                    'lastConversionAt' => $affiliate->last_conversion_at?->toDateTimeString(),
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $affiliates->items(),
+                'pagination' => [
+                    'total' => $affiliates->total(),
+                    'perPage' => $affiliates->perPage(),
+                    'currentPage' => $affiliates->currentPage(),
+                    'lastPage' => $affiliates->lastPage(),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch affiliates', ['error' => $e->getMessage()]);
+            return $this->sendError('Failed to fetch affiliates', [], 500);
+        }
+    }
+
+    /**
+     * Get single affiliate (for admin).
+     * GET /api/v2/crm/affiliates/{id}
+     */
+    public function show($id)
+    {
+        try {
+            $affiliate = Affiliate::with('user')->findOrFail($id);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id' => $affiliate->id,
+                    'userId' => $affiliate->user_id,
+                    'name' => $affiliate->user?->name ?? 'N/A',
+                    'email' => $affiliate->user?->email ?? 'N/A',
+                    'phone' => $affiliate->user?->phone_number ?? 'N/A',
+                    'referralCode' => $affiliate->referral_code,
+                    'referralLink' => url('/?ref=' . $affiliate->referral_code),
+                    'commissionRate' => (float) $affiliate->commission_rate,
+                    'totalEarned' => (float) $affiliate->total_earned,
+                    'withdrawnAmount' => (float) $affiliate->withdrawn_amount,
+                    'availableBalance' => (float) $affiliate->available_balance,
+                    'totalClicks' => $affiliate->total_clicks,
+                    'totalConversions' => $affiliate->total_conversions,
+                    'conversionRate' => $affiliate->conversion_rate,
+                    'isApproved' => $affiliate->is_approved,
+                    'joinedAt' => $affiliate->created_at->toDateTimeString(),
+                    'lastConversionAt' => $affiliate->last_conversion_at?->toDateTimeString(),
+                ],
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Affiliate not found',
+            ], 404);
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch affiliate', ['error' => $e->getMessage()]);
+            return $this->sendError('Failed to fetch affiliate', [], 500);
+        }
+    }
+
+    /**
      * Check if authenticated user is an affiliate
      * GET /api/v2/affiliate/check
      */
@@ -90,6 +190,131 @@ class AffiliateController extends Controller
         ];
 
         return $this->sendSuccess($stats);
+    }
+
+    /**
+     * Create a new affiliate (for admin).
+     * POST /api/v2/crm/affiliates
+     */
+    public function store(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'user_id' => 'required|integer|exists:users,id|unique:affiliates,user_id',
+                'commission_rate' => 'required|numeric|min:0|max:100',
+            ]);
+
+            $affiliate = Affiliate::create([
+                'user_id' => $validated['user_id'],
+                'referral_code' => Affiliate::generateUniqueReferralCode(),
+                'commission_rate' => $validated['commission_rate'],
+                'is_approved' => false,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Affiliate created successfully',
+                'data' => $this->formatAffiliate($affiliate),
+            ], 201);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Failed to create affiliate', ['error' => $e->getMessage()]);
+            return $this->sendError('Failed to create affiliate', [], 500);
+        }
+    }
+
+    /**
+     * Update affiliate (for admin).
+     * PUT /api/v2/crm/affiliates/{id}
+     */
+    public function update(Request $request, $id)
+    {
+        try {
+            $affiliate = Affiliate::with('user')->findOrFail($id);
+
+            $validated = $request->validate([
+                'commission_rate' => 'sometimes|numeric|min:0|max:100',
+                'is_approved' => 'sometimes|boolean',
+            ]);
+
+            $affiliate->update($validated);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Affiliate updated successfully',
+                'data' => $this->formatAffiliate($affiliate),
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Affiliate not found',
+            ], 404);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Failed to update affiliate', ['error' => $e->getMessage()]);
+            return $this->sendError('Failed to update affiliate', [], 500);
+        }
+    }
+
+    /**
+     * Delete affiliate (for admin).
+     * DELETE /api/v2/crm/affiliates/{id}
+     */
+    public function destroy($id)
+    {
+        try {
+            $affiliate = Affiliate::findOrFail($id);
+            $affiliate->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Affiliate deleted successfully',
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Affiliate not found',
+            ], 404);
+        } catch (\Exception $e) {
+            Log::error('Failed to delete affiliate', ['error' => $e->getMessage()]);
+            return $this->sendError('Failed to delete affiliate', [], 500);
+        }
+    }
+
+    /**
+     * Format affiliate data for API response.
+     */
+    private function formatAffiliate(Affiliate $affiliate)
+    {
+        return [
+            'id' => $affiliate->id,
+            'userId' => $affiliate->user_id,
+            'name' => $affiliate->user?->name ?? 'N/A',
+            'email' => $affiliate->user?->email ?? 'N/A',
+            'phone' => $affiliate->user?->phone_number ?? 'N/A',
+            'referralCode' => $affiliate->referral_code,
+            'referralLink' => url('/?ref=' . $affiliate->referral_code),
+            'commissionRate' => (float) $affiliate->commission_rate,
+            'totalEarned' => (float) $affiliate->total_earned,
+            'withdrawnAmount' => (float) $affiliate->withdrawn_amount,
+            'availableBalance' => (float) $affiliate->available_balance,
+            'totalClicks' => $affiliate->total_clicks,
+            'totalConversions' => $affiliate->total_conversions,
+            'conversionRate' => $affiliate->conversion_rate,
+            'isApproved' => $affiliate->is_approved,
+            'joinedAt' => $affiliate->created_at->toDateTimeString(),
+            'lastConversionAt' => $affiliate->last_conversion_at?->toDateTimeString(),
+        ];
     }
 
     /**

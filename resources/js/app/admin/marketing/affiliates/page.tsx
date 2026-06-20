@@ -200,12 +200,24 @@ export default function AffiliatesPage() {
       })
       fetchAffiliates(false)
       fetchStats()
-    } catch (error) {
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to approve affiliate. Please try again.',
-        color: 'red',
-      })
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || 'Failed to approve affiliate. Please try again.'
+
+      // If already approved, just refresh the data
+      if (errorMessage.includes('already approved')) {
+        notifications.show({
+          title: 'Info',
+          message: `${name} is already approved.`,
+          color: 'blue',
+        })
+        fetchAffiliates(false)
+      } else {
+        notifications.show({
+          title: 'Error',
+          message: errorMessage,
+          color: 'red',
+        })
+      }
     }
   }
 
@@ -222,12 +234,24 @@ export default function AffiliatesPage() {
       })
       fetchAffiliates(false)
       fetchStats()
-    } catch (error) {
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to reject affiliate. Please try again.',
-        color: 'red',
-      })
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || 'Failed to reject affiliate. Please try again.'
+
+      // If already rejected or approved, just refresh the data
+      if (errorMessage.includes('already') || errorMessage.includes('approved')) {
+        notifications.show({
+          title: 'Info',
+          message: 'Affiliate status has been updated.',
+          color: 'blue',
+        })
+        fetchAffiliates(false)
+      } else {
+        notifications.show({
+          title: 'Error',
+          message: errorMessage,
+          color: 'red',
+        })
+      }
     }
   }
 
@@ -504,7 +528,11 @@ export default function AffiliatesPage() {
                 <Table.Tr key={affiliate.id}>
                   <Table.Td>
                     <div>
-                      <Text fw={500}>{affiliate.name}</Text>
+                      <Link to={`/marketing/affiliates/${affiliate.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                        <Text fw={500} component="span" style={{ cursor: 'pointer', color: 'var(--mantine-color-blue-6)', textDecoration: 'underline' }}>
+                          {affiliate.name}
+                        </Text>
+                      </Link>
                       <Text size="xs" c="dimmed">{affiliate.email}</Text>
                       <Text size="xs" c="dimmed">{affiliate.phone}</Text>
                     </div>
@@ -517,15 +545,15 @@ export default function AffiliatesPage() {
                   </Table.Td>
                   <Table.Td>
                     <div>
-                      <Text size="sm" fw={500}>৳{affiliate.availableBalance.toFixed(2)}</Text>
-                      <Text size="xs" c="dimmed">Earned: ৳{affiliate.totalEarned.toFixed(2)}</Text>
+                      <Text size="sm" fw={500}>৳{(affiliate.availableBalance ?? 0).toFixed(2)}</Text>
+                      <Text size="xs" c="dimmed">Earned: ৳{(affiliate.totalEarned ?? 0).toFixed(2)}</Text>
                     </div>
                   </Table.Td>
-                  <Table.Td>{affiliate.totalClicks}</Table.Td>
+                  <Table.Td>{affiliate.totalClicks ?? 0}</Table.Td>
                   <Table.Td>
                     <div>
-                      <Text size="sm">{affiliate.totalConversions}</Text>
-                      <Text size="xs" c="dimmed">{affiliate.conversionRate.toFixed(1)}%</Text>
+                      <Text size="sm">{affiliate.totalConversions ?? 0}</Text>
+                      <Text size="xs" c="dimmed">{((affiliate.conversionRate ?? 0).toFixed(1))}%</Text>
                     </div>
                   </Table.Td>
                   <Table.Td>

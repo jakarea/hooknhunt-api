@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Catalog Product Controller for V2 API
@@ -970,16 +971,24 @@ class ProductController extends Controller
             ]);
 
             $product = Product::findOrFail($id);
-            $product->update(['status' => $validated['status']]);
+
+            // Update the product status
+            $updated = $product->update(['status' => $validated['status']]);
+
+            // Refresh to get updated data
+            $product->refresh();
 
             // Clear cache
             Cache::forget("product:v2:slug:{$product->slug}");
-            Cache::forget('products:v2:*');
+            Cache::tags('products')->flush();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Product status updated successfully',
-                'data' => $product->only(['id', 'status'])
+                'data' => [
+                    'id' => $product->id,
+                    'status' => $product->status
+                ]
             ], 200);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
@@ -997,6 +1006,12 @@ class ProductController extends Controller
             ], 422);
 
         } catch (\Exception $e) {
+            \Log::error('Product status update failed', [
+                'product_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update product status',

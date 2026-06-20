@@ -88,10 +88,8 @@ class OrderController extends Controller
      */
     public function show(int $id): JsonResponse
     {
-        // Use direct database access for module independence
-        // Customer data is denormalized, user relationships removed
+        // Fetch order with all relations
         $order = WebsiteOrder::with([
-            'items',
             'statusHistories',
             'activityLogs',
         ])->find($id);
@@ -100,24 +98,52 @@ class OrderController extends Controller
             return response()->json(['success' => false, 'message' => 'Order not found'], 404);
         }
 
-        // Enhance items with thumbnail data using pure SQL (module independence maintained)
-        $order->items->transform(function ($item) {
-            $thumbnail = DB::table('sales_order_items as sgi')
-                ->leftJoin('product_variants as pv', 'sgi.product_variant_id', '=', 'pv.id')
-                ->leftJoin('products as p', 'pv.product_id', '=', 'p.id')
-                ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
-                ->where('sgi.id', $item->id)
-                ->select(
-                    'm.path as thumbnail_path',
-                    DB::raw('CASE WHEN m.path IS NOT NULL THEN CONCAT("https://hooknhunt-api.test/storage/", m.path) ELSE NULL END as thumbnail_url')
-                )
-                ->first();
+        // Fetch items with product/variant details via JOIN (use current prices from product_variants)
+        $items = DB::table('sales_order_items as sgi')
+            ->leftJoin('product_variants as pv', 'sgi.product_variant_id', '=', 'pv.id')
+            ->leftJoin('products as p', 'pv.product_id', '=', 'p.id')
+            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->where('sgi.sales_order_id', $id)
+            ->select(
+                'sgi.id',
+                'sgi.product_variant_id',
+                'sgi.quantity',
+                'sgi.total_cost',
+                'p.name as product_name',
+                'p.slug as product_slug',
+                'pv.sku as product_sku',
+                'pv.variant_name',
+                'pv.price',
+                'pv.offer_price',
+                'm.path as thumbnail_path',
+                DB::raw('CASE WHEN m.path IS NOT NULL THEN CONCAT("https://hooknhunt-api.test/storage/", m.path) ELSE NULL END as thumbnail_url'),
+                DB::raw('(pv.offer_price * sgi.quantity) as total_price'),
+                DB::raw('((pv.offer_price * sgi.quantity) - sgi.total_cost) as profit')
+            )
+            ->get()
+            ->map(function ($item) {
+                return (object) [
+                    'id' => $item->id,
+                    'product_variant_id' => $item->product_variant_id,
+                    'quantity' => $item->quantity,
+                    'unit_price' => (float) $item->offer_price,
+                    'original_price' => (float) $item->price,
+                    'total_price' => (float) $item->total_price,
+                    'total_cost' => (float) $item->total_cost,
+                    'profit' => (float) $item->profit,
+                    'product_name' => $item->product_name,
+                    'product_slug' => $item->product_slug,
+                    'product_sku' => $item->product_sku,
+                    'variant_name' => $item->variant_name,
+                    'thumbnail_path' => $item->thumbnail_path,
+                    'thumbnail_url' => $item->thumbnail_url,
+                    'weight' => 0,
+                    'total_weight' => 0,
+                ];
+            });
 
-            $item->thumbnail_path = $thumbnail ? $thumbnail->thumbnail_path : null;
-            $item->thumbnail_url = $thumbnail ? $thumbnail->thumbnail_url : null;
-
-            return $item;
-        });
+        // Attach enriched items to order
+        $order->items = $items;
 
         // Get allowed next statuses using the transition service
         $validTransitions = $this->transitionService->getValidTransitions($order->status);
@@ -727,29 +753,56 @@ class OrderController extends Controller
         // Customer data uses denormalized columns (customer_name, customer_email, customer_phone)
         // Thumbnail data added via pure SQL (no cross-module relationships)
         $order = WebsiteOrder::with([
-            'items',
             'statusHistories',
             'activityLogs',
         ])->find($orderId);
 
-        // Enhance items with thumbnail data using pure SQL (module independence maintained)
-        $order->items->transform(function ($item) {
-            $thumbnail = DB::table('sales_order_items as sgi')
-                ->leftJoin('product_variants as pv', 'sgi.product_variant_id', '=', 'pv.id')
-                ->leftJoin('products as p', 'pv.product_id', '=', 'p.id')
-                ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
-                ->where('sgi.id', $item->id)
-                ->select(
-                    'm.path as thumbnail_path',
-                    DB::raw('CASE WHEN m.path IS NOT NULL THEN CONCAT("https://hooknhunt-api.test/storage/", m.path) ELSE NULL END as thumbnail_url')
-                )
-                ->first();
+        // Fetch items with product/variant details via JOIN (use current prices from product_variants)
+        $items = DB::table('sales_order_items as sgi')
+            ->leftJoin('product_variants as pv', 'sgi.product_variant_id', '=', 'pv.id')
+            ->leftJoin('products as p', 'pv.product_id', '=', 'p.id')
+            ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
+            ->where('sgi.sales_order_id', $orderId)
+            ->select(
+                'sgi.id',
+                'sgi.product_variant_id',
+                'sgi.quantity',
+                'sgi.total_cost',
+                'p.name as product_name',
+                'p.slug as product_slug',
+                'pv.sku as product_sku',
+                'pv.variant_name',
+                'pv.price',
+                'pv.offer_price',
+                'm.path as thumbnail_path',
+                DB::raw('CASE WHEN m.path IS NOT NULL THEN CONCAT("https://hooknhunt-api.test/storage/", m.path) ELSE NULL END as thumbnail_url'),
+                DB::raw('(pv.offer_price * sgi.quantity) as total_price'),
+                DB::raw('((pv.offer_price * sgi.quantity) - sgi.total_cost) as profit')
+            )
+            ->get()
+            ->map(function ($item) {
+                return (object) [
+                    'id' => $item->id,
+                    'product_variant_id' => $item->product_variant_id,
+                    'quantity' => $item->quantity,
+                    'unit_price' => (float) $item->offer_price,
+                    'original_price' => (float) $item->price,
+                    'total_price' => (float) $item->total_price,
+                    'total_cost' => (float) $item->total_cost,
+                    'profit' => (float) $item->profit,
+                    'product_name' => $item->product_name,
+                    'product_slug' => $item->product_slug,
+                    'product_sku' => $item->product_sku,
+                    'variant_name' => $item->variant_name,
+                    'thumbnail_path' => $item->thumbnail_path,
+                    'thumbnail_url' => $item->thumbnail_url,
+                    'weight' => 0,
+                    'total_weight' => 0,
+                ];
+            });
 
-            $item->thumbnail_path = $thumbnail ? $thumbnail->thumbnail_path : null;
-            $item->thumbnail_url = $thumbnail ? $thumbnail->thumbnail_url : null;
-
-            return $item;
-        });
+        // Attach enriched items to order
+        $order->items = $items;
 
         // Get allowed next statuses using the transition service
         $validTransitions = $this->transitionService->getValidTransitions($order->status);
@@ -808,30 +861,39 @@ class OrderController extends Controller
         $customerData = $order->getCustomerData();
         $paymentData = $order->getPaymentData();
 
+        // Calculate correct totals from items (items have current prices from product_variants)
+        $calculatedSubTotal = $order->items ? $order->items->sum('total_price') : 0;
+        $calculatedProfit = $order->items ? $order->items->sum('profit') : 0;
+        $discountAmount = (float) $order->discount_amount;
+        $deliveryCharge = (float) $order->delivery_charge;
+        $calculatedTotal = max(0, $calculatedSubTotal - $discountAmount + $deliveryCharge);
+        $paidAmount = (float) $order->paid_amount;
+        $calculatedDueAmount = max(0, $calculatedTotal - $paidAmount);
+
         return [
             'id' => $order->id,
-            'invoice_no' => $order->invoice_no,
+            'invoiceNo' => $order->invoice_no,
             'channel' => $order->channel,
             'status' => $order->status,
-            'status_label' => $order->status_label,
-            'payment_status' => $order->payment_status,
-            'delivery_status' => $order->delivery_status,
-            'sub_total' => (float) $order->sub_total,
-            'discount_amount' => (float) $order->discount_amount,
-            'delivery_charge' => (float) $order->delivery_charge,
-            'total_amount' => (float) $order->total_amount,
-            'paid_amount' => (float) $order->paid_amount,
-            'due_amount' => $order->due_amount,
-            'total_weight' => (float) $order->total_weight,
-            'total_profit' => (float) $order->total_profit,
-            'coupon_code' => $order->coupon_code,
+            'statusLabel' => $order->status_label,
+            'paymentStatus' => $order->payment_status,
+            'deliveryStatus' => $order->delivery_status,
+            'subTotal' => $calculatedSubTotal,
+            'discountAmount' => $discountAmount,
+            'deliveryCharge' => $deliveryCharge,
+            'totalAmount' => $calculatedTotal,
+            'paidAmount' => $paidAmount,
+            'dueAmount' => $calculatedDueAmount,
+            'totalWeight' => (float) $order->total_weight,
+            'totalProfit' => $calculatedProfit,
+            'couponCode' => $order->coupon_code,
             'note' => $order->note,
-            'editing_locked' => (bool) $order->editing_locked,
-            'sent_to_courier' => (bool) $order->sent_to_courier,
-            'consignment_id' => $order->consignment_id,
-            'tracking_code' => $order->tracking_code,
+            'editingLocked' => (bool) $order->editing_locked,
+            'sentToCourier' => (bool) $order->sent_to_courier,
+            'consignmentId' => $order->consignment_id,
+            'trackingCode' => $order->tracking_code,
             'shipping' => $shippingData,
-            'customer_info' => [
+            'customerInfo' => [
                 'id' => $order->customer_id,
                 'name' => $order->customer_name,
                 'phone' => $order->customer_phone,
@@ -839,53 +901,52 @@ class OrderController extends Controller
                 'type' => $order->external_data['customer_type'] ?? 'retail',
             ] + $customerData,
             'payment' => $paymentData,
-            'sold_by' => null, // User relationship removed for independence
+            'soldBy' => null, // User relationship removed for independence
             'items' => $order->items->map(fn ($item) => [
                 'id' => $item->id,
-                'product_variant_id' => $item->product_variant_id,
-                'product_id' => null, // Available via join if needed, but not stored in item
-                'product_name' => $item->product_name,
-                'wholesale_name' => null, // Not stored in order item (catalog dependency)
-                'variant_name' => $item->product_sku ?? 'N/A', // Use SKU as variant name
+                'productVariantId' => $item->product_variant_id,
+                'productId' => null,
+                'productName' => $item->product_name,
+                'wholesaleName' => null,
+                'variantName' => $item->variant_name ?? $item->product_sku ?? 'N/A',
                 'sku' => $item->product_sku,
-                // Use enhanced thumbnail data from SQL join
                 'thumbnail' => $item->thumbnail_url ?? $item->thumbnail_path,
-                'thumbnail_url' => $item->thumbnail_url, // Direct URL for frontend
-                'variant_weight' => (float) ($item->weight ?? 0),
+                'thumbnailUrl' => $item->thumbnail_url,
+                'slug' => $item->product_slug ?? null,
+                'variantWeight' => (float) ($item->weight ?? 0),
                 'quantity' => $item->quantity,
-                'unit_price' => (float) $item->unit_price,
-                'original_price' => $item->original_price ? (float) $item->original_price : null,
-                'offer_price' => null, // Not stored in order item (catalog dependency)
-                'total_price' => (float) $item->total_price,
-                'total_cost' => (float) $item->total_cost,
-                'profit' => $item->profit,
+                'unitPrice' => (float) $item->unit_price,
+                'originalPrice' => $item->original_price ? (float) $item->original_price : null,
+                'offerPrice' => $item->original_price ? (float) $item->original_price : null,
+                'totalPrice' => (float) $item->total_price,
+                'totalCost' => (float) $item->total_cost,
+                'profit' => (float) $item->profit,
                 'weight' => (float) $item->weight,
-                'total_weight' => $item->total_weight,
-                'slug' => null, // Not stored in order item (catalog dependency)
+                'totalWeight' => (float) $item->total_weight,
             ])->toArray(),
-            'status_history' => $order->statusHistories->map(fn ($h) => [
+            'statusHistory' => $order->statusHistories->map(fn ($h) => [
                 'id' => $h->id,
-                'from_status' => $h->from_status,
-                'to_status' => $h->to_status,
+                'fromStatus' => $h->from_status,
+                'toStatus' => $h->to_status,
                 'comment' => $h->comment,
-                'changed_by' => null, // User relationship removed for independence
-                'created_at' => $h->created_at->toIso8601String(),
+                'changedBy' => null, // User relationship removed for independence
+                'createdAt' => $h->created_at->toIso8601String(),
             ])->toArray(),
             // Module independence: Use activityLogs relationship (Website module)
-            'recent_activities' => $order->activityLogs()->latest()->limit(10)->get()->map(fn ($log) => [
+            'recentActivities' => $order->activityLogs()->latest()->limit(10)->get()->map(fn ($log) => [
                 'id' => $log->id,
                 'action' => $log->action,
                 'description' => $log->description,
-                'old_data' => $log->old_data,
-                'new_data' => $log->new_data,
-                'performed_by' => null, // User relationship removed for module independence
-                'created_at' => $log->created_at->toIso8601String(),
+                'oldData' => $log->old_data,
+                'newData' => $log->new_data,
+                'performedBy' => null, // User relationship removed for module independence
+                'createdAt' => $log->created_at->toIso8601String(),
             ])->toArray(),
             'timestamps' => [
-                'created_at' => $order->created_at?->toIso8601String(),
-                'confirmed_at' => $order->confirmed_at?->toIso8601String(),
-                'shipped_at' => $order->shipped_at?->toIso8601String(),
-                'cancelled_at' => $order->cancelled_at?->toIso8601String(),
+                'createdAt' => $order->created_at?->toIso8601String(),
+                'confirmedAt' => $order->confirmed_at?->toIso8601String(),
+                'shippedAt' => $order->shipped_at?->toIso8601String(),
+                'cancelledAt' => $order->cancelled_at?->toIso8601String(),
             ],
         ];
     }
