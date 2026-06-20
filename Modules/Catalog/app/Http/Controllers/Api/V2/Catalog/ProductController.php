@@ -971,12 +971,21 @@ class ProductController extends Controller
             ]);
 
             $product = Product::findOrFail($id);
+            $oldStatus = $product->status;
 
-            // Update the product status
-            $updated = $product->update(['status' => $validated['status']]);
+            // Direct DB update to bypass any model issues, then dispatch event manually
+            DB::table('products')
+                ->where('id', $id)
+                ->update([
+                    'status' => $validated['status'],
+                    'updated_at' => now(),
+                ]);
 
             // Refresh to get updated data
             $product->refresh();
+
+            // Manually fire the event since we bypassed the Model update
+            \App\Modules\Catalog\Events\ProductUpdated::dispatch($product);
 
             // Clear cache
             Cache::forget("product:v2:slug:{$product->slug}");
