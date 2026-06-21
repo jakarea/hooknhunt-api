@@ -161,7 +161,12 @@ class ProductController extends Controller
     {
         try {
             $user = auth()->user();
-            $isAdmin = $user && (auth()->user()->hasRole('admin') || auth()->user()->hasRole('super_admin'));
+            // Check if user is authenticated and has admin role
+            $isAdmin = $user && $user->role && (
+                $user->role->slug === 'super_admin' ||
+                $user->role->slug === 'admin' ||
+                $user->role_id == 1
+            );
 
             $cacheKey = "product:v2:slug:{$slug}";
 
