@@ -160,10 +160,13 @@ class ProductController extends Controller
     public function show(string $slug): JsonResponse
     {
         try {
+            $user = auth()->user();
+            $isAdmin = $user && (auth()->user()->hasRole('admin') || auth()->user()->hasRole('super_admin'));
+
             $cacheKey = "product:v2:slug:{$slug}";
 
-            $product = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($slug) {
-                return Product::with([
+            $product = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($slug, $isAdmin) {
+                $query = Product::with([
                     'category',
                     'brand',
                     'variants' => function ($query) {
@@ -171,9 +174,14 @@ class ProductController extends Controller
                               ->select('id', 'product_id', 'sku', 'variant_name', 'price', 'offer_price', 'stock', 'is_active', 'thumbnail_id', 'purchase_cost');
                     }
                 ])
-                ->where('slug', $slug)
-                ->where('status', 'published')
-                ->firstOrFail();
+                ->where('slug', $slug);
+
+                // Only show published products to non-admin users
+                if (!$isAdmin) {
+                    $query->where('status', 'published');
+                }
+
+                return $query->firstOrFail();
             });
 
             // Append cross-sell and up-sell products for single product view only
