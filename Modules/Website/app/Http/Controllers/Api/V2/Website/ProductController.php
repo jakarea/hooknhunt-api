@@ -34,6 +34,7 @@ class ProductController extends Controller
                     ->whereColumn('product_variants.product_id', '=', 'p.id')
                     ->where('channel', 'retail')
                     ->where('is_active', true)
+                    ->whereNull('deleted_at')
                     ->limit(1);
             })
             ->select([
@@ -92,6 +93,7 @@ class ProductController extends Controller
             ->whereIn('product_id', $productIds)
             ->where('channel', 'retail')
             ->where('is_active', true)
+            ->whereNull('deleted_at')
             ->select('product_id', 'id', 'variant_name', 'variant_slug', 'sku', 'price', 'offer_price', 'stock', 'weight', 'size', 'color')
             ->get()
             ->groupBy('product_id');
@@ -241,6 +243,7 @@ class ProductController extends Controller
             ->where('pv.product_id', $product->id)
             ->where('pv.channel', 'retail')
             ->where('pv.is_active', true)
+            ->whereNull('pv.deleted_at')
             ->select([
                 'pv.id',
                 'pv.product_id',
@@ -461,6 +464,7 @@ class ProductController extends Controller
                     ->whereColumn('product_variants.product_id', '=', 'p.id')
                     ->where('channel', 'retail')
                     ->where('is_active', true)
+                    ->whereNull('deleted_at')
                     ->limit(1);
             })
             ->orderBy('p.created_at', 'desc')
@@ -484,6 +488,7 @@ class ProductController extends Controller
             ->whereIn('product_id', $productIds)
             ->where('channel', 'retail')
             ->where('is_active', true)
+            ->whereNull('deleted_at')
             ->select('product_id', 'id', 'variant_name', 'variant_slug', 'sku', 'price', 'offer_price', 'stock', 'weight', 'size', 'color')
             ->get()
             ->groupBy('product_id');
@@ -558,6 +563,7 @@ class ProductController extends Controller
                     ->where('is_active', true)
                     ->where('offer_price', '>', 0)
                     ->whereColumn('offer_price', '<', 'price')
+                    ->whereNull('deleted_at')
                     ->limit(1);
             })
             ->orderBy('p.created_at', 'desc')
@@ -581,6 +587,7 @@ class ProductController extends Controller
             ->whereIn('product_id', $productIds)
             ->where('channel', 'retail')
             ->where('is_active', true)
+            ->whereNull('deleted_at')
             ->select('product_id', 'id', 'variant_name', 'variant_slug', 'sku', 'price', 'offer_price', 'stock', 'weight', 'size', 'color')
             ->get()
             ->groupBy('product_id');
@@ -722,6 +729,7 @@ class ProductController extends Controller
                     ->whereColumn('product_variants.product_id', '=', 'p.id')
                     ->where('channel', 'retail')
                     ->where('is_active', true)
+                    ->whereNull('deleted_at')
                     ->limit(1);
             })
             ->orderBy('p.created_at', 'desc')
@@ -807,6 +815,7 @@ class ProductController extends Controller
                     ->whereColumn('product_variants.product_id', '=', 'p.id')
                     ->where('channel', 'retail')
                     ->where('is_active', true)
+                    ->whereNull('deleted_at')
                     ->limit(1);
             })
             ->orderBy('p.created_at', 'desc')
@@ -926,6 +935,7 @@ class ProductController extends Controller
                     ->whereColumn('product_variants.product_id', '=', 'p.id')
                     ->where('channel', 'retail')
                     ->where('is_active', true)
+                    ->whereNull('deleted_at')
                     ->limit(1);
             })
             ->where(function ($q) use ($query) {
@@ -993,6 +1003,7 @@ class ProductController extends Controller
                     ->whereColumn('product_variants.product_id', '=', 'p.id')
                     ->where('channel', 'retail')
                     ->where('is_active', true)
+                    ->whereNull('deleted_at')
                     ->limit(1);
             })
             ->where(function ($q) use ($searchQuery) {
