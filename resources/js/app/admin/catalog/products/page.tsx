@@ -225,8 +225,15 @@ export default function ProductsPage() {
     )
 
     try {
-      await updateProductStatus(productId, newStatus)
-      // Success - UI already updated
+      const updatedProduct = await updateProductStatus(productId, newStatus)
+      // Use returned data to sync state with backend
+      if (updatedProduct) {
+        setProducts((prevProducts) =>
+          prevProducts.map((p) =>
+            p.id === productId ? { ...p, ...updatedProduct } : p
+          )
+        )
+      }
     } catch (error: any) {
       // Revert on error
       setProducts((prevProducts) =>

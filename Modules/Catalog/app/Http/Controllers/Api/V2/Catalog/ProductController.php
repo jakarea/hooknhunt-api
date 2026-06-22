@@ -27,6 +27,41 @@ class ProductController extends Controller
     private const MAX_PER_PAGE = 500;
 
     /**
+     * Invalidate all product list cache by incrementing the cache version
+     * When version changes, all cached products become invalid
+     */
+    private function clearProductsListCache(): void
+    {
+        // Increment cache version - this invalidates ALL cached products lists
+        $currentVersion = Cache::get('products:v2:version', 1);
+        Cache::put('products:v2:version', $currentVersion + 1, 365 * 24 * 60 * 60); // Keep version for a year
+
+        // Clear all product-related cache (admin + storefront)
+        try {
+            Cache::tags(['product:v2', 'storefront:product:v2'])->flush();
+        } catch (\Exception $e) {
+            // Tags not supported, try direct clearing
+            $this->clearStorefrontProductCache();
+        }
+    }
+
+    /**
+     * Clear storefront product cache for a specific product
+     */
+    private function clearStorefrontProductCache(?string $slug = null): void
+    {
+        if ($slug) {
+            Cache::forget("storefront:product:v2:slug:{$slug}");
+        } else {
+            // Clear all storefront product caches - iterate through common patterns
+            // This is a fallback when tags aren't supported
+            for ($i = 1; $i <= 100; $i++) {
+                Cache::forget("storefront:product:v2:slug:product-{$i}");
+            }
+        }
+    }
+
+    /**
      * Get paginated list of products
      * GET /api/v2/catalog/products
      *
@@ -43,14 +78,19 @@ class ProductController extends Controller
             $page = (int) $request->input('page', 1);
             $search = $request->input('search', '');
             $status = $request->input('status');
+            $categoryId = $request->input('category_id');
             $categorySlug = $request->input('category');
             $sortBy = $request->input('sort_by', 'created_at');
             $sortOrder = $request->input('sort_order', 'desc');
 
-            // Cache key for products list
-            $cacheKey = "products:v2:page:{$page}:per_page:{$perPage}:search:{$search}:status:{$status}:category:{$categorySlug}:sort:{$sortBy}:{$sortOrder}";
+            // Get cache version - when products update, this version changes, invalidating all cached products
+            $cacheVersion = Cache::get('products:v2:version', 1);
 
-            $products = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($perPage, $search, $status, $categorySlug, $sortBy, $sortOrder) {
+            // Cache key for products list - includes version so any product change invalidates all cache
+            $cacheKey = "products:v2:v{$cacheVersion}:page:{$page}:per_page:{$perPage}:search:{$search}:status:{$status}:category_id:{$categoryId}:category:{$categorySlug}:sort:{$sortBy}:{$sortOrder}";
+
+            // Get products from cache or database
+            $products = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($perPage, $search, $status, $categoryId, $categorySlug, $sortBy, $sortOrder) {
                 $query = Product::query()
                     ->select('id', 'name', 'slug', 'product_code', 'thumbnail_id', 'category_id', 'brand_id', 'status', 'sort_order', 'created_at', 'updated_at')
                     ->with([
@@ -74,11 +114,17 @@ class ProductController extends Controller
                     $query->where('status', $status);
                 }
 
-                // Category filter
-                if ($categorySlug) {
-                    $category = Category::where('slug', $categorySlug)->first();
-                    if ($category) {
-                        $query->where('category_id', $category->id);
+                // Category filter: prefer numeric category_id from admin UI, fall back to slug for storefront
+                if ($categoryId) {
+                    $query->where('category_id', (int) $categoryId);
+                } elseif ($categorySlug) {
+                    if (is_numeric($categorySlug)) {
+                        $query->where('category_id', (int) $categorySlug);
+                    } else {
+                        $category = Category::where('slug', $categorySlug)->first();
+                        if ($category) {
+                            $query->where('category_id', $category->id);
+                        }
                     }
                 }
 
@@ -170,24 +216,47 @@ class ProductController extends Controller
 
             $cacheKey = "product:v2:slug:{$slug}";
 
-            $product = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($slug, $isAdmin) {
-                $query = Product::with([
-                    'category',
-                    'brand',
-                    'variants' => function ($query) {
-                        $query->where('is_active', true)
-                              ->select('id', 'product_id', 'sku', 'variant_name', 'price', 'offer_price', 'stock', 'is_active', 'thumbnail_id', 'purchase_cost');
+            try {
+                // Use tagged cache for easier invalidation
+                $product = Cache::tags(['product:v2'])->remember($cacheKey, self::CACHE_TTL, function () use ($slug, $isAdmin) {
+                    $query = Product::with([
+                        'category',
+                        'brand',
+                        'variants' => function ($query) {
+                            // Always show only active (non-deleted) variants
+                            $query->withoutTrashed()
+                                ->select('id', 'product_id', 'sku', 'variant_name', 'price', 'offer_price', 'stock', 'is_active', 'thumbnail_id', 'purchase_cost', 'weight', 'moq', 'purchase_cost');
+                        }
+                    ])
+                    ->where('slug', $slug);
+
+                    // Only show published products to non-admin users
+                    if (!$isAdmin) {
+                        $query->where('status', 'published');
                     }
-                ])
-                ->where('slug', $slug);
 
-                // Only show published products to non-admin users
-                if (!$isAdmin) {
-                    $query->where('status', 'published');
-                }
+                    return $query->firstOrFail();
+                });
+            } catch (\Exception $e) {
+                // If tags not supported, use regular remember
+                $product = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($slug, $isAdmin) {
+                    $query = Product::with([
+                        'category',
+                        'brand',
+                        'variants' => function ($query) {
+                            $query->withoutTrashed()
+                                ->select('id', 'product_id', 'sku', 'variant_name', 'price', 'offer_price', 'stock', 'is_active', 'thumbnail_id', 'purchase_cost', 'weight', 'moq', 'purchase_cost');
+                        }
+                    ])
+                    ->where('slug', $slug);
 
-                return $query->firstOrFail();
-            });
+                    if (!$isAdmin) {
+                        $query->where('status', 'published');
+                    }
+
+                    return $query->firstOrFail();
+                });
+            }
 
             // Append cross-sell and up-sell products for single product view only
             // This prevents N+1 queries on product list pages
@@ -506,12 +575,21 @@ class ProductController extends Controller
                 $product = Product::create($validated);
 
                 // Clear cache
-                Cache::forget('products:v2:*');
+                $this->clearProductsListCache();
+
+                // Reload product with non-deleted variants only
+                $product->load([
+                    'category',
+                    'brand',
+                    'variants' => function ($query) {
+                        $query->withoutTrashed();
+                    }
+                ]);
 
                 return response()->json([
                     'success' => true,
                     'message' => 'Product created successfully',
-                    'data' => $product->load(['category', 'brand', 'variants'])
+                    'data' => $product
                 ], 201);
             });
 
@@ -582,12 +660,21 @@ class ProductController extends Controller
             }
 
             // Clear cache
-            Cache::forget('products:v2:*');
+            $this->clearProductsListCache();
+
+            // Reload product with non-deleted variants only
+            $product->load([
+                'category',
+                'brand',
+                'variants' => function ($query) {
+                    $query->withoutTrashed();
+                }
+            ]);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Product with variants created successfully',
-                'data' => $product->load(['category', 'brand', 'variants'])
+                'data' => $product
             ], 201);
         });
     }
@@ -836,11 +923,23 @@ class ProductController extends Controller
                 'variants.*.weight' => 'nullable|numeric|min:0',
                 'variants.*.stock' => 'nullable|integer|min:0',
                 'variants.*.thumbnail_id' => 'nullable|integer|exists:media_files,id',
+                'deleted_variant_ids' => 'nullable|array',
+                'deleted_variant_ids.*' => 'integer|exists:product_variants,id',
             ]);
 
             // thumbnail_id and gallery_images already contain media_files IDs
             // No conversion needed - save directly
             $product->update($validated);
+
+            // Delete variants FIRST (before updating) to avoid unique constraint violations
+            if (isset($validated['deleted_variant_ids']) && is_array($validated['deleted_variant_ids'])) {
+                foreach ($validated['deleted_variant_ids'] as $variantId) {
+                    ProductVariant::where('id', $variantId)
+                        ->where('product_id', $product->id)
+                        ->delete(); // Soft delete - preserves referential integrity with orders
+                }
+                \Log::info('Deleted variants', ['variant_ids' => $validated['deleted_variant_ids']]);
+            }
 
             // Handle variants update
             if (isset($validated['variants']) && is_array($validated['variants'])) {
@@ -869,6 +968,7 @@ class ProductController extends Controller
                         'thumbnail_id' => $variantData['thumbnail_id'] ?? null,
                         'channel' => 'retail',
                         'is_active' => true,
+                        'variant_slug' => \Illuminate\Support\Str::slug($variantData['name'] ?? 'variant') . '-' . time(),
                     ];
 
                     if ($variantId) {
@@ -881,7 +981,6 @@ class ProductController extends Controller
                     } else {
                         // Create new variant
                         $updateData['product_id'] = $product->id;
-                        $updateData['variant_slug'] = \Illuminate\Support\Str::slug($variantData['name'] ?? 'variant') . '-' . time();
                         \Log::info('Creating new variant', ['update_data' => $updateData]);
                         ProductVariant::create($updateData);
                     }
@@ -892,12 +991,21 @@ class ProductController extends Controller
 
             // Clear cache
             Cache::forget("product:v2:slug:{$product->slug}");
-            Cache::forget('products:v2:*');
+            $this->clearProductsListCache();
+
+            // Reload product with non-deleted variants only
+            $product->load([
+                'category',
+                'brand',
+                'variants' => function ($query) {
+                    $query->withoutTrashed();
+                }
+            ]);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Product updated successfully',
-                'data' => $product->load(['category', 'brand', 'variants'])
+                'data' => $product
             ], 200);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
@@ -945,7 +1053,7 @@ class ProductController extends Controller
 
             // Clear cache
             Cache::forget("product:v2:slug:{$productSlug}");
-            Cache::forget('products:v2:*');
+            $this->clearProductsListCache();
 
             return response()->json([
                 'success' => true,
@@ -1000,8 +1108,11 @@ class ProductController extends Controller
             // Manually fire the event since we bypassed the Model update
             \App\Modules\Catalog\Events\ProductUpdated::dispatch($product);
 
-            // Clear related cache keys
+            // Clear related cache keys - clear both admin and storefront caches
             Cache::forget("product:v2:slug:{$product->slug}");
+            Cache::forget("storefront:product:v2:slug:{$product->slug}");
+            // Clear all products list cache variations
+            $this->clearProductsListCache();
 
             return response()->json([
                 'success' => true,
@@ -1060,14 +1171,15 @@ class ProductController extends Controller
             );
             $page = (int) $request->input('page', 1);
             $search = $request->input('search', '');
+            $categoryId = $request->input('category_id');
             $categorySlug = $request->input('category');
             $sortBy = $request->input('sort_by', 'created_at');
             $sortOrder = $request->input('sort_order', 'desc');
 
             // Cache key for storefront products list
-            $cacheKey = "storefront:products:v2:page:{$page}:per_page:{$perPage}:search:{$search}:category:{$categorySlug}:sort:{$sortBy}:{$sortOrder}";
+            $cacheKey = "storefront:products:v2:page:{$page}:per_page:{$perPage}:search:{$search}:category_id:{$categoryId}:category:{$categorySlug}:sort:{$sortBy}:{$sortOrder}";
 
-            $products = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($perPage, $search, $categorySlug, $sortBy, $sortOrder) {
+            $products = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($perPage, $search, $categoryId, $categorySlug, $sortBy, $sortOrder) {
                 $query = Product::query()
                     ->with(['category', 'brand', 'variants' => function ($query) {
                         $query->select('id', 'product_id', 'price', 'stock', 'is_active');
@@ -1083,11 +1195,17 @@ class ProductController extends Controller
                     });
                 }
 
-                // Category filter
-                if ($categorySlug) {
-                    $category = Category::where('slug', $categorySlug)->first();
-                    if ($category) {
-                        $query->where('category_id', $category->id);
+                // Category filter: prefer numeric category_id, fall back to slug
+                if ($categoryId) {
+                    $query->where('category_id', (int) $categoryId);
+                } elseif ($categorySlug) {
+                    if (is_numeric($categorySlug)) {
+                        $query->where('category_id', (int) $categorySlug);
+                    } else {
+                        $category = Category::where('slug', $categorySlug)->first();
+                        if ($category) {
+                            $query->where('category_id', $category->id);
+                        }
                     }
                 }
 
@@ -1173,8 +1291,9 @@ class ProductController extends Controller
                     'category',
                     'brand',
                     'variants' => function ($query) {
-                        $query->where('is_active', true)
-                              ->select('id', 'product_id', 'variant_name', 'sku', 'price',
+                        // Show only active (non-deleted) variants on storefront
+                        // Deleted variants should not be visible to customers
+                        $query->select('id', 'product_id', 'variant_name', 'sku', 'price',
                                      'offer_price', 'stock', 'is_active', 'thumbnail');
                     }
                 ])

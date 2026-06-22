@@ -9,6 +9,9 @@ export const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
   },
   timeout: 30000, // 30 seconds timeout for mobile networks
 })

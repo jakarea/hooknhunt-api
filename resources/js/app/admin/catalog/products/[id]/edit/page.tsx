@@ -206,6 +206,9 @@ interface ProductVariant {
 export default function EditProductPage() {
   const { t } = useTranslation()
 
+  // Debug: Log every render
+  console.log('🔄 Component render, variants count:', (typeof window !== 'undefined' ? 'rendering' : 'ssr'))
+
   // Session warning - alerts user before session expires
   useSessionWarning({
     enabled: true,
@@ -328,6 +331,12 @@ export default function EditProductPage() {
 
   // Variants state
   const [variants, setVariants] = useState<ProductVariant[]>([])
+  const [deletedVariantIds, setDeletedVariantIds] = useState<(number | string)[]>([])
+
+  // Debug: Log variant state changes
+  useEffect(() => {
+    console.log('📊 Variants state changed:', variants.length, 'variants', variants.map(v => v.id))
+  }, [variants])
 
   // Default values for new variants
   const [defaultValues, setDefaultValues] = useState({
@@ -1889,7 +1898,7 @@ export default function EditProductPage() {
                 wholesalePrice: variant.wholesalePrice || variant.wholesale_price || 0,
                 wholesaleOfferPrice: variant.wholesaleOfferPrice || variant.wholesale_offer_price || 0,
                 wholesaleMoq: variant.moq || variant.wholesaleMoq || variant.wholesale_moq || 6,
-                weight: variant.weight || 0,
+                weight: typeof variant.weight === 'string' ? parseFloat(variant.weight) : (variant.weight || 0),
                 stock: variant.stock || variant.currentStock || variant.current_stock || 0,
                 thumbnail: variant.thumbnail || null,
                 thumbnailUrl: variant.thumbnailUrl || variant.thumbnail || null,
@@ -1968,7 +1977,7 @@ export default function EditProductPage() {
                 wholesalePrice: variant.wholesalePrice || variant.wholesale_price || 0,
                 wholesaleOfferPrice: variant.wholesaleOfferPrice || variant.wholesale_offer_price || 0,
                 wholesaleMoq: variant.wholesaleMoq || variant.moq || variant.wholesale_moq || 6,
-                weight: variant.weight || 0,
+                weight: typeof variant.weight === 'string' ? parseFloat(variant.weight) : (variant.weight || 0),
                 stock: variant.stock || variant.current_stock || 0,
                 thumbnail: variant.thumbnail || null,
                 thumbnailUrl: variant.thumbnailUrl || variant.thumbnail || null,
@@ -2110,8 +2119,24 @@ export default function EditProductPage() {
       })
       return
     }
-    setVariants(prev => prev.filter(v => v.id !== variantId))
-  }, [variants.length, t])
+
+    // Track the deleted variant ID if it's from the database (not a new one)
+    const variantToDelete = variants.find(v => v.id === variantId)
+    console.log('🗑️ Variant delete clicked:', { variantId, found: !!variantToDelete, dbId: variantToDelete?.dbId })
+    if (variantToDelete && variantToDelete.dbId) {
+      const dbId = variantToDelete.dbId
+      console.log('✅ Adding to deletedVariantIds:', dbId)
+      setDeletedVariantIds(prev => [...prev, dbId])
+    }
+
+    // Remove from UI
+    console.log('🔄 Before setVariants, current variants:', variants.map(v => ({ id: v.id, name: v.name })))
+    setVariants(prev => {
+      const filtered = prev.filter(v => v.id !== variantId)
+      console.log('🔄 After filter, remaining variants:', filtered.map(v => ({ id: v.id, name: v.name })))
+      return filtered
+    })
+  }, [variants, t])
 
   const handleUpdateVariant = useCallback((variantId: string, field: keyof ProductVariant, value: any) => {
     setVariants(prev => prev.map(v => {
@@ -2331,11 +2356,19 @@ export default function EditProductPage() {
           weight: parseFloat(v.weight.toString()),
           stock: parseInt(v.stock.toString()),
           thumbnail_id: v.thumbnailId || null
-        }))
+        })),
+        deleted_variant_ids: deletedVariantIds.filter(id => typeof id === 'number')
       }
+
+      // Debug logging
+      console.log('📦 [handleSubmit] State before payload:', { deletedVariantIds, variants_count: variants.length })
+      console.log('📤 [handleSubmit] Payload being sent:', { variants_count: payload.variants?.length, deleted_variant_ids: payload.deleted_variant_ids })
 
       // Call API - PUT for update
       const response = await apiMethods.put(`catalog/products/${id}`, payload)
+
+      // Reset deleted variant IDs after successful save
+      setDeletedVariantIds([])
 
       // Success
       notifications.show({
@@ -2416,6 +2449,7 @@ export default function EditProductPage() {
     featuredImage,
     galleryImages,
     variants,
+    deletedVariantIds,
     id,
     t,
     navigate
@@ -2536,11 +2570,19 @@ export default function EditProductPage() {
           weight: parseFloat(v.weight.toString()),
           stock: parseInt(v.stock.toString()),
           thumbnail_id: v.thumbnailId || null
-        }))
+        })),
+        deleted_variant_ids: deletedVariantIds.filter(id => typeof id === 'number')
       }
+
+      // Debug logging
+      console.log('📦 State before payload:', { deletedVariantIds, variants_count: variants.length })
+      console.log('📤 Payload being sent:', { variants_count: payload.variants?.length, deleted_variant_ids: payload.deleted_variant_ids })
 
       // Call API - PUT for update
       const response = await apiMethods.put(`catalog/products/${id}`, payload)
+
+      // Reset deleted variant IDs after successful save
+      setDeletedVariantIds([])
 
       // Success - update the status state
       setStatus(overrideStatus)
@@ -2620,6 +2662,7 @@ export default function EditProductPage() {
     featuredImage,
     galleryImages,
     variants,
+    deletedVariantIds,
     id,
     t,
     navigate,
