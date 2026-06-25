@@ -212,6 +212,13 @@ class Affiliate extends Model
     public function calculateOrderCommission($order, ?string $referralCode = null): bool
     {
         try {
+            \Log::info('💰 [COMMISSION] calculateOrderCommission() START', [
+                'affiliate_id' => $this->id,
+                'affiliate_code' => $this->referral_code,
+                'order_id' => $order->id,
+                'referral_code_param' => $referralCode,
+            ]);
+
             // Get referral code from order if not provided
             if ($referralCode === null) {
                 $referralCode = $order->affiliate_referral_code ?? null;
@@ -219,6 +226,11 @@ class Affiliate extends Model
 
             // Get referral ID from order if not provided
             $referralId = $order->affiliate_referral_id ?? null;
+
+            \Log::info('📝 [COMMISSION] Extracted codes', [
+                'referral_code' => $referralCode,
+                'referral_id' => $referralId,
+            ]);
 
             // Validate that this referral belongs to this affiliate
             if ($referralId !== null) {
@@ -247,19 +259,29 @@ class Affiliate extends Model
 
             // REQUIREMENT 1: Calculate commission ONLY on product prices (offer_price)
             // Get order items with product variant pricing
+            \Log::info('🛍️  [COMMISSION] Fetching order items', ['order_id' => $order->id]);
+
             $orderItems = \DB::table('sales_order_items as soi')
                 ->leftJoin('product_variants as pv', 'soi.product_variant_id', '=', 'pv.id')
                 ->where('soi.sales_order_id', $order->id)
                 ->select('soi.quantity', 'soi.product_variant_id', 'pv.offer_price', 'pv.product_id')
                 ->get();
 
+            \Log::info('📦 [COMMISSION] Items fetched', [
+                'order_id' => $order->id,
+                'item_count' => $orderItems->count(),
+                'items' => $orderItems->toArray(),
+            ]);
+
             if ($orderItems->isEmpty()) {
-                \Log::info('No items found for order, skipping commission', ['order_id' => $order->id]);
+                \Log::error('❌ [COMMISSION] No items found for order, skipping commission', ['order_id' => $order->id]);
                 return false;
             }
 
             $totalProductAmount = 0;
             $commissionAmount = 0;
+
+            \Log::info('✅ [COMMISSION] Starting commission calculation', ['order_id' => $order->id]);
 
             // Calculate commission for each item based on hierarchy
             foreach ($orderItems as $item) {
@@ -268,11 +290,11 @@ class Affiliate extends Model
                 $itemTotal = $itemPrice * $quantity;
                 $totalProductAmount += $itemTotal;
 
-                // REQUIREMENT 3: Commission hierarchy - Category → Product → Default 5%
+                // REQUIREMENT 3: Commission hierarchy - Product → Category → Default 5%
                 $itemCommissionRate = 5.00; // Default 5%
 
                 // Check product-specific commission
-                $productCommission = \DB::table('product_affiliate_commissions')
+                $productCommission = \DB::table('affiliate_product_commissions')
                     ->where('product_id', $item->product_id)
                     ->where('affiliate_id', $this->id)
                     ->where('is_active', true)
@@ -282,15 +304,22 @@ class Affiliate extends Model
                     $itemCommissionRate = $productCommission->commission_rate;
                 } else {
                     // Check category-specific commission if product rate not found
-                    $categoryCommission = \DB::table('category_affiliate_commissions as cac')
-                        ->join('product_categories as pc', 'cac.category_id', '=', 'pc.category_id')
-                        ->where('pc.product_id', $item->product_id)
-                        ->where('cac.affiliate_id', $this->id)
-                        ->where('cac.is_active', true)
+                    // Get category_id directly from products table
+                    $product = \DB::table('products')
+                        ->where('id', $item->product_id)
+                        ->select('category_id')
                         ->first();
 
-                    if ($categoryCommission) {
-                        $itemCommissionRate = $categoryCommission->commission_rate;
+                    if ($product && $product->category_id) {
+                        $categoryCommission = \DB::table('affiliate_category_commissions')
+                            ->where('category_id', $product->category_id)
+                            ->where('affiliate_id', $this->id)
+                            ->where('is_active', true)
+                            ->first();
+
+                        if ($categoryCommission) {
+                            $itemCommissionRate = $categoryCommission->commission_rate;
+                        }
                     }
                 }
 
@@ -298,18 +327,36 @@ class Affiliate extends Model
             }
 
             if ($commissionAmount <= 0) {
-                \Log::info('Commission amount is zero, skipping', [
+                \Log::error('❌ [COMMISSION] Commission amount is zero, skipping', [
                     'order_id' => $order->id,
                     'total_product_amount' => $totalProductAmount,
+                    'commission_amount' => $commissionAmount,
                 ]);
                 return false;
             }
 
+            \Log::info('✅ [COMMISSION] Commission amount calculated', [
+                'order_id' => $order->id,
+                'total_product_amount' => $totalProductAmount,
+                'commission_amount' => $commissionAmount,
+            ]);
+
             // REQUIREMENT 2: Status "pending" until order is PAID (payment_status = 'paid')
-            $earningStatus = ($order->payment_status === 'paid') ? 'confirmed' : 'pending';
+            $earningStatus = ($order->payment_status === 'paid') ? 'paid' : 'pending';
+
+            \Log::info('📊 [COMMISSION] Earning status determined', [
+                'order_id' => $order->id,
+                'payment_status' => $order->payment_status,
+                'earning_status' => $earningStatus,
+            ]);
 
             // Update order with affiliate information
-            $order->update([
+            \Log::info('💾 [COMMISSION] Updating order with affiliate data', [
+                'order_id' => $order->id,
+                'affiliate_id' => $this->id,
+            ]);
+
+            $updateResult = $order->update([
                 'affiliate_id' => $this->id,
                 'affiliate_referral_code' => $referralCode,
                 'affiliate_referral_id' => $referralId,
@@ -318,8 +365,15 @@ class Affiliate extends Model
                 'affiliate_commission_calculated_at' => now(),
             ]);
 
+            \Log::info('✅ [COMMISSION] Order updated', [
+                'order_id' => $order->id,
+                'update_result' => $updateResult,
+            ]);
+
             // Convert referral to converted
             if ($referralId !== null) {
+                \Log::info('📌 [COMMISSION] Updating referral status', ['referral_id' => $referralId]);
+
                 $referral->update([
                     'converted_at' => now(),
                     'sales_order_id' => $order->id,
@@ -330,7 +384,13 @@ class Affiliate extends Model
             }
 
             // Create affiliate earning record
-            AffiliateEarning::create([
+            \Log::info('💳 [COMMISSION] Creating earning record', [
+                'order_id' => $order->id,
+                'affiliate_id' => $this->id,
+                'commission_amount' => $commissionAmount,
+            ]);
+
+            $earning = AffiliateEarning::create([
                 'affiliate_id' => $this->id,
                 'sales_order_id' => $order->id,
                 'order_invoice' => $order->order_number ?? $order->id,
@@ -340,7 +400,12 @@ class Affiliate extends Model
                 'customer_id' => $order->customer_id,
                 'customer_name' => $order->customer_name ?? 'Guest',
                 'customer_email' => $order->customer_email ?? null,
-                'status' => $earningStatus, // "pending" until paid, "confirmed" if paid
+                'status' => $earningStatus,
+            ]);
+
+            \Log::info('✅ [COMMISSION] Earning record created', [
+                'order_id' => $order->id,
+                'earning_id' => $earning->id,
             ]);
 
             // Update affiliate stats - only count if paid
@@ -349,7 +414,7 @@ class Affiliate extends Model
             }
             $this->update(['last_conversion_at' => now()]);
 
-            \Log::info('Affiliate commission calculated and recorded', [
+            \Log::info('✅ [COMMISSION] Affiliate commission COMPLETE', [
                 'affiliate_id' => $this->id,
                 'order_id' => $order->id,
                 'product_amount' => $totalProductAmount,

@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Website\Traits\ApiResponse;
 use App\Traits\ImageHelper;
 use App\Modules\Website\Http\Requests\PlaceOrderRequest;
+use App\Modules\Website\Http\Requests\QuickPlaceOrderRequest;
 use App\Modules\Website\Models\WebsiteOrder;
 use App\Modules\Website\Models\WebsiteOrderItem;
 use App\Services\AlphaSmsService;
@@ -351,6 +352,360 @@ class OrderController extends Controller
                 500
             );
         }
+    }
+
+    /**
+     * Quick place order for landing pages - minimal payload.
+     *
+     * @param QuickPlaceOrderRequest $request
+     * @return JsonResponse
+     */
+    public function quickPlaceOrder(QuickPlaceOrderRequest $request): JsonResponse
+    {
+        try {
+            DB::beginTransaction();
+
+            $validated = $request->validatedWithDefaults();
+
+            // Set fixed values for landing page orders
+            $customerType = 'retail';
+            $channel = config('orders.channels.retail_web');
+            $paymentMethod = 'cod';
+
+            // Fetch delivery charge from settings or use default
+            $deliveryCharge = config('orders.default_delivery_charge', 70);
+
+            // Get or create customer_id (same logic as placeOrder)
+            $authUser = $request->user();
+            $customerId = null;
+            $userId = null;
+            $credentials = null;
+            $isReturningCustomer = false;
+
+            if (!empty($validated['customer_id'])) {
+                $customerId = $validated['customer_id'];
+                $customer = DB::table('customers')->where('id', $customerId)->first();
+
+                if (!$customer) {
+                    return $this->sendError('Customer not found.', null, 404);
+                }
+
+                $isReturningCustomer = true;
+                $userId = $customer->user_id;
+                $customerName = $customer->name;
+                $customerPhone = $customer->phone;
+                $customerEmail = DB::table('users')->where('id', $customer->user_id)->value('email');
+
+            } elseif ($authUser) {
+                $userId = $authUser->id;
+                $customer = DB::table('customers')->where('user_id', $authUser->id)->first();
+
+                if ($customer) {
+                    $customerId = $customer->id;
+                } else {
+                    $customerId = DB::table('customers')->insertGetId([
+                        'user_id' => $authUser->id,
+                        'currency_id' => 1,
+                        'name' => $authUser->name,
+                        'phone' => $authUser->phone,
+                        'type' => $customerType,
+                        'wallet_balance' => 0,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+
+                $customerName = $authUser->name;
+                $customerPhone = $authUser->phone;
+                $customerEmail = $authUser->email ?? null;
+
+            } else {
+                $generatedPassword = null;
+                $isNewUser = false;
+
+                $existingUser = DB::table('users')
+                    ->where('phone', $validated['customer_phone'])
+                    ->first();
+
+                if ($existingUser) {
+                    $existingCustomer = DB::table('customers')
+                        ->where('user_id', $existingUser->id)
+                        ->first();
+
+                    if ($existingCustomer) {
+                        $customerId = $existingCustomer->id;
+                    } else {
+                        $customerId = DB::table('customers')->insertGetId([
+                            'user_id' => $existingUser->id,
+                            'currency_id' => 1,
+                            'name' => $existingUser->name,
+                            'phone' => $existingUser->phone,
+                            'type' => $customerType,
+                            'wallet_balance' => 0,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+                    }
+
+                    $userId = $existingUser->id;
+                    $isReturningCustomer = true;
+                    $customerName = $existingUser->name;
+                    $customerPhone = $existingUser->phone;
+                    $customerEmail = $existingUser->email ?? null;
+                } else {
+                    $generatedPassword = $this->generatePassword();
+                    $customerId = null;
+                    $isNewUser = true;
+
+                    $userId = DB::table('users')->insertGetId([
+                        'name' => $validated['customer_name'],
+                        'phone' => $validated['customer_phone'],
+                        'email' => null,
+                        'password' => bcrypt($generatedPassword),
+                        'role_id' => 10,
+                        'is_active' => true,
+                        'phone_verified_at' => now(),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+
+                    $customerId = DB::table('customers')->insertGetId([
+                        'user_id' => $userId,
+                        'currency_id' => 1,
+                        'name' => $validated['customer_name'],
+                        'phone' => $validated['customer_phone'],
+                        'type' => $customerType,
+                        'wallet_balance' => 0,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+
+                    $credentials = [
+                        'phone' => $validated['customer_phone'],
+                        'password' => $generatedPassword,
+                    ];
+
+                    $customerName = $validated['customer_name'];
+                    $customerPhone = $validated['customer_phone'];
+                    $customerEmail = null;
+                }
+
+                if ($isNewUser && $generatedPassword) {
+                    $this->sendAccountCreatedSms(
+                        $validated['customer_phone'],
+                        $generatedPassword,
+                        null,
+                        $validated['customer_name']
+                    );
+                }
+            }
+
+            // Validate and fetch all items with prices from database
+            $itemsData = [];
+            $subtotal = 0;
+
+            foreach ($validated['items'] as $item) {
+                $variantData = $this->validateAndFetchVariant($item['product_id'], $item['variant_id']);
+
+                if (!$variantData) {
+                    DB::rollBack();
+                    return $this->sendError(
+                        'Invalid product or variant. Please check your selection.',
+                        ['product_id' => $item['product_id'], 'variant_id' => $item['variant_id']],
+                        400
+                    );
+                }
+
+                if ($variantData->stock < $item['quantity']) {
+                    DB::rollBack();
+                    return $this->sendError(
+                        'Insufficient stock for this product.',
+                        ['variant_name' => $variantData->variant_name, 'available_stock' => $variantData->stock],
+                        400
+                    );
+                }
+
+                $unitPrice = $variantData->offer_price && $variantData->offer_price > 0
+                    ? $variantData->offer_price
+                    : $variantData->price;
+
+                $itemTotal = $unitPrice * $item['quantity'];
+                $subtotal += $itemTotal;
+
+                $itemsData[] = [
+                    'variant_data' => $variantData,
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $unitPrice,
+                    'total_price' => $itemTotal,
+                    'total_cost' => $variantData->purchase_cost * $item['quantity'],
+                ];
+            }
+
+            $payableAmount = $subtotal + $deliveryCharge;
+
+            // Generate invoice number
+            $invoicePrefix = config('orders.invoice_prefixes.' . $channel, 'WEB');
+            $invoiceNo = $invoicePrefix . '-' . strtoupper(uniqid());
+
+            // Create order
+            $order = WebsiteOrder::create([
+                'invoice_no' => $invoiceNo,
+                'customer_id' => $customerId,
+                'customer_name' => $customerName,
+                'customer_email' => $customerEmail,
+                'customer_phone' => $customerPhone,
+                'shipping_name' => $customerName,
+                'shipping_address' => $validated['shipping_address'],
+                'shipping_city' => null,
+                'shipping_country' => null,
+                'shipping_thana' => null,
+                'channel' => $channel,
+                'status' => config('orders.status.pending'),
+                'payment_status' => config('orders.payment_status.unpaid'),
+                'payment_method' => $paymentMethod,
+                'sub_total' => $subtotal,
+                'discount_amount' => 0,
+                'delivery_charge' => $deliveryCharge,
+                'total_amount' => $payableAmount,
+                'paid_amount' => 0,
+                'due_amount' => $payableAmount,
+                'note' => $validated['notes'] ?? 'Landing page order',
+                'external_data' => json_encode([
+                    'customer_type' => $customerType,
+                    'order_source' => 'landing_page',
+                ]),
+            ]);
+
+            // Create order items and update inventory
+            foreach ($itemsData as $itemData) {
+                $variant = $itemData['variant_data'];
+
+                WebsiteOrderItem::create([
+                    'sales_order_id' => $order->id,
+                    'product_variant_id' => $variant->id,
+                    'product_name' => $variant->product_name,
+                    'product_sku' => $variant->sku,
+                    'quantity' => $itemData['quantity'],
+                    'unit_price' => $itemData['unit_price'],
+                    'original_price' => $variant->price,
+                    'total_price' => $itemData['total_price'],
+                    'total_cost' => $itemData['total_cost'],
+                    'weight' => $variant->weight,
+                ]);
+
+                DB::table('product_variants')
+                    ->where('id', $variant->id)
+                    ->decrement('stock', $itemData['quantity']);
+            }
+
+            DB::commit();
+
+            Log::info('Quick order placed successfully', [
+                'order_id' => $order->id,
+                'invoice_no' => $order->invoice_no,
+                'customer_id' => $order->customer_id,
+                'total_amount' => $order->total_amount,
+                'channel' => $channel,
+                'order_source' => 'landing_page',
+            ]);
+
+            // Dispatch order created event
+            try {
+                event(new OrderCreated($order));
+            } catch (\Exception $eventException) {
+                Log::warning('Failed to dispatch OrderCreated event', [
+                    'order_id' => $order->id,
+                    'error' => $eventException->getMessage()
+                ]);
+            }
+
+            // Send order confirmation SMS
+            try {
+                if (class_exists(AlphaSmsService::class)) {
+                    $smsService = new AlphaSmsService();
+                    $message = "Hook & Hunt: Your order {$order->invoice_no} has been placed successfully. Total: ৳{$order->total_amount}";
+                    $smsService->sendSms($message, $order->customer_phone);
+                }
+            } catch (\Exception $smsException) {
+                Log::warning('Failed to send order confirmation SMS', [
+                    'order_id' => $order->id,
+                    'error' => $smsException->getMessage()
+                ]);
+            }
+
+            // Build response
+            $response = $this->transformOrderResponse($order->load('items'));
+
+            if ($credentials) {
+                $response['credentials'] = $credentials;
+            }
+
+            $response['is_returning_customer'] = $isReturningCustomer;
+
+            return $this->sendSuccess(
+                $response,
+                'Order placed successfully.',
+                201
+            );
+
+        } catch (\Illuminate\Database\QueryException $e) {
+            DB::rollBack();
+            Log::error('Database error during quick order placement', [
+                'error' => $e->getMessage(),
+                'sql' => $e->getSql(),
+                'bindings' => $e->getBindings(),
+            ]);
+            return $this->sendError(
+                'Failed to place order due to database error.',
+                config('app.debug') ? ['error' => $e->getMessage()] : null,
+                500
+            );
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Unexpected error during quick order placement', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->except(['password', 'token']),
+            ]);
+            return $this->sendError(
+                'Failed to place order. Please try again.',
+                config('app.debug') ? ['error' => $e->getMessage()] : null,
+                500
+            );
+        }
+    }
+
+    /**
+     * Validate and fetch variant data from database.
+     *
+     * @param int $productId
+     * @param int $variantId
+     * @return object|null
+     */
+    protected function validateAndFetchVariant(int $productId, int $variantId): ?object
+    {
+        return DB::table('product_variants as pv')
+            ->join('products as p', 'pv.product_id', '=', 'p.id')
+            ->where('pv.id', $variantId)
+            ->where('pv.product_id', $productId)
+            ->where('pv.is_active', true)
+            ->where('p.status', 'published')
+            ->where('p.hide', false)
+            ->where('p.hide_from_website', false)
+            ->select(
+                'pv.id',
+                'pv.product_id',
+                'pv.sku',
+                'pv.variant_name',
+                'pv.price',
+                'pv.offer_price',
+                'pv.purchase_cost',
+                'pv.weight',
+                'pv.stock',
+                'p.name as product_name'
+            )
+            ->first();
     }
 
     /**

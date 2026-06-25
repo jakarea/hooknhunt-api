@@ -157,4 +157,9 @@ return [
      */
     'max_order_amount' => env('MAX_ORDER_AMOUNT', 99999999.99),
 
+    /*
+     * Default Delivery Charge for Landing Page Orders
+     */
+    'default_delivery_charge' => env('DEFAULT_DELIVERY_CHARGE', 70),
+
 ];

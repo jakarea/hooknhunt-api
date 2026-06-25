@@ -38,6 +38,9 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->runInBackground(); // Run in background to avoid blocking other tasks
     })
     ->withMiddleware(function (Middleware $middleware) {
+            // Apply CORS middleware globally
+            $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
+
             // EnsureFrontendRequestsAreStateful is disabled for API testing with Bearer tokens
             // For production with SPA frontend, this should be enabled
             // $middleware->api(prepend: [

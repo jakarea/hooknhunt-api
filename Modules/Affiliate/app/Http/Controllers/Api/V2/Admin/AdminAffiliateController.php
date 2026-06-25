@@ -74,10 +74,10 @@ class AdminAffiliateController extends Controller
                     'isApproved' => $affiliate->is_approved,
                     'rejectionReason' => $affiliate->rejection_reason,
                     'adminNotes' => $affiliate->admin_notes,
-                    'approvedAt' => $affiliate->approved_at?->toDateTimeString(),
+                    'approvedAt' => $affiliate->approved_at ? (is_string($affiliate->approved_at) ? $affiliate->approved_at : $affiliate->approved_at->toDateTimeString()) : null,
                     'approvedBy' => $affiliate->approved_by,
-                    'joinedAt' => $affiliate->created_at->toDateTimeString(),
-                    'lastConversionAt' => $affiliate->last_conversion_at?->toDateTimeString(),
+                    'joinedAt' => is_string($affiliate->created_at) ? $affiliate->created_at : $affiliate->created_at->toDateTimeString(),
+                    'lastConversionAt' => $affiliate->last_conversion_at ? (is_string($affiliate->last_conversion_at) ? $affiliate->last_conversion_at : $affiliate->last_conversion_at->toDateTimeString()) : null,
                 ];
             });
 
@@ -174,7 +174,7 @@ class AdminAffiliateController extends Controller
 
             $periodEarnings = AffiliateEarning::where('affiliate_id', $affiliate->id)
                 ->where('created_at', '>=', $dateFrom)
-                ->where('status', 'confirmed')
+                ->where('status', 'paid')
                 ->sum('commission_amount');
 
             $periodConversionRate = $periodClicks > 0 ? round(($periodConversions / $periodClicks) * 100, 2) : 0;
@@ -197,8 +197,8 @@ class AdminAffiliateController extends Controller
                     'totalConversions' => $affiliate->total_conversions,
                     'conversionRate' => $affiliate->conversion_rate,
                     'isApproved' => $affiliate->is_approved,
-                    'joinedAt' => $affiliate->created_at->toDateTimeString(),
-                    'lastConversionAt' => $affiliate->last_conversion_at?->toDateTimeString(),
+                    'joinedAt' => is_string($affiliate->created_at) ? $affiliate->created_at : $affiliate->created_at->toDateTimeString(),
+                    'lastConversionAt' => $affiliate->last_conversion_at ? (is_string($affiliate->last_conversion_at) ? $affiliate->last_conversion_at : $affiliate->last_conversion_at->toDateTimeString()) : null,
                     'periodStats' => [
                         'period' => $period,
                         'clicks' => $periodClicks,

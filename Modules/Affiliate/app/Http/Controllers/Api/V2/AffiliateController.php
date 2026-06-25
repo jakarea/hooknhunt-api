@@ -51,8 +51,8 @@ class AffiliateController extends Controller
                     'totalConversions' => $affiliate->total_conversions,
                     'conversionRate' => $affiliate->conversion_rate,
                     'isApproved' => $affiliate->is_approved,
-                    'joinedAt' => $affiliate->created_at->toDateTimeString(),
-                    'lastConversionAt' => $affiliate->last_conversion_at?->toDateTimeString(),
+                    'joinedAt' => is_string($affiliate->created_at) ? $affiliate->created_at : $affiliate->created_at->toDateTimeString(),
+                    'lastConversionAt' => $affiliate->last_conversion_at ? (is_string($affiliate->last_conversion_at) ? $affiliate->last_conversion_at : $affiliate->last_conversion_at->toDateTimeString()) : null,
                 ];
             });
 
@@ -76,10 +76,72 @@ class AffiliateController extends Controller
      * Get single affiliate (for admin).
      * GET /api/v2/crm/affiliates/{id}
      */
-    public function show($id)
+    public function show($id, Request $request)
     {
         try {
-            $affiliate = Affiliate::with('user')->findOrFail($id);
+            $affiliate = Affiliate::with([
+                'user',
+                'earnings',
+                'payouts',
+                'referrals',
+                'productCommissions',
+                'categoryCommissions'
+            ])->findOrFail($id);
+
+            // Get period from request (default: 30days)
+            $period = $request->query('period', '30days');
+            $dateFrom = match($period) {
+                '7days' => now()->subDays(7),
+                '90days' => now()->subDays(90),
+                '1year' => now()->subYear(),
+                default => now()->subDays(30),
+            };
+
+            // Get period earnings and referrals
+            $periodEarnings = $affiliate->earnings()
+                ->where('created_at', '>=', $dateFrom)
+                ->where('status', 'paid')
+                ->sum('commission_amount');
+
+            $periodReferrals = $affiliate->referrals()
+                ->where('clicked_at', '>=', $dateFrom)
+                ->get();
+
+            $periodClicks = $periodReferrals->count();
+            $periodConversions = $periodReferrals->where('status', 'converted')->count();
+            $periodConversionRate = $periodClicks > 0 ? round(($periodConversions / $periodClicks) * 100, 2) : 0;
+
+            // Get recent earnings and payouts
+            $recentEarnings = $affiliate->earnings()
+                ->latest()
+                ->limit(10)
+                ->get()
+                ->map(function ($earning) {
+                    return [
+                        'id' => $earning->id,
+                        'orderInvoice' => $earning->order_invoice ?? 'N/A',
+                        'orderAmount' => (float) $earning->order_amount,
+                        'commissionAmount' => (float) $earning->commission_amount,
+                        'status' => $earning->status,
+                        'createdAt' => is_string($earning->created_at) ? $earning->created_at : $earning->created_at->toDateTimeString(),
+                        'customerName' => $earning->customer_name,
+                        'customerEmail' => $earning->customer_email,
+                    ];
+                });
+
+            $recentPayouts = $affiliate->payouts()
+                ->latest()
+                ->limit(10)
+                ->get()
+                ->map(function ($payout) {
+                    return [
+                        'id' => $payout->id,
+                        'amount' => (float) $payout->amount,
+                        'paymentMethod' => $payout->payment_method,
+                        'status' => $payout->status,
+                        'createdAt' => is_string($payout->created_at) ? $payout->created_at : $payout->created_at->toDateTimeString(),
+                    ];
+                });
 
             return response()->json([
                 'success' => true,
@@ -99,8 +161,33 @@ class AffiliateController extends Controller
                     'totalConversions' => $affiliate->total_conversions,
                     'conversionRate' => $affiliate->conversion_rate,
                     'isApproved' => $affiliate->is_approved,
-                    'joinedAt' => $affiliate->created_at->toDateTimeString(),
-                    'lastConversionAt' => $affiliate->last_conversion_at?->toDateTimeString(),
+                    'rejectionReason' => $affiliate->rejection_reason,
+                    'adminNotes' => $affiliate->admin_notes,
+                    'joinedAt' => is_string($affiliate->created_at) ? $affiliate->created_at : $affiliate->created_at->toDateTimeString(),
+                    'lastConversionAt' => $affiliate->last_conversion_at ? (is_string($affiliate->last_conversion_at) ? $affiliate->last_conversion_at : $affiliate->last_conversion_at->toDateTimeString()) : null,
+                    'periodStats' => [
+                        'period' => $period,
+                        'clicks' => $periodClicks,
+                        'conversions' => $periodConversions,
+                        'earnings' => (float) $periodEarnings,
+                        'conversionRate' => $periodConversionRate,
+                    ],
+                    'recentEarnings' => $recentEarnings,
+                    'recentPayouts' => $recentPayouts,
+                    'productCommissions' => $affiliate->productCommissions->map(fn ($c) => [
+                        'id' => $c->id,
+                        'productId' => $c->product_id,
+                        'productName' => $c->product?->name ?? 'N/A',
+                        'commissionRate' => (float) $c->commission_rate,
+                        'isActive' => $c->is_active,
+                    ]),
+                    'categoryCommissions' => $affiliate->categoryCommissions->map(fn ($c) => [
+                        'id' => $c->id,
+                        'categoryId' => $c->category_id,
+                        'categoryName' => $c->category?->name ?? 'N/A',
+                        'commissionRate' => (float) $c->commission_rate,
+                        'isActive' => $c->is_active,
+                    ]),
                 ],
             ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {

@@ -518,6 +518,11 @@ export default function ProductDetailPage() {
         }}
       >
         <Table.Td>
+          <Text className="text-sm" fw={600} c="blue">
+            {variant.id}
+          </Text>
+        </Table.Td>
+        <Table.Td>
           {variant.thumbnail || variant.thumbnailUrl ? (
             <Image src={variant.thumbnail || variant.thumbnailUrl} width={30} height={30} fit="cover" radius="md" style={{ width: 30, height: 30, minWidth: 30, minHeight: 30 }} />
           ) : (
@@ -1177,6 +1182,7 @@ export default function ProductDetailPage() {
               <Table striped highlightOnHover>
                 <Table.Thead>
                   <Table.Tr>
+                    <Table.Th>ID</Table.Th>
                     <Table.Th>{t('catalog.productsDetail.variants.image') || 'Image'}</Table.Th>
                     <Table.Th>{t('catalog.productsDetail.variants.variant') || 'Variant'}</Table.Th>
                     <Table.Th>{t('catalog.productsDetail.variants.sku') || 'SKU'}</Table.Th>

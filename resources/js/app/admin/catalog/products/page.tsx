@@ -561,7 +561,7 @@ export default function ProductsPage() {
                 size="lg"
                 variant="light"
                 color="blue"
-                onClick={() => onNavigate(`/catalog/products/${product.slug}/edit`)}
+                onClick={() => window.open(`/catalog/products/${product.slug}/edit`, '_blank')}
               >
                 <IconEdit size={18} />
               </ActionIcon>

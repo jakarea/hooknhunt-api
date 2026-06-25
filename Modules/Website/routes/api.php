@@ -144,6 +144,7 @@ Route::prefix('api/v2/store')->group(function () {
 
     // Public Order Route (Place Order - works for both guests and authenticated users)
     Route::post('/orders', [OrderController::class, 'placeOrder']);
+    Route::post('/orders/quick-place', [OrderController::class, 'quickPlaceOrder']);
     Route::post('/orders/verify', [OrderController::class, 'verifyOrder']);
     Route::post('/orders/{invoice_no}/thank-you', [OrderController::class, 'addThankYouProduct']);
     Route::get('/orders/track', [OrderController::class, 'trackOrder']); // Guest order tracking

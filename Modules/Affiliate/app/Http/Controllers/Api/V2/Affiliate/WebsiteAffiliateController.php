@@ -301,13 +301,29 @@ class WebsiteAffiliateController extends Controller
                     ];
                 });
 
-            // Get period-specific earnings
+            // Get period-specific earnings with product info
             $recentEarnings = $affiliate->earnings()
                 ->where('created_at', '>=', $dateFrom)
                 ->orderBy('created_at', 'desc')
-                ->limit(10)
+                ->limit(100)
                 ->get()
                 ->map(function ($earning) {
+                    // Get product info from the order
+                    $productName = 'N/A';
+                    $productImage = null;
+                    if ($earning->sales_order_id) {
+                        $orderItems = \DB::table('sales_order_items as soi')
+                            ->leftJoin('product_variants as pv', 'soi.product_variant_id', '=', 'pv.id')
+                            ->leftJoin('products as p', 'pv.product_id', '=', 'p.id')
+                            ->where('soi.sales_order_id', $earning->sales_order_id)
+                            ->select('p.name as product_name', 'p.id as product_id', 'soi.quantity')
+                            ->get();
+
+                        if ($orderItems->count() > 0) {
+                            $productName = $orderItems->first()->product_name ?? 'N/A';
+                        }
+                    }
+
                     return [
                         'id' => $earning->id,
                         'order_invoice' => $earning->order_invoice ?? 'N/A',
@@ -318,6 +334,7 @@ class WebsiteAffiliateController extends Controller
                         'customer_id' => $earning->customer_id,
                         'customer_name' => $earning->customer_name,
                         'customer_email' => $earning->customer_email,
+                        'product_name' => $productName,
                     ];
                 });
 
@@ -383,7 +400,7 @@ class WebsiteAffiliateController extends Controller
 
             $periodEarnings = AffiliateEarning::where('affiliate_id', $affiliate->id)
                 ->where('created_at', '>=', $dateFrom)
-                ->where('status', 'confirmed')
+                ->where('status', 'paid')
                 ->sum('commission_amount');
 
             $periodConversionRate = $periodClicks > 0 ? round(($periodConversions / $periodClicks) * 100, 2) : 0;
@@ -394,6 +411,59 @@ class WebsiteAffiliateController extends Controller
                 ->orderBy('converted_at', 'desc')
                 ->pluck('converted_at')
                 ->first();
+
+            // Calculate top 10 earning products (group earnings by product)
+            $topProducts = collect($recentEarnings)
+                ->groupBy('product_name')
+                ->map(function ($items, $productName) {
+                    return [
+                        'product_name' => $productName,
+                        'sales_count' => $items->count(),
+                        'total_commission' => (float) $items->sum('commission_amount'),
+                        'total_order_amount' => (float) $items->sum('order_amount'),
+                        'average_commission' => (float) ($items->sum('commission_amount') / $items->count()),
+                    ];
+                })
+                ->sortByDesc('total_commission')
+                ->values()
+                ->take(10);
+
+            // Calculate weekly earnings breakdown (last 25 weeks)
+            $weeklyEarnings = [];
+            $today = now();
+
+            // Generate last 25 weeks of data
+            for ($i = 24; $i >= 0; $i--) {
+                $weekEnd = $today->clone()->subWeeks($i)->endOfWeek();
+                $weekStart = $weekEnd->clone()->subDays(6)->startOfDay();
+
+                $weekKey = $weekStart->format('M d') . ' - ' . $weekEnd->format('M d');
+
+                $weekTotal = collect($recentEarnings)
+                    ->filter(function ($earning) use ($weekStart, $weekEnd) {
+                        $date = \Carbon\Carbon::parse($earning['created_at']);
+                        return $date->between($weekStart, $weekEnd);
+                    })
+                    ->sum('commission_amount');
+
+                $weeklyEarnings[] = [
+                    'week' => $weekKey,
+                    'earnings' => (float) $weekTotal,
+                    'start_date' => $weekStart->toDateString(),
+                    'end_date' => $weekEnd->toDateString(),
+                ];
+            }
+
+            // Calculate balance breakdown
+            $pendingBalance = AffiliateEarning::where('affiliate_id', $affiliate->id)
+                ->where('status', 'pending')
+                ->sum('commission_amount');
+
+            $confirmedBalance = AffiliateEarning::where('affiliate_id', $affiliate->id)
+                ->where('status', 'paid')
+                ->sum('commission_amount');
+
+            $totalBalance = $pendingBalance + $confirmedBalance;
 
             return response()->json([
                 'success' => true,
@@ -425,6 +495,15 @@ class WebsiteAffiliateController extends Controller
                     'recent_payouts' => $recentPayouts,
                     'product_commissions' => $productCommissions,
                     'category_commissions' => $categoryCommissions,
+                    'top_products' => $topProducts->values(),
+                    'weekly_earnings' => $weeklyEarnings,
+                    'balance_breakdown' => [
+                        'pending' => (float) $pendingBalance,
+                        'confirmed' => (float) $confirmedBalance,
+                        'total' => (float) $totalBalance,
+                        'pending_percentage' => $totalBalance > 0 ? round(($pendingBalance / $totalBalance) * 100, 1) : 0,
+                        'confirmed_percentage' => $totalBalance > 0 ? round(($confirmedBalance / $totalBalance) * 100, 1) : 0,
+                    ],
                 ],
             ]);
 
