@@ -101,7 +101,7 @@ class WebsiteProductVariant extends Model
      */
     public function syncFromCatalog(array $catalogVariantData): self
     {
-        return $this->update([
+        $this->update([
             'catalog_variant_id' => $catalogVariantData['id'],
             'product_id' => $catalogVariantData['product_id'] ?? null,
             'variant_name' => $catalogVariantData['variant_name'] ?? null,
@@ -121,6 +121,7 @@ class WebsiteProductVariant extends Model
             'channel' => $catalogVariantData['channel'] ?? 'retail',
             'synced_at' => now(),
         ]);
+        return $this;
     }
 
     /**

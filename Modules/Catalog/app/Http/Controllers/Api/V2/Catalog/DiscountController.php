@@ -66,7 +66,7 @@ class DiscountController extends Controller
             'type' => 'required|in:percentage,fixed_amount,shipping',
             'amount' => 'required|numeric|min:0',
             'max_discount_amount' => 'nullable|numeric|min:0',
-            'min_purchase_amount' => 'nullable|numeric|min:0',
+            'min_order_amount' => 'nullable|numeric|min:0',
             'starts_at' => 'nullable|date',
             'expires_at' => 'nullable|date|after:starts_at',
             'max_uses' => 'nullable|integer|min:1',
@@ -90,7 +90,7 @@ class DiscountController extends Controller
                 'type' => $request->type,
                 'amount' => $request->amount,
                 'max_discount_amount' => $request->max_discount_amount,
-                'min_purchase_amount' => $request->min_purchase_amount,
+                'min_order_amount' => $request->min_order_amount,
                 'starts_at' => $request->starts_at,
                 'expires_at' => $request->expires_at,
                 'max_uses' => $request->max_uses,
@@ -145,7 +145,7 @@ class DiscountController extends Controller
             'type' => 'sometimes|in:percentage,fixed_amount,shipping',
             'amount' => 'sometimes|numeric|min:0',
             'max_discount_amount' => 'nullable|numeric|min:0',
-            'min_purchase_amount' => 'nullable|numeric|min:0',
+            'min_order_amount' => 'nullable|numeric|min:0',
             'starts_at' => 'nullable|date',
             'expires_at' => 'nullable|date|after:starts_at',
             'max_uses' => 'nullable|integer|min:1',
@@ -181,8 +181,8 @@ class DiscountController extends Controller
             if ($request->has('max_discount_amount')) {
                 $updateData['max_discount_amount'] = $request->max_discount_amount;
             }
-            if ($request->has('min_purchase_amount')) {
-                $updateData['min_purchase_amount'] = $request->min_purchase_amount;
+            if ($request->has('min_order_amount')) {
+                $updateData['min_order_amount'] = $request->min_order_amount;
             }
             if ($request->has('starts_at')) {
                 $updateData['starts_at'] = $request->starts_at;
@@ -267,7 +267,7 @@ class DiscountController extends Controller
             'type' => 'required|in:percentage,fixed_amount,shipping',
             'amount' => 'required|numeric|min:0',
             'max_discount_amount' => 'nullable|numeric|min:0',
-            'min_purchase_amount' => 'nullable|numeric|min:0',
+            'min_order_amount' => 'nullable|numeric|min:0',
             'starts_at' => 'nullable|date',
             'expires_at' => 'nullable|date|after:starts_at',
             'max_uses' => 'nullable|integer|min:1',
@@ -288,7 +288,7 @@ class DiscountController extends Controller
                     'type' => $request->type,
                     'amount' => $request->amount,
                     'max_discount_amount' => $request->max_discount_amount,
-                    'min_purchase_amount' => $request->min_purchase_amount,
+                    'min_order_amount' => $request->min_order_amount,
                     'starts_at' => $request->starts_at,
                     'expires_at' => $request->expires_at,
                     'max_uses' => $request->max_uses,

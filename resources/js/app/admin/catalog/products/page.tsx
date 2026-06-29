@@ -94,29 +94,39 @@ export default function ProductsPage() {
   }
 
   const [loading, setLoading] = useState(true)
+  const [tableLoading, setTableLoading] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Array<{ value: string; label: string }>>([])
   const [brands, setBrands] = useState<Array<{ value: string; label: string }>>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch] = useDebouncedValue(searchQuery, 300)
   const [statusFilter, setStatusFilter] = useState<StatusType>('all')
-  const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [brandFilter, setBrandFilter] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<SortByType>('all')
-  const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [perPage, setPerPage] = useState(50)
   const [duplicatedProductId, setDuplicatedProductId] = useState<number | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
-  // Refs to avoid useCallback recreation on pagination changes
-  const pageRef = useRef(page)
-  const perPageRef = useRef(perPage)
+  // Read page and category directly from URL — URL is the single source of truth
+  const page = parseInt(searchParams.get('page') || '1')
+  const categoryFilter = searchParams.get('category')
 
-  // Update refs when state changes
-  useEffect(() => { pageRef.current = page }, [page])
-  useEffect(() => { perPageRef.current = perPage }, [perPage])
+  // Helper: update URL params while preserving others
+  const updateParams = (updates: Record<string, string | null>) => {
+    setSearchParams(prev => {
+      const params = new URLSearchParams(prev)
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value === null || value === '') {
+          params.delete(key)
+        } else {
+          params.set(key, value)
+        }
+      })
+      return params
+    })
+  }
 
   // DnD Kit sensors
   const sensors = useSensors(
@@ -127,35 +137,46 @@ export default function ProductsPage() {
   )
 
   // Fetch products - consolidated to avoid duplicate API calls
-  const fetchProducts = useCallback(async (showLoading = true) => {
+  const fetchProducts = useCallback(async (isInitialLoad = false) => {
     try {
-      if (showLoading) setLoading(true)
+      if (isInitialLoad) {
+        setLoading(true)
+      } else {
+        setTableLoading(true)
+      }
+
       const filters: ProductFilters = {
         search: debouncedSearch || undefined,
         category_id: categoryFilter ? parseInt(categoryFilter) : undefined,
         brand_id: brandFilter ? parseInt(brandFilter) : undefined,
         status: statusFilter === 'all' ? undefined : statusFilter,
         sort_by: sortBy === 'all' ? undefined : sortBy,
-        per_page: perPageRef.current,
-        page: pageRef.current,
+        per_page: perPage,
+        page: page,
       }
+
+      console.log('[ProductsPage] Fetching page:', page, 'filters:', filters)
 
       const response = await getProducts(filters)
 
-      // Backend returns { data: [...items], pagination: { total, last_page, ... } }
       setProducts(response.data || [])
-      if (response.pagination?.total !== undefined) {
-        setTotal(response.pagination.total)
-        setTotalPages(response.pagination.last_page || Math.ceil(response.pagination.total / perPageRef.current))
+
+      const meta = response.pagination || response.meta || response
+      if (meta?.total !== undefined) {
+        setTotal(meta.total)
+        setTotalPages(meta.last_page || meta.lastPage || Math.ceil(meta.total / perPage) || 1)
+        console.log('[ProductsPage] Got', meta.total, 'total,', meta.last_page, 'pages')
       }
     } catch (error) {
+      console.error('[ProductsPage] Error fetching products:', error)
       notifications.show({
         title: t('common.error') || 'Error',
         message: t('catalog.productsPage.notification.fetchError') || 'Failed to load products',
         color: 'red',
       })
     } finally {
-      if (showLoading) setLoading(false)
+      setLoading(false)
+      setTableLoading(false)
     }
   }, [debouncedSearch, categoryFilter, brandFilter, statusFilter, sortBy, page, perPage])
 
@@ -178,31 +199,22 @@ export default function ProductsPage() {
     }
   }
 
-  // Single consolidated useEffect for products
+  // Initial load
+  const isFirstRender = useRef(true)
   useEffect(() => {
-    fetchProducts()
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      fetchProducts(true)
+    } else {
+      fetchProducts(false)
+    }
   }, [fetchProducts])
 
   useEffect(() => {
     fetchDropdownData()
   }, [])
 
-  // Read category from URL params on mount
-  useEffect(() => {
-    const categoryFromUrl = searchParams.get('category')
-    if (categoryFromUrl) {
-      setCategoryFilter(categoryFromUrl)
-    }
-  }, [searchParams])
 
-  // Update URL when category filter changes
-  useEffect(() => {
-    if (categoryFilter) {
-      setSearchParams({ category: categoryFilter })
-    } else {
-      setSearchParams({})
-    }
-  }, [categoryFilter, setSearchParams])
 
   // Handle publish/draft toggle (immediate update with revert on error)
   const handlePublishToggle = async (productId: number, currentStatus: string) => {
@@ -225,7 +237,9 @@ export default function ProductsPage() {
     )
 
     try {
+      console.log('[Toggle] Calling updateProductStatus:', productId, newStatus)
       const updatedProduct = await updateProductStatus(productId, newStatus)
+      console.log('[Toggle] API response:', updatedProduct)
       // Use returned data to sync state with backend
       if (updatedProduct) {
         setProducts((prevProducts) =>
@@ -234,7 +248,16 @@ export default function ProductsPage() {
           )
         )
       }
+      console.log('[Toggle] Showing success notification')
+      notifications.show({
+        title: t('common.success') || 'Success',
+        message: newStatus === 'published'
+          ? 'Product has been published successfully'
+          : 'Product has been set to draft',
+        color: newStatus === 'published' ? 'green' : 'orange',
+      })
     } catch (error: any) {
+      console.error('[Toggle] Error:', error)
       // Revert on error
       setProducts((prevProducts) =>
         prevProducts.map((p) =>
@@ -822,7 +845,9 @@ export default function ProductsPage() {
               clearable
               searchable
               value={categoryFilter}
-              onChange={setCategoryFilter}
+              onChange={(v) => {
+                updateParams({ category: v, page: '1' })
+              }}
               data={categories}
             />
             <Select
@@ -853,7 +878,7 @@ export default function ProductsPage() {
 
         {/* Desktop Table View */}
         <div className="hidden md:block">
-          <Paper withBorder p="0">
+          <Paper withBorder p="0" style={{ opacity: tableLoading ? 0.6 : 1, transition: 'opacity 0.2s ease' }}>
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -930,11 +955,18 @@ export default function ProductsPage() {
               <Select
                 data={[20, 50, 100, 500].map(n => ({ value: String(n), label: String(n) }))}
                 value={String(perPage)}
-                onChange={(v) => { setPerPage(Number(v)); setPage(1) }}
+                onChange={(v) => {
+                  setPerPage(Number(v))
+                  updateParams({ page: '1' })
+                }}
                 w={80}
                 size="sm"
               />
-              <Pagination total={totalPages} value={page} onChange={setPage} />
+              <Pagination
+                total={totalPages}
+                value={page}
+                onChange={(newPage) => updateParams({ page: String(newPage) })}
+              />
             </Group>
           </Group>
         )}

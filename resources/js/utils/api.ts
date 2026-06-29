@@ -4541,26 +4541,25 @@ export const createCoupon = async (data: CouponFormData) => {
  * Update a coupon
  * PUT /api/v2/catalog/discounts/{id}
  */
-export const updateCoupon = async (id: number, data: Partial<CouponFormData>) => {
-  const payload: Record<string, unknown> = {}
-  if (data.code !== undefined) payload.code = data.code.toUpperCase()
-  if (data.description !== undefined) payload.description = data.description
-  if (data.type !== undefined) payload.type = data.type
-  if (data.amount !== undefined) payload.amount = data.amount
-  if (data.maxDiscountAmount !== undefined) payload.max_discount_amount = data.maxDiscountAmount
-  if (data.minOrderAmount !== undefined) payload.min_order_amount = data.minOrderAmount
-  if (data.startsAt !== undefined) payload.starts_at = data.startsAt
-  if (data.expiresAt !== undefined) payload.expires_at = data.expiresAt
-  if (data.maxUses !== undefined) payload.max_uses = data.maxUses
-  if (data.usageLimitPerCustomer !== undefined) payload.usage_limit_per_customer = data.usageLimitPerCustomer
-  if (data.isActive !== undefined) payload.is_active = data.isActive
-  if (data.isAutoApply !== undefined) payload.is_auto_apply = data.isAutoApply
-  if (data.firstPurchaseOnly !== undefined) payload.first_purchase_only = data.firstPurchaseOnly
-  if (data.productIds !== undefined) payload.product_ids = data.productIds
-  if (data.categoryIds !== undefined) payload.category_ids = data.categoryIds
-  if (data.customerIds !== undefined) payload.customer_ids = data.customerIds
-
-  const response = await api.put(`catalog/discounts/${id}`, payload)
+export const updateCoupon = async (id: number, data: CouponFormData) => {
+  const response = await api.put(`catalog/discounts/${id}`, {
+    code: data.code.toUpperCase(),
+    description: data.description,
+    type: data.type,
+    amount: data.amount,
+    max_discount_amount: data.maxDiscountAmount,
+    min_order_amount: data.minOrderAmount,
+    starts_at: data.startsAt,
+    expires_at: data.expiresAt,
+    max_uses: data.maxUses,
+    usage_limit_per_customer: data.usageLimitPerCustomer,
+    is_active: data.isActive ?? true,
+    is_auto_apply: data.isAutoApply ?? false,
+    first_purchase_only: data.firstPurchaseOnly ?? false,
+    product_ids: data.productIds,
+    category_ids: data.categoryIds,
+    customer_ids: data.customerIds,
+  })
   return response.data
 }
 

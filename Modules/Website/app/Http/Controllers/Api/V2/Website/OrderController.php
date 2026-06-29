@@ -547,6 +547,51 @@ class OrderController extends Controller
             $invoicePrefix = config('orders.invoice_prefixes.' . $channel, 'WEB');
             $invoiceNo = $invoicePrefix . '-' . strtoupper(uniqid());
 
+            // Normalize referral code to uppercase if provided
+            $referralCode = isset($validated['affiliate_referral_code'])
+                ? strtoupper($validated['affiliate_referral_code'])
+                : null;
+            $referralId = $validated['affiliate_referral_id'] ?? null;
+
+            // Validate affiliate referral code if provided
+            if ($referralCode) {
+                $affiliate = \App\Modules\Affiliate\Models\Affiliate::where('referral_code', $referralCode)
+                    ->where('is_approved', true)
+                    ->first();
+
+                if (!$affiliate) {
+                    DB::rollBack();
+                    return $this->sendError(
+                        'Invalid or inactive referral code.',
+                        ['referral_code' => $referralCode],
+                        400
+                    );
+                }
+
+                Log::info('Affiliate referral code validated', [
+                    'referral_code' => $referralCode,
+                    'affiliate_id' => $affiliate->id,
+                ]);
+            }
+
+            // Validate referral ID if provided
+            if ($referralId) {
+                $referral = \App\Modules\Affiliate\Models\AffiliateReferral::find($referralId);
+
+                if (!$referral) {
+                    DB::rollBack();
+                    return $this->sendError(
+                        'Invalid referral ID.',
+                        ['referral_id' => $referralId],
+                        400
+                    );
+                }
+
+                Log::info('Affiliate referral ID validated', [
+                    'referral_id' => $referralId,
+                ]);
+            }
+
             // Create order
             $order = WebsiteOrder::create([
                 'invoice_no' => $invoiceNo,
@@ -574,6 +619,9 @@ class OrderController extends Controller
                     'customer_type' => $customerType,
                     'order_source' => 'landing_page',
                 ]),
+                // Affiliate tracking fields
+                'affiliate_referral_code' => $referralCode,
+                'affiliate_referral_id' => $referralId,
             ]);
 
             // Create order items and update inventory
@@ -607,6 +655,8 @@ class OrderController extends Controller
                 'total_amount' => $order->total_amount,
                 'channel' => $channel,
                 'order_source' => 'landing_page',
+                'affiliate_referral_code' => $order->affiliate_referral_code,
+                'affiliate_referral_id' => $order->affiliate_referral_id,
             ]);
 
             // Dispatch order created event

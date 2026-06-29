@@ -111,7 +111,7 @@ class WebsiteCategory extends Model
      */
     public function syncFromCatalog(array $catalogCategoryData): self
     {
-        return $this->update([
+        $this->update([
             'catalog_category_id' => $catalogCategoryData['id'],
             'parent_id' => $catalogCategoryData['parent_id'] ?? null,
             'name' => $catalogCategoryData['name'],
@@ -127,6 +127,7 @@ class WebsiteCategory extends Model
             'meta_description' => $catalogCategoryData['meta_description'] ?? null,
             'synced_at' => now(),
         ]);
+        return $this;
     }
 
     /**

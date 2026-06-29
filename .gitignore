@@ -355,6 +355,9 @@ chats/
 # Continue.dev (AI assistant)
 .continue/
 
+# Kilo CLI
+.kilo/
+
 # Sourcegraph Cody
 .cody/
 

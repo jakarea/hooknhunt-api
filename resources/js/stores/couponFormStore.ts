@@ -244,8 +244,7 @@ export const useCouponFormStore = create<CouponFormState>()(
           if (state.mode === 'create') {
             await createCoupon(state.formData)
           } else if (state.couponId) {
-            const apiData = prepareFormDataForAPI(state.formData)
-            await updateCoupon(state.couponId, apiData as Partial<CouponFormData>)
+            await updateCoupon(state.couponId, state.formData)
           }
 
           set({ submitting: false })

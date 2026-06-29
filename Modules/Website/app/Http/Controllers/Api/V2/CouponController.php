@@ -77,24 +77,26 @@ class CouponController extends Controller
             }
 
             // Check product restrictions
-            if (!empty($coupon->product_ids) && isset($validated['product_ids'])) {
-                $applicableProducts = array_intersect($validated['product_ids'], json_decode($coupon->product_ids, true) ?? []);
+            $restrictedProductIds = json_decode($coupon->product_ids, true) ?? [];
+            if (!empty($restrictedProductIds) && isset($validated['product_ids'])) {
+                $applicableProducts = array_intersect($validated['product_ids'], $restrictedProductIds);
                 if (count($applicableProducts) === 0) {
                     return $this->sendError('This coupon is not applicable to any product in your cart.', null, 400);
                 }
             }
 
             // Check category restrictions
-            if (!empty($coupon->category_ids) && isset($validated['category_ids'])) {
-                $applicableCategories = array_intersect($validated['category_ids'], json_decode($coupon->category_ids, true) ?? []);
+            $restrictedCategoryIds = json_decode($coupon->category_ids, true) ?? [];
+            if (!empty($restrictedCategoryIds) && isset($validated['category_ids'])) {
+                $applicableCategories = array_intersect($validated['category_ids'], $restrictedCategoryIds);
                 if (count($applicableCategories) === 0) {
                     return $this->sendError('This coupon is not applicable to any category in your cart.', null, 400);
                 }
             }
 
             // Check customer restrictions
-            if (!empty($coupon->customer_ids) && isset($validated['user_id'])) {
-                $allowedCustomers = json_decode($coupon->customer_ids, true) ?? [];
+            $allowedCustomers = json_decode($coupon->customer_ids, true) ?? [];
+            if (!empty($allowedCustomers) && isset($validated['user_id'])) {
                 if (!in_array($validated['user_id'], $allowedCustomers)) {
                     return $this->sendError('This coupon is not available for your account.', null, 400);
                 }
@@ -116,15 +118,20 @@ class CouponController extends Controller
             // Discount can't exceed cart total
             $discountAmount = min($discountAmount, $validated['subtotal']);
 
-            return $this->sendSuccess([
-                'code' => $coupon->code,
-                'discount_type' => $coupon->type,
-                'discount_value' => $coupon->amount,
-                'discount_amount' => round($discountAmount, 2),
-                'max_discount_amount' => $coupon->max_discount_amount,
-                'min_purchase_amount' => $coupon->min_order_amount ?? 0,
-                'final_total' => round(max(0, $validated['subtotal'] - $discountAmount), 2),
-            ], 'Coupon validated successfully.');
+            return response()->json([
+                'status' => true,
+                'message' => 'Coupon validated successfully.',
+                'data' => [
+                    'code' => $coupon->code,
+                    'discount_type' => $coupon->type,
+                    'discount_value' => $coupon->amount,
+                    'discount_amount' => round($discountAmount, 2),
+                    'max_discount_amount' => $coupon->max_discount_amount,
+                    'min_purchase_amount' => $coupon->min_order_amount ?? 0,
+                    'final_total' => round(max(0, $validated['subtotal'] - $discountAmount), 2),
+                ],
+                'errors' => null,
+            ]);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             return $this->sendError('Validation failed.', $e->errors(), 422);
@@ -190,8 +197,8 @@ class CouponController extends Controller
                 }
 
                 // Check product restrictions
-                if (!empty($coupon->product_ids) && isset($validated['product_ids'])) {
-                    $allowedProducts = json_decode($coupon->product_ids, true) ?? [];
+                $allowedProducts = json_decode($coupon->product_ids, true) ?? [];
+                if (!empty($allowedProducts) && isset($validated['product_ids'])) {
                     $applicableProducts = array_intersect($validated['product_ids'], $allowedProducts);
                     if (count($applicableProducts) === 0) {
                         continue;
@@ -199,8 +206,8 @@ class CouponController extends Controller
                 }
 
                 // Check category restrictions
-                if (!empty($coupon->category_ids) && isset($validated['category_ids'])) {
-                    $allowedCategories = json_decode($coupon->category_ids, true) ?? [];
+                $allowedCategories = json_decode($coupon->category_ids, true) ?? [];
+                if (!empty($allowedCategories) && isset($validated['category_ids'])) {
                     $applicableCategories = array_intersect($validated['category_ids'], $allowedCategories);
                     if (count($applicableCategories) === 0) {
                         continue;
@@ -208,8 +215,8 @@ class CouponController extends Controller
                 }
 
                 // Check customer restrictions
-                if (!empty($coupon->customer_ids) && isset($validated['user_id'])) {
-                    $allowedCustomers = json_decode($coupon->customer_ids, true) ?? [];
+                $allowedCustomers = json_decode($coupon->customer_ids, true) ?? [];
+                if (!empty($allowedCustomers) && isset($validated['user_id'])) {
                     if (!in_array($validated['user_id'], $allowedCustomers)) {
                         continue;
                     }
@@ -235,17 +242,27 @@ class CouponController extends Controller
             }
 
             if ($bestCoupon) {
-                return $this->sendSuccess([
-                    'code' => $bestCoupon->code,
-                    'discount_type' => $bestCoupon->type,
-                    'discount_value' => $bestCoupon->amount,
-                    'discount_amount' => round($maxDiscount, 2),
-                    'max_discount_amount' => $bestCoupon->max_discount_amount,
-                    'min_purchase_amount' => $bestCoupon->min_order_amount ?? 0,
-                ], 'Best coupon applied successfully.');
+                return response()->json([
+                    'status' => true,
+                    'message' => 'Best coupon applied successfully.',
+                    'data' => [
+                        'code' => $bestCoupon->code,
+                        'discount_type' => $bestCoupon->type,
+                        'discount_value' => $bestCoupon->amount,
+                        'discount_amount' => round($maxDiscount, 2),
+                        'max_discount_amount' => $bestCoupon->max_discount_amount,
+                        'min_purchase_amount' => $bestCoupon->min_order_amount ?? 0,
+                    ],
+                    'errors' => null,
+                ]);
             }
 
-            return $this->sendSuccess(null, 'No applicable coupons found.');
+            return response()->json([
+                'status' => true,
+                'message' => 'No applicable coupons found.',
+                'data' => null,
+                'errors' => null,
+            ]);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             return $this->sendError('Validation failed.', $e->errors(), 422);

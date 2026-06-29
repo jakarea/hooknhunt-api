@@ -104,14 +104,19 @@ export default defineConfig({
         include: ['react', 'react-dom', 'react-router-dom', '@mantine/core', '@mantine/hooks'],
     },
     server: {
-        host: 'localhost',
+        host: 'hooknhunt-api.test',
         port: 5173,
-        strictPort: true,
-        watch: {
-            usePolling: true,
+        https: {
+            key: `${process.env.HOME}/.config/valet/Certificates/hooknhunt-api.test.key`,
+            cert: `${process.env.HOME}/.config/valet/Certificates/hooknhunt-api.test.crt`,
         },
         hmr: {
-            host: 'localhost',
+            host: 'hooknhunt-api.test',
+            port: 5173,
+            protocol: 'wss',
+        },
+        watch: {
+            usePolling: true,
         },
     },
 });

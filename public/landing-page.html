@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hook & Hunt - Premium Telescopic Fishing Rod</title>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;600;700&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #EC3438;
+            --secondary: #010101;
+            --light-bg: #F9FAFB;
+            --text-dark: #1F2937;
+            --text-muted: #6B7280;
+            --white: #ffffff;
+            --star-color: #FFB800;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Hind Siliguri', 'Poppins', sans-serif;
+        }
+
+        body {
+            background-color: var(--white);
+            color: var(--text-dark);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1100px;
+            margin: auto;
+        }
+
+        /* Header / Logo */
+        header {
+            padding: 15px 0;
+            text-align: center;
+            background: white;
+            position: sticky;
+            top: 0;
+            z-index: 1001;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        header img {
+            height: 70px;
+            width: auto;
+            object-fit: contain;
+        }
+
+        /* Hero Section */
+        .hero {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            padding: 60px 0;
+            gap: 40px;
+        }
+        .hero-content {
+            flex: 1;
+            min-width: 350px;
+        }
+        .hero-image {
+            flex: 1;
+            min-width: 350px;
+            position: relative;
+        }
+        .hero-image img {
+            width: 100%;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            border: 1px solid #eee;
+        }
+        .badge {
+            background: var(--primary);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 50px;
+            font-size: 14px;
+            display: inline-block;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        .hero h1 {
+            font-size: 42px;
+            line-height: 1.2;
+            margin-bottom: 20px;
+            color: var(--secondary);
+        }
+        .hero p {
+            font-size: 18px;
+            color: var(--text-muted);
+            margin-bottom: 30px;
+        }
+
+        .price-tag {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .old-price {
+            text-decoration: line-through;
+            color: #999;
+            font-size: 20px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            padding: 18px 35px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 20px;
+            display: inline-block;
+            transition: transform 0.3s ease;
+            box-shadow: 0 10px 20px rgba(236, 52, 56, 0.3);
+            border: none;
+            cursor: pointer;
+            text-align: center;
+        }
+        .btn-primary:hover {
+            transform: translateY(-3px);
+        }
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Trust Points */
+        .trust-bar {
+            background: var(--light-bg);
+            padding: 30px 0;
+            margin-top: 40px;
+        }
+        .trust-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            text-align: center;
+        }
+        .trust-item span { font-size: 30px; }
+        .trust-item h4 {
+            font-size: 16px;
+            margin-top: 10px;
+            color: var(--secondary);
+        }
+
+        /* Features Section */
+        .features {
+            padding: 80px 0;
+            background: #fff;
+        }
+        .section-title {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+        .section-title h2 {
+            font-size: 32px;
+            color: var(--secondary);
+            margin-bottom: 10px;
+        }
+        .section-title .underline {
+            width: 80px;
+            height: 4px;
+            background: var(--primary);
+            margin: 0 auto;
+            border-radius: 2px;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+        }
+        .feature-card {
+            padding: 30px;
+            border-radius: 20px;
+            background: var(--light-bg);
+            border: 1px solid #f0f0f0;
+            transition: 0.3s;
+        }
+        .feature-card:hover {
+            border-color: var(--primary);
+            background: white;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        }
+        .icon-box {
+            width: 50px;
+            height: 50px;
+            background: var(--primary);
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+        }
+
+        /* Product Showcase Gallery */
+        .showcase {
+            padding-bottom: 80px;
+        }
+        .showcase-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        .showcase-item {
+            position: relative;
+            overflow: hidden;
+            border-radius: 15px;
+            border: 1px solid #eee;
+        }
+        .showcase-grid img {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: cover;
+            transition: 0.5s;
+        }
+        .showcase-item:hover img {
+            transform: scale(1.05);
+        }
+
+        /* Customer Reviews */
+        .reviews {
+            background-color: var(--light-bg);
+            padding: 80px 0;
+        }
+        .reviews-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        .review-card {
+            background: #fff;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.02);
+            border: 1px solid #f1f1f1;
+        }
+        .reviewer-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .reviewer-info img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: #eee;
+        }
+        .reviewer-name h4 {
+            font-size: 16px;
+            margin-bottom: 2px;
+        }
+        .stars {
+            color: var(--star-color);
+            font-size: 14px;
+        }
+        .review-text {
+            font-size: 15px;
+            color: var(--text-dark);
+            font-style: italic;
+        }
+
+        /* Urgency Banner */
+        .timer-banner {
+            background: #FFEDEB;
+            padding: 25px;
+            text-align: center;
+            border: 2px dashed var(--primary);
+            border-radius: 15px;
+            margin: 40px 0;
+        }
+        .timer-text {
+            color: var(--primary);
+            font-weight: 700;
+            font-size: 20px;
+        }
+
+        /* Order Form */
+        .order-section {
+            padding: 80px 0;
+            background: #fff;
+        }
+        .order-container {
+            max-width: 600px;
+            margin: auto;
+            background: white;
+            padding: 40px;
+            border-radius: 25px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.08);
+            border: 1px solid #eee;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #edf2f7;
+            border-radius: 10px;
+            font-size: 16px;
+            outline: none;
+            transition: 0.3s;
+        }
+        input:focus, select:focus {
+            border-color: var(--primary);
+        }
+        .order-summary {
+            background: #fff8f8;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+        }
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .total {
+            font-weight: 700;
+            font-size: 22px;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+            color: var(--primary);
+            margin-top: 5px;
+        }
+
+        /* Success/Error Messages */
+        .message-box {
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Sticky Footer Button */
+        .sticky-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            padding: 12px 20px;
+            display: none;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.08);
+            z-index: 1000;
+        }
+        .sticky-footer .btn-primary {
+            width: 100%;
+            padding: 15px;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--secondary);
+            color: white;
+            padding: 60px 0 120px;
+            text-align: center;
+        }
+        .footer-logo {
+            height: 80px;
+            width: auto;
+            margin-bottom: 20px;
+            filter: brightness(0) invert(1);
+        }
+        .footer-text {
+            opacity: 0.8;
+            font-size: 15px;
+            max-width: 400px;
+            margin: 0 auto 30px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero {
+                flex-direction: column-reverse;
+                text-align: center;
+                padding: 30px 0;
+                gap: 30px;
+            }
+            .hero h1 { font-size: 32px; }
+            .hero-content, .hero-image { min-width: 100%; }
+            .sticky-footer { display: block; }
+            .showcase-grid { grid-template-columns: 1fr; }
+            .order-container { padding: 25px; }
+            header img { height: 50px; }
+            .trust-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="container">
+            <img src="hook and hunt transparent png.png" alt="Hook & Hunt Logo">
+        </div>
+    </header>
+
+    <section class="hero container">
+        <div class="hero-content">
+            <span class="badge">সেরা মানের ফিশিং রড</span>
+            <h1>শৌখিন শিকারীদের প্রথম পছন্দ Hook & Hunt টেলিস্কোপিক রড!</h1>
+            <p>আমাদের এই প্রিমিয়াম ফিশিং রডটি অত্যন্ত শক্তিশালী, ওজনে হালকা এবং দীর্ঘস্থায়ী। নদী, লেক বা পুকুরে বড় মাছ শিকারের জন্য এটি আপনার বিশ্বস্ত সঙ্গী হবে।</p>
+
+            <div class="price-tag">
+                <span class="old-price">৳ ১২৫০</span>
+                <span id="display-price">৳ ৮৫০</span>
+            </div>
+
+            <a href="#order" class="btn-primary">অর্ডার করতে ক্লিক করুন</a>
+
+            <div style="margin-top: 20px; font-size: 14px; color: #666; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <span>✅</span> ক্যাশ অন ডেলিভারি (পণ্য হাতে পেয়ে টাকা দিন)
+            </div>
+        </div>
+
+        <div class="hero-image">
+            <img src="YG (6).jpg" alt="Hook & Hunt Premium Fishing Rod Set">
+        </div>
+    </section>
+
+    <div class="trust-bar">
+        <div class="container trust-grid">
+            <div class="trust-item">
+                <span>🚚</span>
+                <h4>সারাদেশে দ্রুত ডেলিভারি</h4>
+            </div>
+            <div class="trust-item">
+                <span>📦</span>
+                <h4>পণ্য দেখে টাকা দিন</h4>
+            </div>
+            <div class="trust-item">
+                <span>⭐</span>
+                <h4>১০০% অরিজিনাল পণ্য</h4>
+            </div>
+            <div class="trust-item">
+                <span>🔄</span>
+                <h4>৭ দিনের রিপ্লেসমেন্ট</h4>
+            </div>
+        </div>
+    </div>
+
+    <section class="features container">
+        <div class="section-title">
+            <h2>রডটির বিশেষ বৈশিষ্ট্যসমূহ</h2>
+            <div class="underline"></div>
+        </div>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="icon-box">🎣</div>
+                <h3>টেলিস্কোপিক ডিজাইন</h3>
+                <p>এটি খুব সহজে ভাঁজ করে ছোট করা যায়, ফলে ব্যাগে করে যেকোনো জায়গায় বহন করা যায় অত্যন্ত সহজে।</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon-box">🛡️</div>
+                <h3>কার্বন ফাইবার বডি</h3>
+                <p>উচ্চমানের কার্বন ম্যাটেরিয়াল ব্যবহারের কারণে এটি যেমন শক্তিশালী তেমনি নমনীয়, যা বড় মাছের ঝাপটা সহ্য করতে পারে।</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon-box">✋</div>
+                <h3>আরামদায়ক গ্রিপ</h3>
+                <p>ঘাম বা পানিতেও হাত থেকে পিছলে যাবে না এমন উন্নতমানের ইভা ফোম গ্রিপ ব্যবহার করা হয়েছে।</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="container showcase">
+        <div class="section-title">
+            <h2>এক নজরে রডটির ডিটেইলস</h2>
+            <div class="underline"></div>
+        </div>
+        <div class="showcase-grid">
+            <div class="showcase-item">
+                <img src="YG (1).jpg" alt="Precision Guides">
+            </div>
+            <div class="showcase-item">
+                <img src="YG (14).jpg" alt="Ergonomic Grip in Hand">
+            </div>
+            <div class="showcase-item">
+                <img src="YG (16).webp" alt="Telescopic Comparison">
+            </div>
+            <div class="showcase-item">
+                <img src="YG (13).webp" alt="Durable Build Quality">
+            </div>
+        </div>
+    </section>
+
+    <section class="reviews">
+        <div class="container">
+            <div class="section-title">
+                <h2>গ্রাহকদের অভিজ্ঞতা</h2>
+                <div class="underline"></div>
+            </div>
+            <div class="reviews-grid">
+                <div class="review-card">
+                    <div class="reviewer-info">
+                        <img src="https://ui-avatars.com/api/?name=Ariful+Islam&background=random" alt="User">
+                        <div class="reviewer-name">
+                            <h4>আরিফুল ইসলাম</h4>
+                            <div class="stars">⭐⭐⭐⭐⭐</div>
+                        </div>
+                    </div>
+                    <p class="review-text">"রডটা হাতে পাওয়ার পর অবাক হয়েছি। এতো কম দামে এতো ভালো কোয়ালিটি আশা করিনি। ফিনিশিং খুব সুন্দর।"</p>
+                </div>
+                <div class="review-card">
+                    <div class="reviewer-info">
+                        <img src="https://ui-avatars.com/api/?name=Rakibul+Islam&background=random" alt="User">
+                        <div class="reviewer-name">
+                            <h4>রাকিব ইসলাম</h4>
+                            <div class="stars">⭐⭐⭐⭐⭐</div>
+                        </div>
+                    </div>
+                    <p class="review-text">"আমি ৩ মিটার সাইজটা নিয়েছি। নদী তে মাছ ধরার জন্য পারফেক্ট। গ্রিপটা খুব আরামদায়ক।"</p>
+                </div>
+                <div class="review-card">
+                    <div class="reviewer-info">
+                        <img src="https://ui-avatars.com/api/?name=Mahmudul+Haque&background=random" alt="User">
+                        <div class="reviewer-name">
+                            <h4>মাহমুদুল হক</h4>
+                            <div class="stars">⭐⭐⭐⭐⭐</div>
+                        </div>
+                    </div>
+                    <p class="review-text">"খুবই শক্তিশালী রড। ডেলিভারিও খুব দ্রুত পেয়েছি। ধন্যবাদ Hook & Hunt!"</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="container">
+        <div class="timer-banner">
+            <p class="timer-text">🔥 বিশেষ ছাড়ের অফার শেষ হতে আর মাত্র অল্প কিছু সময় বাকি! এখনই লুফে নিন।</p>
+        </div>
+    </div>
+
+    <section id="order" class="order-section">
+        <div class="container">
+            <div class="section-title">
+                <h2>অর্ডার ফর্ম পূরণ করুন</h2>
+                <div class="underline"></div>
+            </div>
+
+            <div class="order-container">
+                <div id="success-message" class="message-box success-message">
+                    <h3>✅ অর্ডার সফলভাবে সম্পন্ন হয়েছে!</h3>
+                    <p id="success-details"></p>
+                </div>
+
+                <div id="error-message" class="message-box error-message">
+                    <h3>❌ অর্ডারে সমস্যা হয়েছে</h3>
+                    <p id="error-details"></p>
+                </div>
+
+                <form id="order-form">
+                    <input type="hidden" id="product-id" value="34">
+                    <input type="hidden" id="variant-id" value="425">
+
+                    <div class="form-group">
+                        <label for="customer-name">আপনার নাম *</label>
+                        <input type="text" id="customer-name" name="customer_name" placeholder="পুরো নাম লিখুন" required minlength="2">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="customer-phone">মোবাইল নাম্বার *</label>
+                        <input type="tel" id="customer-phone" name="customer_phone" placeholder="01XXXXXXXXX" required pattern="^01[3-9]\d{8}$">
+                        <small style="color: #666; font-size: 12px;">বাংলাদেশের মোবাইল নাম্বার (১১ সংখ্যা)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="shipping-address">আপনার ঠিকানা *</label>
+                        <textarea id="shipping-address" name="shipping_address" rows="3" placeholder="গ্রাম/রাস্তা, উপজেলা, জেলা" required minlength="10"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="rod-select">রড সাইজ পছন্দ করুন *</label>
+                        <select id="rod-select" name="rod_size" required>
+                            <option value="424">২.১ মিটার (৪৫০ টাকা)</option>
+                            <option value="425" selected>২.৪ মিটার (৮৫০ টাকা)</option>
+                            <option value="427">২.৭ মিটার (৯৫০ টাকা)</option>
+                            <option value="429">৩.০ মিটার (১০৫০ টাকা)</option>
+                            <option value="431">৩.৬ মিটার (১১৫০ টাকা)</option>
+                        </select>
+                    </div>
+
+                    <div class="order-summary">
+                        <div class="summary-row">
+                            <span>পণ্যের মূল্য:</span>
+                            <span id="product-price">৳ ৮৫০</span>
+                        </div>
+                        <div class="summary-row">
+                            <span>ডেলিভারি চার্জ:</span>
+                            <span>৳ ৭০</span>
+                        </div>
+                        <div class="summary-row total">
+                            <span>সর্বমোট পরিশোধ:</span>
+                            <span id="total-price">৳ ৯২০</span>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="submit-btn" class="btn-primary" style="width: 100%;">
+                        অর্ডার সম্পন্ন করুন
+                    </button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <div class="sticky-footer">
+        <a href="#order" class="btn-primary">অর্ডার করতে নিচের ফর্মে যান</a>
+    </div>
+
+    <footer>
+        <div class="container">
+            <img src="hook and hunt transparent png.png" alt="Hook & Hunt" class="footer-logo">
+            <p class="footer-text">Hook & Hunt - শিকারীর আনন্দকে করে তোলে দীর্ঘস্থায়ী। উন্নতমানের ফিশিং গিয়ারের জন্য আমরাই আপনার বিশ্বস্ত ঠিকানা।</p>
+            <div style="margin-bottom: 20px;">
+                <span style="margin: 0 10px;">Facebook: hooknhunt1</span> |
+                <span style="margin: 0 10px;">WhatsApp: 01975 244 202</span> |
+                <span style="margin: 0 10px;">Call: 01975 244 202</span>
+            </div>
+            <p style="font-size: 13px; opacity: 0.5;">
+                © 2026 Hook & Hunt. All rights reserved.
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // API URL - automatically uses current domain
+        const API_BASE_URL = window.location.origin + '/api/v2/store/orders/quick-place';
+        const DELIVERY_CHARGE = 70;
+
+        // Variant prices mapping (variant_id => price)
+        const VARIANT_PRICES = {
+            '424': 450,   // 2.1m (210 CM)
+            '425': 850,   // 2.4m (240 CM) - default
+            '427': 950,   // 2.7m (270 CM)
+            '429': 1050,  // 3.0m (300 CM)
+            '431': 1150   // 3.6m (360 CM)
+        };
+
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Price Calculation Logic
+        const rodSelect = document.getElementById('rod-select');
+        const productPriceEl = document.getElementById('product-price');
+        const totalPriceEl = document.getElementById('total-price');
+        const displayPriceEl = document.getElementById('display-price');
+        const variantIdInput = document.getElementById('variant-id');
+
+        function updatePrice(variantId) {
+            const price = VARIANT_PRICES[variantId] || 0;
+            const total = price + DELIVERY_CHARGE;
+
+            productPriceEl.innerText = `৳ ${price}`;
+            totalPriceEl.innerText = `৳ ${total}`;
+            displayPriceEl.innerText = `৳ ${price}`;
+
+            variantIdInput.value = variantId;
+        }
+
+        rodSelect.addEventListener('change', function() {
+            updatePrice(this.value);
+        });
+
+        // Initialize with default selection
+        updatePrice(rodSelect.value);
+
+        // Phone number formatting
+        const phoneInput = document.getElementById('customer-phone');
+        phoneInput.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length > 11) value = value.slice(0, 11);
+            e.target.value = value;
+        });
+
+        // Form submission
+        const orderForm = document.getElementById('order-form');
+        const successMessage = document.getElementById('success-message');
+        const errorMessage = document.getElementById('error-message');
+        const successDetails = document.getElementById('success-details');
+        const errorDetails = document.getElementById('error-details');
+        const submitBtn = document.getElementById('submit-btn');
+
+        orderForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            // Reset messages
+            successMessage.style.display = 'none';
+            errorMessage.style.display = 'none';
+
+            // Validate phone number
+            const phone = document.getElementById('customer-phone').value;
+            const phoneRegex = /^01[3-9]\d{8}$/;
+
+            if (!phoneRegex.test(phone)) {
+                errorMessage.style.display = 'block';
+                errorDetails.innerHTML = 'সঠিক মোবাইল নাম্বার দিন (১১ সংখ্যা, 01 দিয়ে শুরু হতে হবে)';
+                return;
+            }
+
+                // Prepare payload - minimal fields only
+                const variantId = document.getElementById('variant-id').value;
+                const payload = {
+                    customer_name: document.getElementById('customer-name').value.trim(),
+                    customer_phone: document.getElementById('customer-phone').value,
+                    shipping_address: document.getElementById('shipping-address').value.trim(),
+                    items: [
+                        {
+                            product_id: parseInt(document.getElementById('product-id').value),
+                            variant_id: parseInt(variantId),
+                            quantity: 1
+                        }
+                    ]
+                };
+
+                console.log('Sending payload:', payload);
+
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = 'অর্ডার প্রক্রিয়া করা হচ্ছে... <span class="loading-spinner"></span>';
+
+            try {
+                const response = await fetch(API_BASE_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    successMessage.style.display = 'block';
+                    let message = `<strong>অর্ডার নম্বর:</strong> ${data.data.invoiceNo}<br>`;
+                    message += `<strong>মোট টাকা:</strong> ৳${data.data.totalAmount}<br>`;
+                    message += `<strong>পেমেন্ট:</strong> ক্যাশ অন ডেলিভারি<br>`;
+
+                    if (data.data.isReturningCustomer) {
+                        message += `<br><strong>স্বাগতম আবার!</strong> আপনার অর্ডার আপনার একাউন্টে যোগ করা হয়েছে।`;
+                    } else {
+                        message += `<br><strong>অর্ডার সফলভাবে সম্পন্ন হয়েছে!</strong>`;
+                    }
+
+                    successDetails.innerHTML = message;
+
+                    // Hide form and show success
+                    orderForm.style.display = 'none';
+
+                    // Scroll to success message
+                    successMessage.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    throw new Error(data.message || 'অর্ডার সম্পন্ন করতে ব্যর্থ হয়েছে');
+                }
+            } catch (error) {
+                errorMessage.style.display = 'block';
+                errorDetails.innerHTML = error.message || 'অর্ডার সম্পন্ন করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন অথবা আমাদের কল করুন: 01975 244 202';
+                console.error('Order error:', error);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'অর্ডার সম্পন্ন করুন';
+            }
+        });
+    </script>
+</body>
+</html>

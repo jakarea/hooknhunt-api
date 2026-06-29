@@ -35,6 +35,10 @@ class QuickPlaceOrderRequest extends FormRequest
             'items.*.product_id' => 'required|integer|exists:products,id',
             'items.*.variant_id' => 'required|integer|exists:product_variants,id',
             'items.*.quantity' => 'required|integer|min:1|max:1000',
+
+            // Affiliate Tracking (optional)
+            'affiliate_referral_code' => 'nullable|string|max:50',
+            'affiliate_referral_id' => 'nullable|integer',
         ];
     }
 
@@ -68,7 +72,42 @@ class QuickPlaceOrderRequest extends FormRequest
             'items.*.quantity.required' => 'Quantity is required for each item.',
             'items.*.quantity.min' => 'Quantity must be at least 1.',
             'items.*.quantity.max' => 'Quantity cannot exceed 1000 per item.',
+
+            // Affiliate Tracking
+            'affiliate_referral_code.max' => 'Referral code cannot exceed 50 characters.',
         ];
+    }
+
+    /**
+     * Configure the validator instance.
+     * Validate referral code if provided.
+     */
+    public function withValidator($validator)
+    {
+        $validator->after(function ($validator) {
+            $referralCode = $this->input('affiliate_referral_code');
+            $referralId = $this->input('affiliate_referral_id');
+
+            // Validate referral code if provided
+            if ($referralCode) {
+                $affiliate = \App\Modules\Affiliate\Models\Affiliate::where('referral_code', strtoupper($referralCode))
+                    ->where('is_approved', true)
+                    ->first();
+
+                if (!$affiliate) {
+                    $validator->errors()->add('affiliate_referral_code', 'Invalid or inactive referral code.');
+                }
+            }
+
+            // Validate referral ID if provided
+            if ($referralId) {
+                $referral = \App\Modules\Affiliate\Models\AffiliateReferral::find($referralId);
+
+                if (!$referral) {
+                    $validator->errors()->add('affiliate_referral_id', 'Invalid referral ID.');
+                }
+            }
+        });
     }
 
     /**
@@ -78,9 +117,11 @@ class QuickPlaceOrderRequest extends FormRequest
     {
         return [
             'customer_name' => 'customer name',
-            'customer_phone' => 'phone number',
-            'customer_email' => 'email address',
+            'phone_number' => 'phone number',
+            'email_address' => 'email address',
             'shipping_address' => 'shipping address',
+            'affiliate_referral_code' => 'referral code',
+            'affiliate_referral_id' => 'referral ID',
         ];
     }
 
@@ -122,12 +163,21 @@ class QuickPlaceOrderRequest extends FormRequest
      */
     public function validatedWithDefaults(): array
     {
+        $validated = $this->validated();
+
+        // Normalize referral code to uppercase
+        if (isset($validated['affiliate_referral_code'])) {
+            $validated['affiliate_referral_code'] = strtoupper($validated['affiliate_referral_code']);
+        }
+
         return array_merge([
             'customer_type' => 'retail',
             'payment_method' => 'cod',
             'delivery_charge' => 0,
             'coupon_discount' => 0,
             'notes' => null,
-        ], $this->validated());
+            'affiliate_referral_code' => null,
+            'affiliate_referral_id' => null,
+        ], $validated);
     }
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Stack,
@@ -36,48 +36,57 @@ import {
 export default function ProcurementProductsPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const [search, setSearch] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const [search, setSearch] = useState<string>(() =>
+    searchParams.get('search') || ''
+  )
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 })
 
-  // Filter states
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  // Filter states - initialize from URL
+  const [statusFilter, setStatusFilter] = useState<string>(() =>
+    searchParams.get('status') || 'all'
+  )
 
   // Fetch products
-  const fetchProducts = async () => {
+  const fetchProducts = async (pageNum?: number, searchTerm?: string, status?: string) => {
     try {
       setLoading(true)
+      const page = pageNum || parseInt(searchParams.get('page') || '1')
+      const query = searchTerm !== undefined ? searchTerm : search
+      const stat = status !== undefined ? status : statusFilter
+
       const response: any = await getProcurementProducts({
-        search: search || undefined,
-        status: statusFilter !== 'all' ? statusFilter as 'draft' | 'published' : undefined,
-        page: pagination.page,
+        search: query || undefined,
+        status: stat !== 'all' ? stat as 'draft' | 'published' : undefined,
+        page: page,
         per_page: 20,
       })
 
 
       // Handle different response structures
       let productsData: any[] = []
+      let currentPage = 1
+      let lastPage = 1
+      let total = 0
 
       // Case 1: Laravel paginated response wrapped in ApiResponse trait
       // Structure: { data: { data: [...], current_page: 1, last_page: 1, total: 10 } }
       if (response?.data?.data && Array.isArray(response.data.data)) {
         productsData = response.data.data
-        setPagination({
-          page: response.data.current_page || 1,
-          totalPages: response.data.last_page || 1,
-          total: response.data.total || 0,
-        })
+        currentPage = response.data.current_page || 1
+        lastPage = response.data.last_page || 1
+        total = response.data.total || 0
       }
       // Case 2: Direct Laravel paginator (unwrapped)
       // Structure: { data: [...], current_page: 1, last_page: 1, total: 10 }
       else if (response?.data && Array.isArray(response.data)) {
         productsData = response.data
-        setPagination({
-          page: response.current_page || 1,
-          totalPages: response.last_page || 1,
-          total: response.total || 0,
-        })
+        currentPage = response.current_page || 1
+        lastPage = response.last_page || 1
+        total = response.total || 0
       }
       // Case 3: Direct array response (unpaginated)
       else if (Array.isArray(response)) {
@@ -87,6 +96,12 @@ export default function ProcurementProductsPage() {
       else {
         productsData = []
       }
+
+      setPagination({
+        page: currentPage,
+        totalPages: lastPage,
+        total: total,
+      })
 
       setProducts(productsData)
     } catch (error: any) {
@@ -101,10 +116,16 @@ export default function ProcurementProductsPage() {
     }
   }
 
-  // Fetch products on mount and when filters change
+  // Sync state from URL parameters
+  useEffect(() => {
+    setSearch(searchParams.get('search') || '')
+    setStatusFilter(searchParams.get('status') || 'all')
+  }, [searchParams.toString()])
+
+  // Fetch products when URL search params change
   useEffect(() => {
     fetchProducts()
-  }, [search, statusFilter, pagination.page])
+  }, [searchParams])
 
   const handleDelete = async (id: number) => {
     // Show confirmation modal
@@ -188,8 +209,16 @@ export default function ProcurementProductsPage() {
             leftSection={<IconSearch size={16} />}
             value={search}
             onChange={(e) => {
-              setSearch(e.currentTarget.value)
-              setPagination({ ...pagination, page: 1 })
+              const query = e.currentTarget.value
+              setSearch(query)
+              const params = new URLSearchParams(searchParams)
+              params.set('page', '1')
+              if (query) {
+                params.set('search', query)
+              } else {
+                params.delete('search')
+              }
+              setSearchParams(params, { replace: true })
             }}
             style={{ flex: 1 }}
           />
@@ -202,8 +231,16 @@ export default function ProcurementProductsPage() {
             ]}
             value={statusFilter}
             onChange={(value) => {
-              setStatusFilter(value || 'all')
-              setPagination({ ...pagination, page: 1 })
+              const status = value || 'all'
+              setStatusFilter(status)
+              const params = new URLSearchParams(searchParams)
+              params.set('page', '1')
+              if (status !== 'all') {
+                params.set('status', status)
+              } else {
+                params.delete('status')
+              }
+              setSearchParams(params, { replace: true })
             }}
             style={{ width: 150 }}
           />
@@ -320,7 +357,12 @@ export default function ProcurementProductsPage() {
                   size="xs"
                   variant="light"
                   disabled={pagination.page === 1}
-                  onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}
+                  onClick={() => {
+                    const newPage = pagination.page - 1
+                    const params = new URLSearchParams(searchParams)
+                    params.set('page', newPage.toString())
+                    setSearchParams(params)
+                  }}
                 >
                   Previous
                 </Button>
@@ -328,7 +370,12 @@ export default function ProcurementProductsPage() {
                   size="xs"
                   variant="light"
                   disabled={pagination.page === pagination.totalPages}
-                  onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}
+                  onClick={() => {
+                    const newPage = pagination.page + 1
+                    const params = new URLSearchParams(searchParams)
+                    params.set('page', newPage.toString())
+                    setSearchParams(params)
+                  }}
                 >
                   Next
                 </Button>
@@ -445,7 +492,12 @@ export default function ProcurementProductsPage() {
                     size="xs"
                     variant="light"
                     disabled={pagination.page === 1}
-                    onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}
+                    onClick={() => {
+                      const newPage = pagination.page - 1
+                      const params = new URLSearchParams(searchParams)
+                      params.set('page', newPage.toString())
+                      setSearchParams(params)
+                    }}
                   >
                     Previous
                   </Button>
@@ -453,7 +505,12 @@ export default function ProcurementProductsPage() {
                     size="xs"
                     variant="light"
                     disabled={pagination.page === pagination.totalPages}
-                    onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}
+                    onClick={() => {
+                      const newPage = pagination.page + 1
+                      const params = new URLSearchParams(searchParams)
+                      params.set('page', newPage.toString())
+                      setSearchParams(params)
+                    }}
                   >
                     Next
                   </Button>
