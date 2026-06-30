@@ -1211,6 +1211,42 @@ class OrderController extends Controller
     }
 
     /**
+     * Get order by ID (Public - for payment callback)
+     * GET /api/v2/store/orders/{id}
+     */
+    public function getById($orderId): JsonResponse
+    {
+        try {
+            $order = WebsiteOrder::with('items')->find($orderId);
+
+            if (!$order) {
+                return $this->sendError('Order not found.', null, 404);
+            }
+
+            Log::info('Order details retrieved by ID', [
+                'order_id' => $orderId,
+                'invoice_no' => $order->invoice_no,
+            ]);
+
+            return $this->sendSuccess(
+                $this->transformOrderResponse($order),
+                'Order retrieved successfully.'
+            );
+
+        } catch (\Exception $e) {
+            Log::error('Error retrieving order by ID', [
+                'order_id' => $orderId,
+                'error' => $e->getMessage()
+            ]);
+            return $this->sendError(
+                'Failed to retrieve order details.',
+                null,
+                500
+            );
+        }
+    }
+
+    /**
      * Track order by phone or email (guest order tracking)
      * GET /api/v2/store/orders/track?phone=01712345678&email=test@example.com
      *

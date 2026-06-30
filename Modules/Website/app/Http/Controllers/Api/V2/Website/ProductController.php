@@ -921,59 +921,69 @@ class ProductController extends Controller
      */
     public function searchSuggestions(Request $request): JsonResponse
     {
-        $request->validate(['q' => 'required|string|min:2|max:100']);
+        try {
+            $request->validate(['q' => 'required|string|min:2|max:100']);
 
-        $query = $request->input('q');
+            $query = $request->input('q');
 
-        $products = DB::table('products as p')
-            ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
-            ->leftJoin('media_files as mf', 'p.thumbnail_id', '=', 'mf.id')
-            ->where('p.status', 'published')
-            ->whereExists(function ($q) {
-                $q->select(DB::raw(1))
-                    ->from('product_variants')
-                    ->whereColumn('product_variants.product_id', '=', 'p.id')
-                    ->where('channel', 'retail')
-                    ->where('is_active', true)
-                    ->whereNull('deleted_at')
-                    ->limit(1);
-            })
-            ->where(function ($q) use ($query) {
-                $q->where('p.name', 'like', "%{$query}%")
-                  ->orWhere('p.retail_name', 'like', "%{$query}%")
-                  ->orWhere('c.name', 'like', "%{$query}%");
-            })
-            ->limit(8)
-            ->select([
-                'p.id',
-                'p.name',
-                'p.retail_name',
-                'p.slug',
-                'p.thumbnail_id',
-                'mf.path as thumbnail_path',
-                'mf.url as thumbnail_url',
-                'c.name as category_name',
-            ])
-            ->get();
+            $products = DB::table('products as p')
+                ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
+                ->leftJoin('media_files as mf', 'p.thumbnail_id', '=', 'mf.id')
+                ->where('p.status', 'published')
+                ->whereExists(function ($q) {
+                    $q->select(DB::raw(1))
+                        ->from('product_variants')
+                        ->whereColumn('product_variants.product_id', '=', 'p.id')
+                        ->where('channel', 'retail')
+                        ->where('is_active', true)
+                        ->whereNull('deleted_at')
+                        ->limit(1);
+                })
+                ->where(function ($q) use ($query) {
+                    $q->where('p.name', 'like', "%{$query}%")
+                      ->orWhere('p.retail_name', 'like', "%{$query}%")
+                      ->orWhere('c.name', 'like', "%{$query}%");
+                })
+                ->limit(8)
+                ->select([
+                    'p.id',
+                    'p.name',
+                    'p.retail_name',
+                    'p.slug',
+                    'p.thumbnail_id',
+                    'mf.path as thumbnail_path',
+                    'mf.url as thumbnail_url',
+                    'c.name as category_name',
+                ])
+                ->get();
 
-        $suggestions = $products->map(function ($product) {
-            $imageData = $this->formatProductImage(
-                $product->thumbnail_id,
-                $product->thumbnail_path,
-                $product->thumbnail_url
-            );
+            $suggestions = $products->map(function ($product) {
+                $imageData = $this->formatProductImage(
+                    $product->thumbnail_id,
+                    $product->thumbnail_path,
+                    $product->thumbnail_url
+                );
 
-            return [
-                'id' => $product->id,
-                'name' => $product->name,
-                'slug' => $product->slug,
-                'imageUrl' => $imageData['image_url'],
-                'imageId' => $imageData['image_id'],
-                'category' => $product->category_name,
-            ];
-        });
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'slug' => $product->slug,
+                    'imageUrl' => $imageData['image_url'],
+                    'imageId' => $imageData['image_id'],
+                    'category' => $product->category_name,
+                ];
+            });
 
-        return $this->sendSuccess(['suggestions' => $suggestions]);
+            return $this->sendSuccess(['suggestions' => $suggestions]);
+        } catch (\Exception $e) {
+            \Log::error('Error fetching search suggestions', ['error' => $e->getMessage()]);
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to fetch search suggestions.',
+                'data' => null,
+                'errors' => null,
+            ], 500);
+        }
     }
 
     /**
@@ -984,126 +994,135 @@ class ProductController extends Controller
      */
     public function search(Request $request): JsonResponse
     {
-        $request->validate([
-            'q' => 'required|string|min:2|max:100',
-            'category_id' => 'nullable|integer|exists:categories,id',
-            'per_page' => 'nullable|integer|min:1|max:100',
-        ]);
-
-        $searchQuery = $request->input('q');
-
-        $query = DB::table('products as p')
-            ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
-            ->leftJoin('brands as b', 'p.brand_id', '=', 'b.id')
-            ->leftJoin('media_files as mf', 'p.thumbnail_id', '=', 'mf.id')
-            ->where('p.status', 'published')
-            ->whereExists(function ($q) {
-                $q->select(DB::raw(1))
-                    ->from('product_variants')
-                    ->whereColumn('product_variants.product_id', '=', 'p.id')
-                    ->where('channel', 'retail')
-                    ->where('is_active', true)
-                    ->whereNull('deleted_at')
-                    ->limit(1);
-            })
-            ->where(function ($q) use ($searchQuery) {
-                $q->where('p.name', 'like', "%{$searchQuery}%")
-                  ->orWhere('p.retail_name', 'like', "%{$searchQuery}%")
-                  ->orWhere('c.name', 'like', "%{$searchQuery}%");
-            })
-            ->select([
-                'p.id',
-                'p.name',
-                'p.retail_name',
-                'p.slug',
-                'p.status',
-                'p.thumbnail_id',
-                'p.category_id',
-                'p.brand_id',
-                'mf.path as thumbnail_path',
-                'mf.url as thumbnail_url',
-                'mf.original_filename',
-                'c.id as category_id',
-                'c.name as category_name',
-                'c.slug as category_slug',
-                'b.id as brand_id',
-                'b.name as brand_name',
-                'p.created_at',
+        try {
+            $request->validate([
+                'q' => 'required|string|min:2|max:100',
+                'category_id' => 'nullable|integer|exists:categories,id',
+                'per_page' => 'nullable|integer|min:1|max:100',
             ]);
 
-        // Filter by category if provided
-        if ($request->filled('category_id')) {
-            $query->where('p.category_id', $request->input('category_id'));
+            $searchQuery = $request->input('q');
+
+            $query = DB::table('products as p')
+                ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
+                ->leftJoin('brands as b', 'p.brand_id', '=', 'b.id')
+                ->leftJoin('media_files as mf', 'p.thumbnail_id', '=', 'mf.id')
+                ->where('p.status', 'published')
+                ->whereExists(function ($q) {
+                    $q->select(DB::raw(1))
+                        ->from('product_variants')
+                        ->whereColumn('product_variants.product_id', '=', 'p.id')
+                        ->where('channel', 'retail')
+                        ->where('is_active', true)
+                        ->whereNull('deleted_at')
+                        ->limit(1);
+                })
+                ->where(function ($q) use ($searchQuery) {
+                    $q->where('p.name', 'like', "%{$searchQuery}%")
+                      ->orWhere('p.retail_name', 'like', "%{$searchQuery}%")
+                      ->orWhere('c.name', 'like', "%{$searchQuery}%");
+                })
+                ->select([
+                    'p.id',
+                    'p.name',
+                    'p.retail_name',
+                    'p.slug',
+                    'p.status',
+                    'p.thumbnail_id',
+                    'p.category_id',
+                    'p.brand_id',
+                    'mf.path as thumbnail_path',
+                    'mf.url as thumbnail_url',
+                    'mf.original_filename',
+                    'c.id as category_id',
+                    'c.name as category_name',
+                    'c.slug as category_slug',
+                    'b.id as brand_id',
+                    'b.name as brand_name',
+                    'p.created_at',
+                ]);
+
+            // Filter by category if provided
+            if ($request->filled('category_id')) {
+                $query->where('p.category_id', $request->input('category_id'));
+            }
+
+            // Sorting
+            $sortBy = $request->input('sort_by', 'created_at_desc');
+            switch ($sortBy) {
+                case 'created_at_desc':
+                    $query->orderBy('p.created_at', 'desc');
+                    break;
+                case 'created_at_asc':
+                    $query->orderBy('p.created_at', 'asc');
+                    break;
+                case 'name_asc':
+                    $query->orderBy('p.name', 'asc');
+                    break;
+                case 'name_desc':
+                    $query->orderBy('p.name', 'desc');
+                    break;
+                default:
+                    $query->orderBy('p.created_at', 'desc');
+            }
+
+            $perPage = min((int) $request->input('per_page', 24), 100);
+            $page = $request->input('page', 1);
+            $offset = ($page - 1) * $perPage;
+
+            $total = $query->count();
+            $products = $query->offset($offset)->limit($perPage)->get();
+
+            $transformed = $products->map(function ($product) {
+                $imageData = $this->formatProductImage(
+                    $product->thumbnail_id,
+                    $product->thumbnail_path,
+                    $product->thumbnail_url
+                );
+
+                return [
+                    'id' => $product->id,
+                    'name' => $product->retail_name ?? $product->name,
+                    'slug' => $product->slug,
+                    'shortDescription' => null,
+                    'imageUrl' => $imageData['image_url'],
+                    'imageId' => $imageData['image_id'],
+                    'category' => $product->category_id ? [
+                        'id' => $product->category_id,
+                        'name' => $product->category_name,
+                        'slug' => $product->category_slug,
+                    ] : null,
+                    'brand' => $product->brand_id ? [
+                        'id' => $product->brand_id,
+                        'name' => $product->brand_name,
+                    ] : null,
+                ];
+            });
+
+            $lastPage = max(1, (int) ceil($total / $perPage));
+            $currentPage = (int) $page;
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Success',
+                'data' => [
+                    'data' => $transformed,
+                    'total' => $total,
+                    'last_page' => $lastPage,
+                    'current_page' => $currentPage,
+                    'next_page_url' => ($currentPage < $lastPage) ? url()->current() . '?' . http_build_query(['page' => $currentPage + 1, 'per_page' => $perPage]) : null,
+                ],
+                'errors' => null,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error searching products', ['error' => $e->getMessage()]);
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to search products.',
+                'data' => null,
+                'errors' => null,
+            ], 500);
         }
-
-        // Sorting
-        $sortBy = $request->input('sort_by', 'created_at_desc');
-        switch ($sortBy) {
-            case 'created_at_desc':
-                $query->orderBy('p.created_at', 'desc');
-                break;
-            case 'created_at_asc':
-                $query->orderBy('p.created_at', 'asc');
-                break;
-            case 'name_asc':
-                $query->orderBy('p.name', 'asc');
-                break;
-            case 'name_desc':
-                $query->orderBy('p.name', 'desc');
-                break;
-            default:
-                $query->orderBy('p.created_at', 'desc');
-        }
-
-        $perPage = min((int) $request->input('per_page', 24), 100);
-        $page = $request->input('page', 1);
-        $offset = ($page - 1) * $perPage;
-
-        $total = $query->count();
-        $products = $query->offset($offset)->limit($perPage)->get();
-
-        $transformed = $products->map(function ($product) {
-            $imageData = $this->formatProductImage(
-                $product->thumbnail_id,
-                $product->thumbnail_path,
-                $product->thumbnail_url
-            );
-
-            return [
-                'id' => $product->id,
-                'name' => $product->retail_name ?? $product->name,
-                'slug' => $product->slug,
-                'shortDescription' => null,
-                'imageUrl' => $imageData['image_url'],
-                'imageId' => $imageData['image_id'],
-                'category' => $product->category_id ? [
-                    'id' => $product->category_id,
-                    'name' => $product->category_name,
-                    'slug' => $product->category_slug,
-                ] : null,
-                'brand' => $product->brand_id ? [
-                    'id' => $product->brand_id,
-                    'name' => $product->brand_name,
-                ] : null,
-            ];
-        });
-
-        $lastPage = max(1, (int) ceil($total / $perPage));
-        $currentPage = (int) $page;
-
-        // Return response with correct structure for frontend
-        return response()->json([
-            'status' => true,
-            'message' => 'Success',
-            'data' => [
-                'data' => $transformed,
-                'total' => $total,
-                'last_page' => $lastPage,
-                'current_page' => $currentPage,
-                'next_page_url' => ($currentPage < $lastPage) ? url()->current() . '?' . http_build_query(['page' => $currentPage + 1, 'per_page' => $perPage]) : null,
-            ],
-            'errors' => null,
-        ]);
     }
 
     /**

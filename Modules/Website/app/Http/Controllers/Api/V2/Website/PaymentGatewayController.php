@@ -582,4 +582,145 @@ class PaymentGatewayController extends Controller
             'message' => 'IPN received'
         ]);
     }
+
+    /**
+     * Verify payment callback from frontend
+     * POST /api/v2/store/payments/callback
+     * Handles SSL Commerz and EPS payment verification from frontend
+     */
+    public function verifyCallback(Request $request)
+    {
+        try {
+            $callbackType = $request->input('callback_type', 'success');
+            $tranId = $request->input('tran_id') ?? $request->input('MerchantTransactionId');
+
+            if (!$tranId) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Transaction ID missing',
+                    'data' => null,
+                    'errors' => null,
+                ], 400);
+            }
+
+            Log::info('Payment callback verification', ['tran_id' => $tranId, 'callback_type' => $callbackType]);
+
+            // For SSL Commerz: use value_a (sales_order_id)
+            $salesOrderId = $request->input('value_a');
+            if ($salesOrderId) {
+                $order = \App\Modules\Website\Models\WebsiteOrder::find($salesOrderId);
+            } else {
+                // For EPS or fallback: search by invoice_no (MerchantTransactionId)
+                $merchantId = $request->input('MerchantTransactionId');
+                $order = $merchantId
+                    ? \App\Modules\Website\Models\WebsiteOrder::where('invoice_no', $merchantId)->first()
+                    : null;
+            }
+
+            if (!$order) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Order not found for this payment',
+                    'data' => null,
+                    'errors' => null,
+                ], 404);
+            }
+
+            // If callback is success and order not yet marked as paid, update it
+            if ($callbackType === 'success' && $order->payment_status !== 'paid') {
+                DB::transaction(function () use ($order, $tranId) {
+                    $order->update([
+                        'payment_status' => 'paid',
+                        'paid_amount' => $order->total_amount,
+                        'due_amount' => 0,
+                        'status' => 'processing',
+                    ]);
+                    event(new OrderPaid($order, $tranId, 'payment_gateway'));
+                });
+            } elseif ($callbackType === 'fail' && $order->payment_status !== 'failed') {
+                DB::transaction(function () use ($order) {
+                    $order->update(['payment_status' => 'failed']);
+                    event(new OrderFailed($order));
+                });
+            } elseif ($callbackType === 'cancel' && $order->payment_status !== 'cancelled') {
+                DB::transaction(function () use ($order) {
+                    $order->update(['payment_status' => 'cancelled']);
+                    event(new OrderCancelled($order));
+                });
+            }
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Payment verified successfully',
+                'data' => [
+                    'payment_id' => $order->id,
+                    'tran_id' => $tranId,
+                    'order_id' => $order->id,
+                    'order_invoice' => $order->invoice_no,
+                    'amount' => $order->total_amount,
+                    'status' => $order->payment_status,
+                    'callback_type' => $callbackType,
+                    'customer_name' => $order->customer_name ?? $order->shipping_name,
+                    'customer_phone' => $order->customer_phone ?? $order->shipping_phone,
+                    'gateway' => 'sslcommerz', // Can be determined from callback type or request
+                ],
+                'errors' => null,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Payment callback verification failed', ['error' => $e->getMessage()]);
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to verify payment callback',
+                'data' => null,
+                'errors' => null,
+            ], 500);
+        }
+    }
+
+    /**
+     * Get payment status by transaction ID
+     * GET /api/v2/store/payments/status/{tran_id}
+     */
+    public function getPaymentStatus($tranId)
+    {
+        try {
+            // Try to find payment by transaction ID (works for both SSL and EPS)
+            $order = \App\Modules\Website\Models\WebsiteOrder::whereJsonContains('payment_info->tran_id', $tranId)
+                ->orWhere('payment_info->eps_tran_id', $tranId)
+                ->first();
+
+            if (!$order) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Payment not found',
+                    'data' => null,
+                    'errors' => null,
+                ], 404);
+            }
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Payment status retrieved',
+                'data' => [
+                    'payment_id' => $order->id,
+                    'tran_id' => $tranId,
+                    'amount' => $order->total_amount,
+                    'status' => $order->payment_status,
+                    'paid_at' => $order->updated_at,
+                    'order_id' => $order->id,
+                    'order_invoice' => $order->invoice_no,
+                    'order_payment_status' => $order->payment_status,
+                ],
+                'errors' => null,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to get payment status', ['error' => $e->getMessage(), 'tran_id' => $tranId]);
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to retrieve payment status',
+                'data' => null,
+                'errors' => null,
+            ], 500);
+        }
+    }
 }

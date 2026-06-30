@@ -783,7 +783,11 @@ Route::group([
     'prefix' => 'v2/store',
     'namespace' => 'App\Modules$Module\Http\Controllers\Api\V2'
 ], function () {
-    // --- Orders (Authenticated) ---
+    // --- Orders ---
+    // Public: Get order by ID (for payment callback)
+    Route::get('orders/{id}', 'Website\OrderController@getById');
+
+    // Authenticated: Orders management
     Route::middleware('auth')->group(function () {
         Route::post('orders', 'Website\OrderController@placeOrder');
         Route::post('orders/verify', 'Website\OrderController@verifyOrder');

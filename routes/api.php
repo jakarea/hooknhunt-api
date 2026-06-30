@@ -95,7 +95,21 @@ Route::group([
         Route::get('website-admin/products/search-products', 'App\Http\Controllers\Api\V2\WebsiteAdmin\OrderController@searchProductsGrouped')->middleware('permission:website.orders.products.search');
         Route::get('website-admin/products/top-selling', 'App\Http\Controllers\Api\V2\WebsiteAdmin\OrderController@topSellingProducts');
     });
+
+    // --- Storefront Payment Routes (Public - Payment Gateway Integration) ---
+    Route::group(['prefix' => 'store'], function () {
+        Route::get('payment/gateway', 'App\Modules\Website\Http\Controllers\Api\V2\Website\PaymentGatewayController@getActiveGateway');
+        Route::post('payments/initiate', 'App\Modules\Website\Http\Controllers\Api\V2\Website\PaymentGatewayController@initiatePayment');
+        Route::post('payments/emi-options', 'App\Modules\Website\Http\Controllers\Api\V2\Website\PaymentGatewayController@emiOptions');
+        Route::post('payments/callback', 'App\Modules\Website\Http\Controllers\Api\V2\Website\PaymentGatewayController@verifyCallback');
+        Route::get('payments/status/{tran_id}', 'App\Modules\Website\Http\Controllers\Api\V2\Website\PaymentGatewayController@getPaymentStatus');
+    });
 });
+
+// Load main application routes (Store, Orders, Payments, etc.)
+if (file_exists(base_path('routes/api_fixed.php'))) {
+    require base_path('routes/api_fixed.php');
+}
 
 // Load CRM module routes
 if (file_exists(base_path('Modules/CRM/Routes/api.php'))) {
