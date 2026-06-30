@@ -180,12 +180,15 @@ class PaymentGatewayController extends Controller
             }
         }
 
+        // Generate unique transaction ID for this payment attempt (allows retries)
+        $transactionId = 'TXN-' . $order->id . '-' . time() . '-' . random_int(1000, 9999);
+
         // Build EPS payload with actual order data
         $payload = [
             "totalAmount" => (float)$order->total_amount,
             "ipAddress" => $request->ip() ?: '47.247.196.37', // Fallback IP
 
-            'CustomerOrderId' => $order->invoice_no,
+            'CustomerOrderId' => $transactionId,
             "successUrl" => route('payment.success'),
             "failUrl" => route('payment.fail'),
             "cancelUrl" => route('payment.cancel'),
@@ -317,10 +320,14 @@ class PaymentGatewayController extends Controller
         $merchantTransactionId = $request->query('MerchantTransactionId');
         $epsTransactionId      = $request->query('EPSTransactionId_');
         $status                = $request->query('Status');
+        $valueC                = $request->query('valueC'); // Invoice number from our payload
 
-        Log::info('EPS Success Callback', ['merchant_transaction_id' => $merchantTransactionId, 'eps_transaction_id' => $epsTransactionId]);
+        Log::info('EPS Success Callback', ['merchant_transaction_id' => $merchantTransactionId, 'eps_transaction_id' => $epsTransactionId, 'valueC' => $valueC]);
 
-        $order = \App\Modules\Website\Models\WebsiteOrder::where('invoice_no', $merchantTransactionId)->first();
+        // Use valueC (invoice_no) to find order, not MerchantTransactionId (which is now unique transaction ID)
+        $order = $valueC
+            ? \App\Modules\Website\Models\WebsiteOrder::where('invoice_no', $valueC)->first()
+            : null;
 
         if ($order && $order->payment_status !== 'paid') {
             DB::transaction(function () use ($order, $epsTransactionId) {
@@ -391,15 +398,17 @@ class PaymentGatewayController extends Controller
         $epsTransactionId      = $request->query('EPSTransactionId_');
         $errorCode             = $request->query('ErrorCode');
         $errorMessage          = $request->query('ErrorMessage');
+        $valueC                = $request->query('valueC'); // Invoice number from our payload
 
-        Log::error('EPS Fail Callback', ['merchant_transaction_id' => $merchantTransactionId, 'error' => $errorMessage]);
+        Log::error('EPS Fail Callback', ['merchant_transaction_id' => $merchantTransactionId, 'error' => $errorMessage, 'valueC' => $valueC]);
 
         $orderTotal   = 0;
         $customerName = '';
         $order        = null;
 
-        if ($merchantTransactionId) {
-            $order = \App\Modules\Website\Models\WebsiteOrder::where('invoice_no', $merchantTransactionId)->first();
+        // Use valueC (invoice_no) to find order, not MerchantTransactionId
+        if ($valueC) {
+            $order = \App\Modules\Website\Models\WebsiteOrder::where('invoice_no', $valueC)->first();
             if ($order) {
                 $orderTotal   = $order->total_amount ?? 0;
                 $customerName = $order->customer_name ?? '';

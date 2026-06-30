@@ -96,20 +96,29 @@ Route::group([
         Route::get('website-admin/products/top-selling', 'App\Http\Controllers\Api\V2\WebsiteAdmin\OrderController@topSellingProducts');
     });
 
-    // --- Storefront Payment Routes (Public - Payment Gateway Integration) ---
+    // --- Storefront Routes (Public & Authenticated) ---
     Route::group(['prefix' => 'store'], function () {
+        // Payment Gateway (Public)
         Route::get('payment/gateway', 'App\Modules\Website\Http\Controllers\Api\V2\Website\PaymentGatewayController@getActiveGateway');
         Route::post('payments/initiate', 'App\Modules\Website\Http\Controllers\Api\V2\Website\PaymentGatewayController@initiatePayment');
         Route::post('payments/emi-options', 'App\Modules\Website\Http\Controllers\Api\V2\Website\PaymentGatewayController@emiOptions');
         Route::post('payments/callback', 'App\Modules\Website\Http\Controllers\Api\V2\Website\PaymentGatewayController@verifyCallback');
         Route::get('payments/status/{tran_id}', 'App\Modules\Website\Http\Controllers\Api\V2\Website\PaymentGatewayController@getPaymentStatus');
+
+        // Orders (Public for guest checkout)
+        Route::get('orders/{id}', 'App\Modules\Website\Http\Controllers\Api\V2\Website\OrderController@getById');
+        Route::post('orders', 'App\Modules\Website\Http\Controllers\Api\V2\Website\OrderController@placeOrder');
+        Route::post('orders/verify', 'App\Modules\Website\Http\Controllers\Api\V2\Website\OrderController@verifyOrder');
+
+        // Coupons (Public)
+        Route::post('coupons/validate', 'App\Modules\Website\Http\Controllers\Api\V2\Website\CouponController@checkCoupon');
+        Route::get('coupons/auto-apply', 'App\Modules\Website\Http\Controllers\Api\V2\Website\CouponController@autoApply');
+
+        // Search (Public)
+        Route::get('search', 'App\Modules\Website\Http\Controllers\Api\V2\Website\ProductController@search');
+        Route::get('search/suggestions', 'App\Modules\Website\Http\Controllers\Api\V2\Website\ProductController@searchSuggestions');
     });
 });
-
-// Load main application routes (Store, Orders, Payments, etc.)
-if (file_exists(base_path('routes/api_fixed.php'))) {
-    require base_path('routes/api_fixed.php');
-}
 
 // Load CRM module routes
 if (file_exists(base_path('Modules/CRM/Routes/api.php'))) {
