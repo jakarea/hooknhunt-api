@@ -416,15 +416,47 @@ namespace App\Modules\Website\Http\Controllers\Api\V2\Website;
                 ? \App\Modules\Website\Models\WebsiteOrder::where('invoice_no', $valueC)->first()
                 : null;
 
-            if ($order && $order->payment_status !== 'paid') {
+            if ($order) {
                 DB::transaction(function () use ($order, $epsTransactionId, $merchantTransactionId) {
+                    // Get payment transaction to find amount paid
+                    $paymentTxn = PaymentTransaction::where('sales_order_id', $order->id)
+                        ->where('gateway', 'eps')
+                        ->where('gateway_tran_id', $merchantTransactionId)
+                        ->first();
+
+                    $amountPaid = $paymentTxn?->link_amount ?? $order->total_amount;
+                    $previouslyPaid = $order->paid_amount ?? 0;
+                    $totalPaid = $previouslyPaid + $amountPaid;
+                    $dueAmount = max(0, $order->total_amount - $totalPaid);
+
+                    // Determine new status: paid or partially_paid
+                    $newStatus = $dueAmount <= 0 ? 'paid' : 'partially_paid';
+                    $newOrderStatus = $newStatus === 'paid' ? 'processing' : 'pending';
+
                     // Update order status
+                    $oldStatus = $order->payment_status;
                     $order->update([
-                        'payment_status' => 'paid',
-                        'paid_amount'    => $order->total_amount,
-                        'due_amount'     => 0,
-                        'status'         => 'processing',
+                        'payment_status' => $newStatus,
+                        'paid_amount'    => $totalPaid,
+                        'due_amount'     => $dueAmount,
+                        'status'         => $newOrderStatus,
                     ]);
+
+                    // Create status history record with payment note
+                    $paymentNote = sprintf(
+                        'Payment of ৳%.2f received via EPS (%s). Total paid: ৳%.2f. Remaining: ৳%.2f',
+                        $amountPaid,
+                        $epsTransactionId,
+                        $totalPaid,
+                        $dueAmount
+                    );
+
+                    \App\Modules\Website\Models\WebsiteOrderStatusHistory::logChange(
+                        $order->id,
+                        $newStatus,
+                        $oldStatus,
+                        $paymentNote
+                    );
 
                     // Update PaymentTransaction record
                     PaymentTransaction::where('sales_order_id', $order->id)
@@ -440,7 +472,9 @@ namespace App\Modules\Website\Http\Controllers\Api\V2\Website;
                             ]
                         ]);
 
-                    event(new OrderPaid($order, $epsTransactionId, 'eps'));
+                    if ($newStatus === 'paid') {
+                        event(new OrderPaid($order, $epsTransactionId, 'eps'));
+                    }
                 });
             }
 
