@@ -108,6 +108,7 @@ Route::group([
         Route::post('payments/emi-options', 'App\Modules\Website\Http\Controllers\Api\V2\Website\PaymentGatewayController@emiOptions');
         Route::post('payments/callback', 'App\Modules\Website\Http\Controllers\Api\V2\Website\PaymentGatewayController@verifyCallback');
         Route::get('payments/status/{tran_id}', 'App\Modules\Website\Http\Controllers\Api\V2\Website\PaymentGatewayController@getPaymentStatus');
+        Route::get('payment-links/validate/{token}', 'App\Modules\Website\Http\Controllers\Api\V2\Website\PaymentGatewayController@validatePaymentLink');
 
         // Orders (Public for guest checkout)
         Route::get('orders/{id}', 'App\Modules\Website\Http\Controllers\Api\V2\Website\OrderController@getById');

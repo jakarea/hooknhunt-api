@@ -1,6 +1,6 @@
-    <?php
+<?php
 
-    namespace App\Modules\Website\Http\Controllers\Api\V2\Website;
+namespace App\Modules\Website\Http\Controllers\Api\V2\Website;
 
 
     use App\Http\Controllers\Controller;
@@ -853,4 +853,55 @@
                 ], 500);
             }
         }
+
+    /**
+     * Validate payment link token
+     * GET /api/v2/store/payment-links/validate/{token}
+     *
+     * Used by checkout page to validate admin-generated payment links
+     * Returns link details if valid (not expired, not used)
+     */
+    public function validatePaymentLink($token)
+    {
+        try {
+            Log::info('Validating payment link', ['token' => $token]);
+
+            // Validate payment link using PaymentLinkService
+            $validation = PaymentLinkService::validatePaymentLink($token);
+
+            if (!$validation['valid']) {
+                return response()->json([
+                    'status' => false,
+                    'error' => $validation['reason'],
+                    'data' => null,
+                ], 400);
+            }
+
+            // Link is valid - return details for checkout
+            $order = $validation['order'];
+            $transaction = $validation['transaction'];
+
+            return response()->json([
+                'status' => true,
+                'data' => [
+                    'token' => $token,
+                    'order_id' => $order->id,
+                    'amount' => (float)$transaction->link_amount,
+                    'expires_at' => $transaction->link_expires_at,
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to validate payment link', [
+                'token' => $token,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'status' => false,
+                'error' => 'Failed to validate payment link',
+                'data' => null,
+            ], 500);
+        }
     }
+}
