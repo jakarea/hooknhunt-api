@@ -12,6 +12,7 @@ use App\Modules\Website\Events\Order\OrderFailed;
 use App\Modules\Website\Events\Order\OrderPaid;
 use App\Modules\Website\Services\EPSPayment;
 use App\Modules\Website\Services\SSLCommerzService;
+use App\Modules\Finance\Models\PaymentTransaction;
 
 class PaymentGatewayController extends Controller
 {
@@ -180,8 +181,31 @@ class PaymentGatewayController extends Controller
             }
         }
 
-        // Generate unique transaction ID for this payment attempt (allows retries)
-        $transactionId = 'TXN-' . $order->id . '-' . time() . '-' . random_int(1000, 9999);
+        // Check if there's an existing pending payment transaction for this order
+        // If yes, reuse the same transaction ID (EPS expects same ID on retry)
+        // If no, generate a new unique transaction ID
+        $existingTransaction = PaymentTransaction::where('sales_order_id', $order->id)
+            ->where('gateway', 'eps')
+            ->where('status', 'pending')
+            ->orderByDesc('created_at')
+            ->first();
+
+        if ($existingTransaction && $existingTransaction->gateway_tran_id) {
+            // Reuse existing transaction ID for retry
+            $transactionId = $existingTransaction->gateway_tran_id;
+            Log::info('Reusing existing EPS transaction ID', [
+                'order_id' => $order->id,
+                'transaction_id' => $transactionId,
+                'previous_attempt' => $existingTransaction->created_at
+            ]);
+        } else {
+            // Generate new unique transaction ID for first attempt
+            $transactionId = 'TXN-' . $order->id . '-' . time() . '-' . random_int(1000, 9999);
+            Log::info('Generated new EPS transaction ID', [
+                'order_id' => $order->id,
+                'transaction_id' => $transactionId
+            ]);
+        }
 
         // Build EPS payload with actual order data
         $payload = [
@@ -225,6 +249,60 @@ class PaymentGatewayController extends Controller
 
         Log::info('EPS Payload prepared', ['payload' => $payload]);
 
+        // Create or update PaymentTransaction record
+        // On first attempt: Create new record
+        // On retry: Update existing record (keep same transaction ID)
+        try {
+            if ($existingTransaction) {
+                // Update existing transaction record for retry attempt
+                $existingTransaction->update([
+                    'status' => 'pending',
+                    'customer_name' => $validated['customer_name'],
+                    'customer_email' => $validated['customer_email'] ?? null,
+                    'customer_phone' => $validated['customer_phone'],
+                    'customer_address' => $address,
+                    'ip_address' => $request->ip(),
+                ]);
+                $paymentTransaction = $existingTransaction;
+
+                Log::info('PaymentTransaction updated for retry', [
+                    'transaction_id' => $paymentTransaction->id,
+                    'gateway_tran_id' => $transactionId,
+                    'order_id' => $order->id
+                ]);
+            } else {
+                // Create new transaction record for first attempt
+                $paymentTransaction = PaymentTransaction::create([
+                    'sales_order_id' => $order->id,
+                    'customer_id' => $order->customer_id,
+                    'gateway' => 'eps',
+                    'gateway_tran_id' => $transactionId,
+                    'eps_tran_id' => $transactionId,
+                    'amount' => (float)$order->total_amount,
+                    'currency' => 'BDT',
+                    'status' => 'pending',
+                    'payment_method' => 'eps',
+                    'customer_name' => $validated['customer_name'],
+                    'customer_email' => $validated['customer_email'] ?? null,
+                    'customer_phone' => $validated['customer_phone'],
+                    'customer_address' => $address,
+                    'ip_address' => $request->ip(),
+                ]);
+
+                Log::info('PaymentTransaction created', [
+                    'transaction_id' => $paymentTransaction->id,
+                    'gateway_tran_id' => $transactionId,
+                    'order_id' => $order->id
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Failed to create/update PaymentTransaction', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage()
+            ]);
+            // Don't fail the payment initiation if transaction record creation fails
+        }
+
         // Call EPS Payment Service
         try {
             $epsPayment = new EPSPayment();
@@ -251,9 +329,17 @@ class PaymentGatewayController extends Controller
             }
 
             // Handle EPS error
+            $errorMessage = $data['ErrorMessage'] ?? $data['message'] ?? 'Payment initiation failed';
+
             $errorResponse = [
                 'status' => false,
-                'error' => $data['ErrorMessage'] ?? 'Payment initiation failed'
+                'error' => $errorMessage,
+                'gateway_unavailable' => true,
+                'debug' => [
+                    'eps_response' => $data,
+                    'redirect_url_exists' => isset($data['RedirectURL']),
+                    'is_success' => $data['isSuccess'] ?? false
+                ]
             ];
 
             Log::error('EPS Payment failed', ['error_response' => $errorResponse, 'eps_data' => $data]);
