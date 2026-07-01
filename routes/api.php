@@ -94,6 +94,10 @@ Route::group([
         Route::get('website-admin/products/search', 'App\Http\Controllers\Api\V2\WebsiteAdmin\OrderController@searchProducts')->middleware('permission:website.orders.products.search');
         Route::get('website-admin/products/search-products', 'App\Http\Controllers\Api\V2\WebsiteAdmin\OrderController@searchProductsGrouped')->middleware('permission:website.orders.products.search');
         Route::get('website-admin/products/top-selling', 'App\Http\Controllers\Api\V2\WebsiteAdmin\OrderController@topSellingProducts');
+
+        // Payment Links (admin can generate payment links for orders)
+        Route::post('admin/orders/{id}/generate-payment-link', 'App\Modules\Admin\Http\Controllers\AdminPaymentLinkController@generate')->middleware('permission:admin.orders.manage');
+        Route::get('admin/orders/{id}/payment-links', 'App\Modules\Admin\Http\Controllers\AdminPaymentLinkController@getOrderLinks')->middleware('permission:admin.orders.view');
     });
 
     // --- Storefront Routes (Public & Authenticated) ---
