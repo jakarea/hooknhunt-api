@@ -416,13 +416,29 @@ class PaymentGatewayController extends Controller
             : null;
 
         if ($order && $order->payment_status !== 'paid') {
-            DB::transaction(function () use ($order, $epsTransactionId) {
+            DB::transaction(function () use ($order, $epsTransactionId, $merchantTransactionId) {
+                // Update order status
                 $order->update([
                     'payment_status' => 'paid',
                     'paid_amount'    => $order->total_amount,
                     'due_amount'     => 0,
                     'status'         => 'processing',
                 ]);
+
+                // Update PaymentTransaction record
+                PaymentTransaction::where('sales_order_id', $order->id)
+                    ->where('gateway', 'eps')
+                    ->where('gateway_tran_id', $merchantTransactionId)
+                    ->update([
+                        'status' => 'paid',
+                        'paid_at' => now(),
+                        'gateway_response' => [
+                            'epsTransactionId' => $epsTransactionId,
+                            'merchantTransactionId' => $merchantTransactionId,
+                            'status' => 'paid'
+                        ]
+                    ]);
+
                 event(new OrderPaid($order, $epsTransactionId, 'eps'));
             });
         }
@@ -500,8 +516,26 @@ class PaymentGatewayController extends Controller
                 $customerName = $order->customer_name ?? '';
 
                 if ($order->payment_status !== 'failed') {
-                    DB::transaction(function () use ($order, $errorMessage, $errorCode) {
+                    DB::transaction(function () use ($order, $errorMessage, $errorCode, $merchantTransactionId) {
+                        // Update order status
                         $order->update(['payment_status' => 'failed']);
+
+                        // Update PaymentTransaction record
+                        PaymentTransaction::where('sales_order_id', $order->id)
+                            ->where('gateway', 'eps')
+                            ->where('gateway_tran_id', $merchantTransactionId)
+                            ->update([
+                                'status' => 'failed',
+                                'failed_at' => now(),
+                                'failed_reason' => $errorMessage,
+                                'gateway_response' => [
+                                    'merchantTransactionId' => $merchantTransactionId,
+                                    'errorCode' => $errorCode,
+                                    'errorMessage' => $errorMessage,
+                                    'status' => 'failed'
+                                ]
+                            ]);
+
                         event(new OrderFailed($order, $errorMessage, $errorCode));
                     });
                 }
