@@ -35,10 +35,11 @@ class PaymentLinkService
         }
 
         // Create PaymentTransaction record with link details
+        // Payment links are EPS-only for security and simplicity
         $paymentTransaction = PaymentTransaction::create([
             'sales_order_id' => $order->id,
             'customer_id' => $order->customer_id,
-            'gateway' => 'payment_link',
+            'gateway' => 'eps',
             'amount' => (float)$amount,
             'currency' => 'BDT',
             'status' => 'pending',
@@ -59,7 +60,7 @@ class PaymentLinkService
 
         return [
             'token' => $token,
-            'url' => env('FRONTEND_URL', 'http://localhost:3000') . '/checkout?order=' . $order->id . '&link=' . $token,
+            'url' => env('FRONTEND_URL', 'http://localhost:3000') . '/pay/' . $token,
             'expires_at' => $paymentTransaction->link_expires_at,
             'amount' => $amount,
         ];

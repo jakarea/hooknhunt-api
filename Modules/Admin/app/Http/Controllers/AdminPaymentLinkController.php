@@ -13,6 +13,12 @@ class AdminPaymentLinkController extends Controller
     /**
      * Generate a payment link for an order
      * POST /api/v2/admin/orders/{id}/generate-payment-link
+     *
+     * NOTE: Payment links use EPS gateway only
+     * - Supports full and partial payments
+     * - 7-day expiration
+     * - 32-character unique token
+     * - Direct redirect to EPS payment gateway
      */
     public function generate(Request $request, $orderId)
     {

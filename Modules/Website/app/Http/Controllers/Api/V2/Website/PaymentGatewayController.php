@@ -911,7 +911,7 @@ namespace App\Modules\Website\Http\Controllers\Api\V2\Website;
                 ], 400);
             }
 
-            // Link is valid - return details for checkout
+            // Link is valid - return details for payment page
             $order = $validation['order'];
             $transaction = $validation['transaction'];
 
@@ -922,6 +922,11 @@ namespace App\Modules\Website\Http\Controllers\Api\V2\Website;
                     'order_id' => $order->id,
                     'amount' => (float)$transaction->link_amount,
                     'expires_at' => $transaction->link_expires_at,
+                    'customer_name' => $order->customer_name,
+                    'customer_email' => $order->customer_email,
+                    'customer_phone' => $order->customer_phone,
+                    'shipping_address' => $order->shipping_address,
+                    'shipping_city' => $order->shipping_city,
                 ],
             ]);
 
