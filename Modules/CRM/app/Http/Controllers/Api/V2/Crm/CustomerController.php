@@ -241,10 +241,11 @@ class CustomerController extends Controller
         }
 
         // Get paginated results
-        $customers = $query->paginate($request->per_page ?? 20);
+        $perPage = $request->per_page ?? 12;
+        $paginated = $query->paginate($perPage);
 
-        // Enhance each customer with order data and address info
-        $customers->getCollection()->transform(function ($customer) {
+        // Transform each customer record
+        $items = $paginated->getCollection()->map(function ($customer) {
             // Get order statistics via direct DB query
             $orderStats = DB::table('sales_orders')
                 ->where('customer_id', $customer->id)
@@ -286,7 +287,20 @@ class CustomerController extends Controller
             ];
         });
 
-        return $this->sendSuccess($customers, 'Customers retrieved successfully.');
+        // Return paginated response with transformed items
+        return response()->json([
+            'status' => true,
+            'message' => 'Customers retrieved successfully.',
+            'data' => [
+                'data' => $items,
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+                'from' => $paginated->firstItem(),
+                'to' => $paginated->lastItem(),
+            ],
+        ]);
     }
 
     /**
