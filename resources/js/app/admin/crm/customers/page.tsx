@@ -333,7 +333,7 @@ export default function CustomersPage() {
           setPagination({
             current_page: paginationData.current_page,
             last_page: paginationData.last_page || 1,
-            per_page: paginationData.per_page || 3,
+            per_page: paginationData.per_page || 12,
             total: paginationData.total || 0,
           })
         } else {
