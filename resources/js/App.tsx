@@ -8,6 +8,7 @@ import { GlobalMediaSelectorProvider } from '@/hooks/useMediaSelector';
 import { useAffiliateTracking } from '@/hooks/useAffiliateTracking';
 import { theme } from '@/lib/mantine-theme';
 import ProtectedRoute from '@/components/ProtectedRoute'
+import { AuthInitializer } from '@/components/AuthInitializer'
 import { AdminLayout } from '@/components/admin-layout'
 import AdminDashboard from "@/app/admin/dashboard/page"
 import Analytics from "@/app/admin/dashboard/analytics/page"
@@ -178,7 +179,8 @@ function App() {
         <Notifications />
         <GlobalMediaSelectorProvider>
           <BrowserRouter>
-          <Routes>
+            <AuthInitializer>
+              <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -356,8 +358,9 @@ function App() {
 
           {/* 404 */}
           <Route path="*" element={<div>404 Not Found</div>} />
-        </Routes>
-        </BrowserRouter>
+              </Routes>
+            </AuthInitializer>
+          </BrowserRouter>
         </GlobalMediaSelectorProvider>
       </ModalsProvider>
     </MantineProvider>

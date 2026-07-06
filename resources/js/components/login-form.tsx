@@ -143,7 +143,14 @@ export function LoginForm() {
 
       // Immediate redirect - localStorage is synchronous, no delay needed
       // Use window.location.href for hard redirect (more reliable than React Router)
-      window.location.href = '/dashboard'
+      // Redirect to intended URL if available, otherwise to dashboard
+      const intendedUrl = localStorage.getItem('intendedUrl')
+      if (intendedUrl) {
+        localStorage.removeItem('intendedUrl')
+        window.location.href = intendedUrl
+      } else {
+        window.location.href = '/dashboard'
+      }
     } catch (error: any) {
 
       // Handle different error types

@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Route;
 // LEAD MANAGEMENT
 // ====================================================
 Route::group([
-    'prefix' => 'v2/crm',
+    'prefix' => 'api/v2/crm',
     'namespace' => 'App\Modules\CRM\Http\Controllers\Api\V2\Crm',
     'middleware' => ['auth', 'permission:crm.leads.index']
 ], function () {
@@ -29,7 +29,7 @@ Route::group([
 // CRM ACTIVITIES
 // ====================================================
 Route::group([
-    'prefix' => 'v2/crm',
+    'prefix' => 'api/v2/crm',
     'namespace' => 'App\Modules\CRM\Http\Controllers\Api\V2\Crm',
     'middleware' => ['auth']
 ], function () {
@@ -41,7 +41,7 @@ Route::group([
 // CRM CAMPAIGNS
 // ====================================================
 Route::group([
-    'prefix' => 'v2/crm',
+    'prefix' => 'api/v2/crm',
     'namespace' => 'App\Modules\CRM\Http\Controllers\Api\V2\Crm',
     'middleware' => ['auth', 'permission:crm.campaigns.index']
 ], function () {
@@ -54,7 +54,7 @@ Route::group([
 // CUSTOMER MANAGEMENT (CRM)
 // ====================================================
 Route::group([
-    'prefix' => 'v2/crm',
+    'prefix' => 'api/v2/crm',
     'namespace' => 'App\Modules\CRM\Http\Controllers\Api\V2\Crm',
     'middleware' => ['auth', 'permission:crm.customers.index']
 ], function () {

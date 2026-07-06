@@ -75,15 +75,19 @@ export function AppSidebarMantine({
   const fetchStats = useWebsiteOrdersStore((s) => s.fetchStats)
   const pendingCount = stats?.pending || 0
 
-  // Only fetch stats when on orders-related pages to avoid unnecessary API calls
+  // Fetch website order stats periodically (every 5 minutes) for always-visible badge
   useEffect(() => {
-    const isOrdersPage = location.pathname.includes('/orders') ||
-                         location.pathname.includes('/website-admin/orders')
+    // Fetch immediately on mount
+    fetchStats()
 
-    if (isOrdersPage && !stats) {
+    // Set up periodic refresh every 5 minutes (300000ms)
+    const interval = setInterval(() => {
       fetchStats()
-    }
-  }, [location.pathname, stats, fetchStats])
+    }, 5 * 60 * 1000)
+
+    // Cleanup interval on unmount
+    return () => clearInterval(interval)
+  }, [fetchStats])
 
   const toggleSection = (label: string) => {
     setOpened((prev) => ({

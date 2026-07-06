@@ -376,20 +376,30 @@ namespace App\Modules\Website\Http\Controllers\Api\V2\Website;
                 $salesOrderId = $request->input('value_a');
                 $status      = $request->input('status');
 
-                Log::info('SSL Commerz Success Callback', ['tran_id' => $tranId, 'value_a' => $salesOrderId, 'status' => $status]);
+                Log::info('✅ SSL Commerz Success Callback RECEIVED', ['tran_id' => $tranId, 'value_a' => $salesOrderId, 'status' => $status]);
 
                 $order = \App\Modules\Website\Models\WebsiteOrder::find($salesOrderId);
 
+                if (!$order) {
+                    Log::error('❌ Order NOT FOUND', ['order_id' => $salesOrderId]);
+                } else {
+                    Log::info('✅ Order found', ['order_id' => $order->id, 'current_payment_status' => $order->payment_status]);
+                }
+
                 if ($order && $order->payment_status !== 'paid') {
                     DB::transaction(function () use ($order, $tranId) {
+                        $before = $order->payment_status;
                         $order->update([
                             'payment_status' => 'paid',
                             'paid_amount'    => $order->total_amount,
                             'due_amount'     => 0,
                             'status'         => 'processing',
                         ]);
+                        Log::info('✅ Order payment updated', ['order_id' => $order->id, 'before' => $before, 'after' => 'paid']);
                         event(new OrderPaid($order, $tranId, 'sslcommerz'));
                     });
+                } elseif ($order && $order->payment_status === 'paid') {
+                    Log::info('ℹ️ Order already paid', ['order_id' => $order->id]);
                 }
 
                 return redirect()->away($frontendUrl . '/order-success?' . http_build_query([
@@ -409,12 +419,18 @@ namespace App\Modules\Website\Http\Controllers\Api\V2\Website;
             $status                = $request->query('Status');
             $valueC                = $request->query('valueC'); // Invoice number from our payload
 
-            Log::info('EPS Success Callback', ['merchant_transaction_id' => $merchantTransactionId, 'eps_transaction_id' => $epsTransactionId, 'valueC' => $valueC]);
+            Log::info('✅ EPS Success Callback RECEIVED', ['merchant_transaction_id' => $merchantTransactionId, 'eps_transaction_id' => $epsTransactionId, 'valueC' => $valueC]);
 
             // Use valueC (invoice_no) to find order, not MerchantTransactionId (which is now unique transaction ID)
             $order = $valueC
                 ? \App\Modules\Website\Models\WebsiteOrder::where('invoice_no', $valueC)->first()
                 : null;
+
+            if (!$order) {
+                Log::error('❌ EPS Order NOT FOUND', ['invoice_no' => $valueC]);
+            } else {
+                Log::info('✅ EPS Order found', ['order_id' => $order->id, 'invoice_no' => $valueC, 'current_payment_status' => $order->payment_status]);
+            }
 
             if ($order) {
                 DB::transaction(function () use ($order, $epsTransactionId, $merchantTransactionId) {
@@ -442,6 +458,14 @@ namespace App\Modules\Website\Http\Controllers\Api\V2\Website;
                         'status'         => $newOrderStatus,
                     ]);
 
+                    Log::info('✅ EPS Order payment updated', [
+                        'order_id' => $order->id,
+                        'before_status' => $oldStatus,
+                        'after_status' => $newStatus,
+                        'amount_paid' => $amountPaid,
+                        'total_paid' => $totalPaid
+                    ]);
+
                     // Create status history record with payment note
                     $paymentNote = sprintf(
                         'Payment of ৳%.2f received via EPS (%s). Total paid: ৳%.2f. Remaining: ৳%.2f',
@@ -457,6 +481,8 @@ namespace App\Modules\Website\Http\Controllers\Api\V2\Website;
                         $oldStatus,
                         $paymentNote
                     );
+
+                    Log::info('✅ Status history logged', ['order_id' => $order->id, 'note' => $paymentNote]);
 
                     // Update PaymentTransaction record
                     PaymentTransaction::where('sales_order_id', $order->id)
@@ -489,6 +515,131 @@ namespace App\Modules\Website\Http\Controllers\Api\V2\Website;
             ]));
         }
 
+
+        /**
+         * TEST ENDPOINT - Simulate SSLCommerz payment success (Development only)
+         * GET /api/v2/store/payments/test-ssl?order_id=1
+         */
+        public function testSSLSuccess(Request $request)
+        {
+            if (app()->isProduction()) {
+                return response()->json(['error' => 'Test endpoint not available in production'], 403);
+            }
+
+            $orderId = $request->input('order_id') ?? 1;
+            $order = \App\Modules\Website\Models\WebsiteOrder::find($orderId);
+
+            if (!$order) {
+                return response()->json(['error' => 'Order not found'], 404);
+            }
+
+            Log::info('🧪 TEST: Simulating SSLCommerz callback', ['order_id' => $orderId, 'invoice_no' => $order->invoice_no]);
+
+            // Directly execute the payment update logic
+            $tranId = 'TEST-' . uniqid();
+
+            if ($order->payment_status !== 'paid') {
+                DB::transaction(function () use ($order, $tranId) {
+                    $order->update([
+                        'payment_status' => 'paid',
+                        'paid_amount'    => $order->total_amount,
+                        'due_amount'     => 0,
+                        'status'         => 'processing',
+                    ]);
+                    Log::info('✅ TEST: Order payment updated', ['order_id' => $order->id, 'payment_status' => 'paid']);
+                    event(new OrderPaid($order, $tranId, 'sslcommerz'));
+                });
+            }
+
+            $frontendUrl = config('app.frontend_url') ?? env('FRONTEND_URL', 'http://localhost:3000');
+            return redirect()->away($frontendUrl . '/order-success?' . http_build_query([
+                'tran_id' => $tranId,
+                'invoice' => $order->invoice_no,
+                'total' => $order->total_amount,
+                'name' => $order->customer_name ?? 'Customer',
+                'phone' => $order->customer_phone ?? '',
+                'status' => 'Success',
+                'gateway' => 'sslcommerz-test',
+            ]));
+        }
+
+        /**
+         * TEST ENDPOINT - Simulate EPS payment success (Development only)
+         * GET /api/v2/store/payments/test-eps?order_id=1
+         */
+        public function testEPSSuccess(Request $request)
+        {
+            if (app()->isProduction()) {
+                return response()->json(['error' => 'Test endpoint not available in production'], 403);
+            }
+
+            $orderId = $request->input('order_id') ?? 1;
+            $order = \App\Modules\Website\Models\WebsiteOrder::find($orderId);
+
+            if (!$order) {
+                return response()->json(['error' => 'Order not found'], 404);
+            }
+
+            Log::info('🧪 TEST: Simulating EPS callback', ['order_id' => $orderId, 'invoice_no' => $order->invoice_no]);
+
+            // Directly execute the payment update logic
+            $epsTransactionId = 'EPS-TEST-' . uniqid();
+            $merchantTransactionId = 'MERCHANT-TEST-' . uniqid();
+
+            DB::transaction(function () use ($order, $epsTransactionId, $merchantTransactionId) {
+                $amountPaid = $order->total_amount;
+                $previouslyPaid = $order->paid_amount ?? 0;
+                $totalPaid = $previouslyPaid + $amountPaid;
+                $dueAmount = max(0, $order->total_amount - $totalPaid);
+
+                $newStatus = $dueAmount <= 0 ? 'paid' : 'partially_paid';
+                $newOrderStatus = $newStatus === 'paid' ? 'processing' : 'pending';
+
+                $oldStatus = $order->payment_status;
+                $order->update([
+                    'payment_status' => $newStatus,
+                    'paid_amount'    => $totalPaid,
+                    'due_amount'     => $dueAmount,
+                    'status'         => $newOrderStatus,
+                ]);
+
+                Log::info('✅ TEST: EPS Order payment updated', [
+                    'order_id' => $order->id,
+                    'before_status' => $oldStatus,
+                    'after_status' => $newStatus,
+                    'amount_paid' => $amountPaid
+                ]);
+
+                $paymentNote = sprintf(
+                    'Payment of ৳%.2f received via EPS TEST (%s). Total paid: ৳%.2f',
+                    $amountPaid,
+                    $epsTransactionId,
+                    $totalPaid
+                );
+
+                \App\Modules\Website\Models\WebsiteOrderStatusHistory::logChange(
+                    $order->id,
+                    $newStatus,
+                    $oldStatus,
+                    $paymentNote
+                );
+
+                if ($newStatus === 'paid') {
+                    event(new OrderPaid($order, $epsTransactionId, 'eps-test'));
+                }
+            });
+
+            $frontendUrl = config('app.frontend_url') ?? env('FRONTEND_URL', 'http://localhost:3000');
+            return redirect()->away($frontendUrl . '/order-success?' . http_build_query([
+                'tran_id' => $epsTransactionId,
+                'invoice' => $order->invoice_no,
+                'total' => $order->total_amount,
+                'name' => $order->customer_name ?? 'Customer',
+                'phone' => $order->customer_phone ?? '',
+                'status' => 'Success',
+                'gateway' => 'eps-test',
+            ]));
+        }
 
         /**
          * Payment Fail Callback — handles both SSL Commerz (POST) and EPS (GET)

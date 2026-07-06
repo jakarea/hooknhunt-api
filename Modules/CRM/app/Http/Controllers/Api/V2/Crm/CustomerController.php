@@ -218,163 +218,75 @@ class CustomerController extends Controller
             return $this->sendError('You do not have permission to view customers.', null, 403);
         }
 
-        // Get all customers including guest customers (from customers table)
-        // Module independence: Direct DB access instead of relationships
-        $query = DB::table('customers as c')
-            ->leftJoin('users as u', 'c.user_id', '=', 'u.id')
-            ->leftJoin('customer_profiles as cp', 'u.id', '=', 'cp.user_id')
-            ->leftJoin('addresses as a', function($join) {
-                $join->on('u.id', '=', 'a.user_id')
-                      ->where('a.is_default', '=', 1);
-            })
-            ->select([
-                'c.id as customer_id',
-                'c.user_id',
-                'c.name as customer_name',
-                'c.phone as customer_phone',
-                'c.type as customer_type',
-                'c.wallet_balance',
-                'c.created_at as customer_created_at',
-                'u.id as user_id',
-                'u.name as user_name',
-                'u.phone as user_phone',
-                'u.email',
-                'u.role_id',
-                'cp.type as profile_type',
-                'a.division as address_division',
-                'a.district as address_district',
-                'a.thana as address_thana',
-                'a.city as address_city'
-            ]);
+        // Get all customers from users table (with retail/wholesale roles)
+        // This ensures we get ALL customers, not just those in the customers table
+        $query = User::whereIn('role_id', [10, 11]) // Retail (10) and Wholesale (11) customers
+            ->with(['customerProfile', 'profile', 'role', 'addresses'])
+            ->orderBy('created_at', 'desc');
 
-        // Search across customer name, phone, and user fields
+        // Search across name, email, and phone
         if ($request->search) {
-            $query->where(function($q) use ($request) {
-                $q->where('c.name', 'like', "%{$request->search}%")
-                  ->orWhere('c.phone', 'like', "%{$request->search}%")
-                  ->orWhere('u.name', 'like', "%{$request->search}%")
-                  ->orWhere('u.phone', 'like', "%{$request->search}%")
-                  ->orWhere('u.email', 'like', "%{$request->search}%");
+            $searchTerm = "%{$request->search}%";
+            $query->where(function($q) use ($searchTerm) {
+                $q->where('name', 'like', $searchTerm)
+                  ->orWhere('email', 'like', $searchTerm)
+                  ->orWhere('phone', 'like', $searchTerm);
             });
         }
 
         // Filter by customer type (retail/wholesale)
         if ($request->filled('type') && $request->type !== 'all') {
-            $query->where('c.type', $request->type);
+            $roleId = $request->type === 'retail' ? 10 : 11;
+            $query->where('role_id', $roleId);
         }
 
         // Get paginated results
         $customers = $query->paginate($request->per_page ?? 20);
 
-        // Enhance each customer with order data and additional info
+        // Enhance each customer with order data and address info
         $customers->getCollection()->transform(function ($customer) {
             // Get order statistics via direct DB query
             $orderStats = DB::table('sales_orders')
-                ->where('customer_id', $customer->customer_id)
+                ->where('customer_id', $customer->id)
                 ->selectRaw('COUNT(*) as total_orders, SUM(total_amount) as total_spent')
                 ->first();
 
+            // Get default/shipping address
+            $shippingAddress = $customer->addresses?->firstWhere('is_shipping', 1)
+                            ?? $customer->addresses?->firstWhere('is_default', 1)
+                            ?? $customer->addresses?->first();
+
             return [
-                'id' => $customer->user_id ?? 'guest-' . $customer->customer_id,
-                'customer_id' => $customer->customer_id,
-                'name' => $customer->user_name ?: $customer->customer_name,
-                'phone' => $customer->user_phone ?: $customer->customer_phone,
+                'id' => $customer->id,
+                'name' => $customer->name,
+                'phone' => $customer->phone,
                 'email' => $customer->email,
-                'role_id' => $customer->role_id,
-                'customerProfile' => [
-                    'type' => $customer->customer_type,
-                    'totalOrders' => $orderStats->total_orders ?? 0,
-                    'totalSpent' => (float)($orderStats->total_spent ?? 0),
-                    'loyaltyPoints' => 0,
-                ],
-                'customer' => [
-                    'id' => $customer->customer_id,
-                    'name' => $customer->customer_name,
-                    'phone' => $customer->customer_phone,
-                    'type' => $customer->customer_type,
-                ],
-                'address' => [
-                    'division' => $customer->address_division,
-                    'district' => $customer->address_district,
-                    'thana' => $customer->address_thana,
-                    'city' => $customer->address_city,
-                ],
-                'created_at' => $customer->customer_created_at,
+                'roleId' => $customer->role_id,
+                'type' => $customer->customerProfile?->type ?? ($customer->role_id === 10 ? 'retail' : 'wholesale'),
+                'totalOrders' => (int)($orderStats->total_orders ?? 0),
+                'totalSpent' => (float)($orderStats->total_spent ?? 0),
+                'loyaltyPoints' => (int)($customer->customerProfile?->loyalty_points ?? 0),
+                'district' => $shippingAddress?->district ?? 'Not provided',
+                'thana' => $shippingAddress?->thana ?? 'Not provided',
+                'division' => $shippingAddress?->division ?? 'Not provided',
+                'address' => $shippingAddress ? [
+                    'id' => $shippingAddress->id,
+                    'fullName' => $shippingAddress->full_name,
+                    'phone' => $shippingAddress->phone,
+                    'line1' => $shippingAddress->line1,
+                    'line2' => $shippingAddress->line2,
+                    'thana' => $shippingAddress->thana,
+                    'district' => $shippingAddress->district,
+                    'division' => $shippingAddress->division,
+                    'postalCode' => $shippingAddress->postal_code,
+                    'isDefault' => (bool)$shippingAddress->is_default,
+                    'isShipping' => (bool)$shippingAddress->is_shipping,
+                ] : null,
+                'createdAt' => $customer->created_at->toIso8601String(),
             ];
         });
 
         return $this->sendSuccess($customers, 'Customers retrieved successfully.');
-
-        // Search
-        if ($request->search) {
-            $query->where(function($q) use ($request) {
-                $q->where('name', 'like', "%{$request->search}%")
-                  ->orWhere('phone', 'like', "%{$request->search}%")
-                  ->orWhere('email', 'like', "%{$request->search}%");
-            });
-        }
-
-        // Filter by customer type (retail/wholesale)
-        // Check both customerProfile.type and customer.type
-        if ($request->filled('type') && $request->type !== 'all') {
-            $query->where(function($q) use ($request) {
-                $q->whereHas('customerProfile', function($q1) use ($request) {
-                        $q1->where('type', $request->type);
-                    })->orWhereHas('customer', function($q2) use ($request) {
-                        $q2->where('type', $request->type);
-                    });
-            });
-        }
-
-        // Filter by division
-        if ($request->division) {
-            $query->whereHas('addresses', function($q) use ($request) {
-                $q->where('division', $request->division);
-            });
-        }
-
-        // Filter by city
-        if ($request->city) {
-            $query->whereHas('addresses', function($q) use ($request) {
-                $q->where('city', $request->city);
-            });
-        }
-
-        $users = $query->paginate(20);
-
-        // Enhance each user with real order data
-        $users->getCollection()->transform(function ($user) {
-            // Module independence: Get order data via direct DB query instead of relationship
-            $actualOrders = 0;
-            $actualSpent = 0;
-            $customerType = 'retail'; // Default
-
-            if ($user->customer) {
-                // Direct database access for module independence
-                $orderStats = DB::table('sales_orders')
-                    ->where('customer_id', $user->customer->id)
-                    ->selectRaw('COUNT(*) as total_orders, SUM(total_amount) as total_spent')
-                    ->first();
-
-                $actualOrders = $orderStats->total_orders ?? 0;
-                $actualSpent = (float) ($orderStats->total_spent ?? 0);
-                $customerType = $user->customer->type;
-            } elseif ($user->customerProfile) {
-                $customerType = $user->customerProfile->type;
-            }
-
-            // Merge real data with profile data
-            $user->customerProfile = (object) [
-                'type' => $customerType,
-                'totalOrders' => $actualOrders,
-                'totalSpent' => $actualSpent,
-                'loyaltyPoints' => $user->customerProfile->loyalty_points ?? 0,
-            ];
-
-            return $user;
-        });
-
-        return $this->sendSuccess($users, 'Customers retrieved successfully.');
     }
 
     /**
@@ -382,16 +294,55 @@ class CustomerController extends Controller
      */
     public function show($id)
     {
-        // Permission check
-        if (!auth()->user()->hasPermissionTo('crm.customers.view')) {
+        // Permission check - requires same permission as index since details are part of the same feature
+        if (!auth()->user()->hasPermissionTo('crm.customers.index')) {
             return $this->sendError('You do not have permission to view customer details.', null, 403);
         }
 
-        $user = User::with(['customerProfile', 'addresses'])
+        $user = User::with(['customerProfile', 'addresses', 'role'])
             ->whereIn('role_id', [10, 11])
             ->findOrFail($id);
 
-        return $this->sendSuccess($user, 'Customer retrieved successfully.');
+        // Get order statistics
+        $orderStats = DB::table('sales_orders')
+            ->where('customer_id', $user->id)
+            ->selectRaw('COUNT(*) as total_orders, SUM(total_amount) as total_spent')
+            ->first();
+
+        // Get default/shipping address
+        $shippingAddress = $user->addresses?->firstWhere('is_shipping', 1)
+                        ?? $user->addresses?->firstWhere('is_default', 1)
+                        ?? $user->addresses?->first();
+
+        return $this->sendSuccess([
+            'id' => $user->id,
+            'name' => $user->name,
+            'phone' => $user->phone,
+            'email' => $user->email,
+            'roleId' => $user->role_id,
+            'type' => $user->customerProfile?->type ?? ($user->role_id === 10 ? 'retail' : 'wholesale'),
+            'totalOrders' => (int)($orderStats->total_orders ?? 0),
+            'totalSpent' => (float)($orderStats->total_spent ?? 0),
+            'loyaltyPoints' => (int)($user->customerProfile?->loyalty_points ?? 0),
+            'district' => $shippingAddress?->district ?? 'Not provided',
+            'thana' => $shippingAddress?->thana ?? 'Not provided',
+            'division' => $shippingAddress?->division ?? 'Not provided',
+            'address' => $shippingAddress ? [
+                'id' => $shippingAddress->id,
+                'fullName' => $shippingAddress->full_name,
+                'phone' => $shippingAddress->phone,
+                'line1' => $shippingAddress->line1,
+                'line2' => $shippingAddress->line2,
+                'thana' => $shippingAddress->thana,
+                'district' => $shippingAddress->district,
+                'division' => $shippingAddress->division,
+                'postalCode' => $shippingAddress->postal_code,
+                'isDefault' => (bool)$shippingAddress->is_default,
+                'isShipping' => (bool)$shippingAddress->is_shipping,
+            ] : null,
+            'createdAt' => $user->created_at->toIso8601String(),
+            'customerProfile' => $user->customerProfile,
+        ], 'Customer retrieved successfully.');
     }
 
     /**

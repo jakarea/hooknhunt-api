@@ -34,22 +34,15 @@ interface Customer {
   name: string
   phone: string
   email: string | null
-  customerProfile?: {
-	type: 'retail' | 'wholesale'
-	totalOrders: number
-	totalSpent: number
-	loyaltyPoints: number
-	division?: string
-	district?: string
-	thana?: string
-	city?: string
-  }
-  address?: {
-	division?: string
-	district?: string
-	thana?: string
-	city?: string
-  }
+  type?: 'retail' | 'wholesale'
+  totalOrders?: number
+  totalSpent?: number
+  loyaltyPoints?: number
+  district?: string
+  thana?: string
+  division?: string
+  city?: string
+  address?: string
   createdAt: string
   updatedAt: string
 }
@@ -114,7 +107,7 @@ export default function CustomersPage() {
   const [pagination, setPagination] = useState({
     current_page: 1,
     last_page: 1,
-    per_page: 3,
+    per_page: 12,
     total: 0,
   })
 
@@ -258,9 +251,9 @@ export default function CustomersPage() {
             customer.phone,
             type,
             customer.isActive ? 'Active' : 'Inactive',
-            customer.customerProfile?.totalOrders || 0,
-            customer.customerProfile?.totalSpent || 0,
-            customer.customerProfile?.loyaltyPoints || 0,
+            customer.totalOrders || 0,
+            customer.totalSpent || 0,
+            customer.loyaltyPoints || 0,
             formatDate(customer.createdAt),
           ]
         })
@@ -399,10 +392,10 @@ export default function CustomersPage() {
 
   // Desktop table rows
   const desktopRows = customers.map((customer) => {
-    const type = customer.customerProfile?.type || 'retail'
-    const totalOrders = customer.customerProfile?.totalOrders || 0
-    const totalSpent = parseFloat(customer.customerProfile?.totalSpent || 0)
-    const loyaltyPoints = customer.customerProfile?.loyaltyPoints || 0
+    const type = customer.type || 'retail'
+    const totalOrders = customer.totalOrders || 0
+    const totalSpent = parseFloat((customer.totalSpent || 0).toString())
+    const loyaltyPoints = customer.loyaltyPoints || 0
 
     return (
       <Table.Tr key={customer.id}>
@@ -429,13 +422,13 @@ export default function CustomersPage() {
           </Badge>
         </Table.Td>
         <Table.Td>
-          <Text className="text-sm md:text-base">{customer.customerProfile?.division || customer.address?.division || '-'}</Text>
+          <Text className="text-sm md:text-base">{customer.division || '-'}</Text>
         </Table.Td>
         <Table.Td>
-          <Text className="text-sm md:text-base">{customer.customerProfile?.district || customer.address?.district || '-'}</Text>
+          <Text className="text-sm md:text-base">{customer.district || '-'}</Text>
         </Table.Td>
         <Table.Td>
-          <Text className="text-sm md:text-base">{customer.customerProfile?.thana || customer.customerProfile?.city || customer.address?.thana || '-'}</Text>
+          <Text className="text-sm md:text-base">{customer.thana || '-'}</Text>
         </Table.Td>
         <Table.Td>
           <Group>
@@ -460,10 +453,10 @@ export default function CustomersPage() {
 
   // Mobile cards
   const mobileCards = customers.map((customer) => {
-    const type = customer.customerProfile?.type || 'retail'
-    const totalOrders = customer.customerProfile?.totalOrders || 0
-    const totalSpent = parseFloat(customer.customerProfile?.totalSpent || 0)
-    const loyaltyPoints = customer.customerProfile?.loyaltyPoints || 0
+    const type = customer.type || 'retail'
+    const totalOrders = customer.totalOrders || 0
+    const totalSpent = parseFloat((customer.totalSpent || 0).toString())
+    const loyaltyPoints = customer.loyaltyPoints || 0
 
     return (
       <Card key={customer.id} shadow="sm" p={{ base: 'lg', md: 'md' }} radius="md" withBorder mb="md">

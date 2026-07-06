@@ -123,11 +123,30 @@ Route::group([
         Route::get('search', 'App\Modules\Website\Http\Controllers\Api\V2\Website\ProductController@search');
         Route::get('search/suggestions', 'App\Modules\Website\Http\Controllers\Api\V2\Website\ProductController@searchSuggestions');
     });
+
+    // --- User Management Routes (Admin) ---
+    Route::middleware(['auth'])->group(function () {
+        Route::group(['prefix' => 'user-management', 'middleware' => 'permission:user-management.users.index'], function () {
+            Route::get('users', 'App\Http\Controllers\Api\V2\UserController@index');
+            Route::post('users', 'App\Http\Controllers\Api\V2\UserController@store')->middleware('permission:user-management.users.create');
+            Route::get('users/{id}', 'App\Http\Controllers\Api\V2\UserController@show');
+            Route::post('users/{id}/ban', 'App\Http\Controllers\Api\V2\UserController@banUser')->middleware('permission:user-management.users.edit');
+            Route::post('users/{id}/restore', 'App\Http\Controllers\Api\V2\UserController@restore')->middleware('permission:user-management.users.edit');
+            Route::post('users/{id}/direct-permissions', 'App\Http\Controllers\Api\V2\UserController@giveDirectPermission')->middleware('permission:user-management.users.edit');
+            Route::delete('users/{id}', 'App\Http\Controllers\Api\V2\UserController@destroy')->middleware('permission:user-management.users.delete');
+            Route::put('users/{id}', 'App\Http\Controllers\Api\V2\UserController@update')->middleware('permission:user-management.users.edit');
+            Route::post('users/{id}/block-permission', 'App\Http\Controllers\Api\V2\UserController@blockPermission')->middleware('permission:user-management.users.edit');
+            Route::put('users/{id}/permissions/granted', 'App\Http\Controllers\Api\V2\UserController@syncGrantedPermissions')->middleware('permission:user-management.users.edit');
+            Route::put('users/{id}/permissions/blocked', 'App\Http\Controllers\Api\V2\UserController@syncBlockedPermissions')->middleware('permission:user-management.users.edit');
+            Route::get('roles', 'App\Http\Controllers\Api\V2\UserController@roleList');
+            Route::get('permissions', 'App\Http\Controllers\Api\V2\PermissionController@list');
+        });
+    });
 });
 
 // Load CRM module routes
-if (file_exists(base_path('Modules/CRM/Routes/api.php'))) {
-    require base_path('Modules/CRM/Routes/api.php');
+if (file_exists(base_path('Modules/CRM/routes/api.php'))) {
+    require base_path('Modules/CRM/routes/api.php');
 }
 
 // Load Affiliate module routes

@@ -18,48 +18,40 @@ class ProductCommissionController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            // Use direct database query with joins for module independence
-            $query = DB::table('affiliate_product_commissions as pac')
-                ->leftJoin('products as p', 'pac.product_id', '=', 'p.id')
-                ->leftJoin('users as u', 'pac.affiliate_id', '=', 'u.id') // Assuming affiliate table has user_id
-                ->select(
-                    'pac.*',
-                    'p.name as product_name',
-                    'p.product_code',
-                    'u.name as affiliate_name'
-                )
-                ->orderBy('pac.created_at', 'desc');
+            // Use Eloquent model with eager loading for relationships
+            $query = ProductAffiliateCommission::with(['product.thumbnail', 'product.variants'])
+                ->orderBy('created_at', 'desc');
 
             // Filter by affiliate
             if ($request->has('affiliate_id')) {
-                $query->where('pac.affiliate_id', $request->input('affiliate_id'));
+                $query->where('affiliate_id', $request->input('affiliate_id'));
             }
 
             // Filter by product
             if ($request->has('product_id')) {
-                $query->where('pac.product_id', $request->input('product_id'));
+                $query->where('product_id', $request->input('product_id'));
             }
 
-            // Search by product name or code using direct WHERE clause
+            // Search by product name or code
             if ($request->has('search') && !empty($request->input('search'))) {
                 $searchTerm = '%' . $request->input('search') . '%';
-                $query->where(function ($q) use ($searchTerm) {
-                    $q->where('p.name', 'like', $searchTerm)
-                      ->orWhere('p.product_code', 'like', $searchTerm);
+                $query->whereHas('product', function ($q) use ($searchTerm) {
+                    $q->where('name', 'like', $searchTerm)
+                      ->orWhere('product_code', 'like', $searchTerm);
                 });
             }
 
             // Filter by active status
             if ($request->has('is_active')) {
-                $query->where('pac.is_active', $request->input('is_active'));
+                $query->where('is_active', $request->input('is_active'));
             }
 
             // Global vs Specific filter
             if ($request->has('type')) {
                 if ($request->input('type') === 'global') {
-                    $query->whereNull('pac.affiliate_id');
+                    $query->whereNull('affiliate_id');
                 } elseif ($request->input('type') === 'specific') {
-                    $query->whereNotNull('pac.affiliate_id');
+                    $query->whereNotNull('affiliate_id');
                 }
             }
 
@@ -72,13 +64,13 @@ class ProductCommissionController extends Controller
                 $imageUrl = null;
 
                 // Get price from first active variant
-                if ($product && $product->activeVariant) {
-                    $price = $product->activeVariant->price ?? 0;
+                if ($product && $product->variants && $product->variants->count() > 0) {
+                    $price = $product->variants->first()->price ?? 0;
                 }
 
                 // Get image from thumbnail
                 if ($product && $product->thumbnail) {
-                    $imageUrl = $product->thumbnail->full_url ?? null;
+                    $imageUrl = $product->thumbnail->url ?? null;
                 }
 
                 return [
@@ -89,8 +81,7 @@ class ProductCommissionController extends Controller
                     'product_price' => (float) $price,
                     'product_image' => $imageUrl,
                     'affiliate_id' => $commission->affiliate_id,
-                    'affiliate_name' => $commission->affiliate?->user?->name ?? 'All Affiliates',
-                    'affiliate_referral_code' => $commission->affiliate?->referral_code ?? null,
+                    'affiliate_name' => $commission->affiliate_id ? 'Affiliate #' . $commission->affiliate_id : 'All Affiliates',
                     'commission_rate' => (float) $commission->commission_rate,
                     'is_active' => $commission->is_active,
                     'type' => $commission->affiliate_id === null ? 'global' : 'specific',

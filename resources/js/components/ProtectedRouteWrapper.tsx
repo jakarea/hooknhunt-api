@@ -26,13 +26,16 @@ export function ProtectedRouteWrapper({
   const { attendance, loading } = useAttendance(user?.id, token)
 
 
+  // If still hydrating or loading attendance, show loading state
   if (!hydrated || loading) {
     return <LoadingState />
   }
 
   const isAuthenticated = !!token
 
+  // If not authenticated, redirect to login and save intended URL
   if (!isAuthenticated) {
+    localStorage.setItem('intendedUrl', location.pathname + location.search)
     return <Navigate to="/login" replace />
   }
 

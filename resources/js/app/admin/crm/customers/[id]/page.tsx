@@ -48,12 +48,32 @@ interface User {
   email: string | null
   phone: string
   roleId?: number | null
-  isActive: boolean
+  isActive?: boolean
   phoneVerifiedAt?: string | null
   lastLoginAt?: string | null
   createdAt: string
-  updatedAt: string
+  updatedAt?: string
   deletedAt?: string | null
+  type?: string
+  totalOrders?: number
+  totalSpent?: number
+  loyaltyPoints?: number
+  district?: string
+  thana?: string
+  division?: string
+  address?: {
+    id: number
+    fullName: string
+    phone: string
+    line1: string
+    line2?: string
+    thana: string
+    district: string
+    division: string
+    postalCode?: string
+    isDefault: boolean
+    isShipping: boolean
+  } | null
   role?: {
     id: number
     name: string
@@ -73,31 +93,15 @@ interface User {
     gender?: string | null
   }
   customerProfile?: {
-    id: number
-    userId: number
+    id?: number
+    userId?: number
     type?: string
     source?: string
-    preferredLanguage?: string
-    preferred_language?: string
-    marketingConsent?: boolean
-    marketing_consent?: boolean
-    loyaltyTier?: string
-    loyalty_tier?: string
     loyaltyPoints?: number
     loyalty_points?: number
-    totalOrders?: number
-    total_orders?: number
-    totalSpent?: number
-    total_spent?: number
+    loyaltyTier?: string
+    loyalty_tier?: string
     notes?: string
-    dob?: string | null
-    gender?: string | null
-    address?: string | null
-    division?: string | null
-    district?: string | null
-    thana?: string | null
-    trade_license_no?: string | null
-    tax_id?: string | null
   }
 }
 
@@ -133,7 +137,7 @@ export default function CustomerDetailsPage() {
 
       setLoading(true)
       try {
-        const response = await api.get<ApiResponse>(`/user-management/users/${id}`)
+        const response = await api.get<ApiResponse>(`/crm/customers/${id}`)
 
         // Backend returns { data: { user: {...}, ... } }
         const data = response.data?.data
@@ -185,11 +189,14 @@ export default function CustomerDetailsPage() {
     })
   }
 
-  // Determine customer type based on role
+  // Determine customer type (from API response or role)
   const customerType = useMemo(() => {
+    if (customer?.type) {
+      return customer.type.charAt(0).toUpperCase() + customer.type.slice(1)
+    }
     if (!customer?.role) return 'Unknown'
-    if (customer.role.slug === 'wholesale_customer') return 'Wholesale'
-    if (customer.role.slug === 'retail_customer') return 'Retail'
+    if (customer.role.slug === 'wholesale_customer' || customer.roleId === 11) return 'Wholesale'
+    if (customer.role.slug === 'retail_customer' || customer.roleId === 10) return 'Retail'
     return customer.role.name
   }, [customer])
 
@@ -338,7 +345,7 @@ export default function CustomerDetailsPage() {
               <IconShoppingBag size={20} style={{ color: 'var(--mantine-color-green-filled)' }} />
               <Text className="text-xs md:text-sm" c="dimmed">Total Orders</Text>
             </Group>
-            <Text className="text-xl md:text-2xl lg:text-3xl" fw={700}>{customer.customerProfile?.total_orders || customer.customerProfile?.totalOrders || 0}</Text>
+            <Text className="text-xl md:text-2xl lg:text-3xl" fw={700}>{customer.totalOrders || 0}</Text>
             <Text className="text-xs md:text-sm" c="dimmed" mt={2}>All time</Text>
           </Card>
 
@@ -347,7 +354,7 @@ export default function CustomerDetailsPage() {
               <IconCoin size={20} style={{ color: 'var(--mantine-color-red-filled)' }} />
               <Text className="text-xs md:text-sm" c="dimmed">Total Spent</Text>
             </Group>
-            <Text className="text-base md:text-lg" fw={700}>{formatCurrency(customer.customerProfile?.total_spent || customer.customerProfile?.totalSpent || 0)}</Text>
+            <Text className="text-base md:text-lg" fw={700}>{formatCurrency(customer.totalSpent || 0)}</Text>
             <Text className="text-xs md:text-sm" c="dimmed" mt={2}>All time</Text>
           </Card>
 
@@ -356,9 +363,9 @@ export default function CustomerDetailsPage() {
               <IconPackage size={20} style={{ color: 'var(--mantine-color-orange-filled)' }} />
               <Text className="text-xs md:text-sm" c="dimmed">Loyalty Points</Text>
             </Group>
-            <Text className="text-xl md:text-2xl lg:text-3xl" fw={700}>{customer.customerProfile?.loyalty_points || customer.customerProfile?.loyaltyPoints || 0}</Text>
+            <Text className="text-xl md:text-2xl lg:text-3xl" fw={700}>{customer.loyaltyPoints || 0}</Text>
             <Badge className="text-xs md:text-sm" color="grape" variant="light" mt={2}>
-              {customer.customerProfile?.loyalty_tier || customer.customerProfile?.loyaltyTier || 'Bronze'}
+              {customer.customerProfile?.loyaltyTier || customer.customerProfile?.loyalty_tier || 'Bronze'}
             </Badge>
           </Card>
 
@@ -638,9 +645,80 @@ export default function CustomerDetailsPage() {
                       </SimpleGrid>
                     </>
                   )}
+
+                  {/* Shipping Address Section */}
+                  {customer.address && (
+                    <>
+                      <Title order={5} mt="md" mb="sm">
+                        Shipping Address
+                      </Title>
+                      <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                        <Group>
+                          <IconMapPin size={18} style={{ color: 'var(--mantine-color-blue-filled)' }} />
+                          <Box>
+                            <Text className="text-xs md:text-sm" c="dimmed">Full Name</Text>
+                            <Text fw={500} className="text-sm md:text-base">{customer.address.fullName}</Text>
+                          </Box>
+                        </Group>
+                        <Group>
+                          <IconPhone size={18} style={{ color: 'var(--mantine-color-blue-filled)' }} />
+                          <Box>
+                            <Text className="text-xs md:text-sm" c="dimmed">Phone</Text>
+                            <Text fw={500} className="text-sm md:text-base">{customer.address.phone}</Text>
+                          </Box>
+                        </Group>
+                        <Group style={{ gridColumn: '1 / -1' }}>
+                          <IconMapPin size={18} style={{ color: 'var(--mantine-color-blue-filled)' }} />
+                          <Box>
+                            <Text className="text-xs md:text-sm" c="dimmed">Address Line 1</Text>
+                            <Text fw={500} className="text-sm md:text-base">{customer.address.line1}</Text>
+                          </Box>
+                        </Group>
+                        {customer.address.line2 && (
+                          <Group style={{ gridColumn: '1 / -1' }}>
+                            <IconMapPin size={18} style={{ color: 'var(--mantine-color-blue-filled)' }} />
+                            <Box>
+                              <Text className="text-xs md:text-sm" c="dimmed">Address Line 2</Text>
+                              <Text fw={500} className="text-sm md:text-base">{customer.address.line2}</Text>
+                            </Box>
+                          </Group>
+                        )}
+                        <Group>
+                          <IconMapPin size={18} style={{ color: 'var(--mantine-color-blue-filled)' }} />
+                          <Box>
+                            <Text className="text-xs md:text-sm" c="dimmed">Division</Text>
+                            <Text fw={500} className="text-sm md:text-base">{customer.address.division}</Text>
+                          </Box>
+                        </Group>
+                        <Group>
+                          <IconMapPin size={18} style={{ color: 'var(--mantine-color-blue-filled)' }} />
+                          <Box>
+                            <Text className="text-xs md:text-sm" c="dimmed">District</Text>
+                            <Text fw={500} className="text-sm md:text-base">{customer.address.district}</Text>
+                          </Box>
+                        </Group>
+                        <Group>
+                          <IconMapPin size={18} style={{ color: 'var(--mantine-color-blue-filled)' }} />
+                          <Box>
+                            <Text className="text-xs md:text-sm" c="dimmed">Thana</Text>
+                            <Text fw={500} className="text-sm md:text-base">{customer.address.thana}</Text>
+                          </Box>
+                        </Group>
+                        {customer.address.postalCode && (
+                          <Group>
+                            <IconMapPin size={18} style={{ color: 'var(--mantine-color-blue-filled)' }} />
+                            <Box>
+                              <Text className="text-xs md:text-sm" c="dimmed">Postal Code</Text>
+                              <Text fw={500} className="text-sm md:text-base">{customer.address.postalCode}</Text>
+                            </Box>
+                          </Group>
+                        )}
+                      </SimpleGrid>
+                    </>
+                  )}
                 </Card>
 
-                {/* Addresses */}
+                {/* Notes */}
                 <Card withBorder p={{ base: 'md', md: 'xl' }} radius="lg">
                   <Title order={4} className="text-base md:text-lg lg:text-xl" mb="md">
                     Notes

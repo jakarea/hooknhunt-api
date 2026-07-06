@@ -168,6 +168,12 @@ Route::prefix('api/v2/store')->group(function () {
         // IPN webhooks (server-to-server)
         Route::post('/ipn', [PaymentGatewayController::class, 'epsIPN']);
         Route::post('/sslcommerz/ipn', [PaymentGatewayController::class, 'sslCommerzIPN']);
+
+        // TEST ENDPOINTS (Development only - for testing payment callbacks)
+        if (!app()->isProduction()) {
+            Route::get('/test-ssl', [PaymentGatewayController::class, 'testSSLSuccess'])->name('payment.test-ssl');
+            Route::get('/test-eps', [PaymentGatewayController::class, 'testEPSSuccess'])->name('payment.test-eps');
+        }
     });
 
     // Payment verification cron (accessible via secret key)

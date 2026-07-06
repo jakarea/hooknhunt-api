@@ -289,7 +289,18 @@ class WebsiteOrder extends Model
 
     public function getShippingData(): array
     {
-        return $this->external_data['shipping'] ?? [];
+        // Handle both formats: nested 'shipping' key and individual 'shipping_*' keys
+        if (!empty($this->external_data['shipping'])) {
+            return $this->external_data['shipping'];
+        }
+
+        // Fallback for older orders with individual shipping_* keys
+        return [
+            'address' => $this->external_data['shipping_address'] ?? null,
+            'thana' => $this->external_data['shipping_thana'] ?? null,
+            'district' => $this->external_data['shipping_district'] ?? null,
+            'division' => $this->external_data['shipping_division'] ?? null,
+        ];
     }
 
     public function getCustomerData(): array

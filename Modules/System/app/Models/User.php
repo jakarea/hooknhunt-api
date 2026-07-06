@@ -137,6 +137,14 @@ class User extends Authenticatable
         return $this->hasOne(\App\Modules\CRM\Models\Customer::class);
     }
 
+    /**
+     * HRM Staff Profile relationship (HRM module dependency)
+     */
+    public function staffProfile()
+    {
+        return $this->hasOne(\App\Modules\HRM\Models\StaffProfile::class);
+    }
+
     public function directPermissions()
     {
         return $this->belongsToMany(Permission::class, 'permission_user');

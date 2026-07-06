@@ -28,6 +28,7 @@ class ProductController extends Controller
         $query = DB::table('products as p')
             ->leftJoin('media_files as mf', 'p.thumbnail_id', '=', 'mf.id')
             ->where('p.status', 'published')
+            ->whereNull('p.deleted_at')
             ->whereExists(function ($q) {
                 $q->select(DB::raw(1))
                     ->from('product_variants')
@@ -187,6 +188,7 @@ class ProductController extends Controller
             ->leftJoin('media_files as mf', 'p.thumbnail_id', '=', 'mf.id')
             ->where('p.slug', $slug)
             ->where('p.status', 'published')
+            ->whereNull('p.deleted_at')
             ->select([
                 'p.id',
                 'p.name',
@@ -717,21 +719,28 @@ class ProductController extends Controller
     {
         $limit = min((int) $request->input('limit', 12), 100);
 
+        // Get unique products
+        $productIds = DB::table('products as p')
+            ->leftJoin('product_variants as pv', 'p.id', '=', 'pv.product_id')
+            ->where('p.status', 'published')
+            ->where('p.thank_you', true)
+            ->where('pv.channel', 'retail')
+            ->where('pv.is_active', true)
+            ->whereNull('pv.deleted_at')
+            ->distinct()
+            ->pluck('p.id')
+            ->toArray();
+
+        if (empty($productIds)) {
+            return $this->sendSuccess([]);
+        }
+
+        // Get products with their pricing
         $products = DB::table('products as p')
             ->leftJoin('categories as c', 'p.category_id', '=', 'c.id')
             ->leftJoin('brands as b', 'p.brand_id', '=', 'b.id')
             ->leftJoin('media_files as mf', 'p.thumbnail_id', '=', 'mf.id')
-            ->where('p.status', 'published')
-            ->where('p.thank_you', true)
-            ->whereExists(function ($query) {
-                $query->select(DB::raw(1))
-                    ->from('product_variants')
-                    ->whereColumn('product_variants.product_id', '=', 'p.id')
-                    ->where('channel', 'retail')
-                    ->where('is_active', true)
-                    ->whereNull('deleted_at')
-                    ->limit(1);
-            })
+            ->whereIn('p.id', $productIds)
             ->orderBy('p.created_at', 'desc')
             ->limit($limit)
             ->select([
@@ -752,12 +761,38 @@ class ProductController extends Controller
             ])
             ->get();
 
-        $transformed = $products->map(function ($product) {
+        // Get variant pricing for each product
+        $variantPricing = DB::table('product_variants')
+            ->whereIn('product_id', $productIds)
+            ->where('channel', 'retail')
+            ->where('is_active', true)
+            ->whereNull('deleted_at')
+            ->select('product_id', 'price', 'offer_price', 'stock')
+            ->get()
+            ->groupBy('product_id');
+
+        $transformed = $products->map(function ($product) use ($variantPricing) {
             $imageData = $this->formatProductImage(
                 $product->thumbnail_id,
                 $product->thumbnail_path,
                 $product->thumbnail_url
             );
+
+            // Get pricing from variants
+            $variants = $variantPricing->get($product->id, collect());
+            $totalStock = (int) $variants->sum('stock');
+
+            // Calculate min/max prices
+            $offerPrices = $variants->pluck('offer_price')->filter()->toArray();
+            $allPrices = $variants->pluck('price')->toArray();
+
+            $minPrice = !empty($offerPrices) ? (float) min($offerPrices) : (float) (min($allPrices) ?? 0);
+            $maxPrice = !empty($allPrices) ? (float) max($allPrices) : 0;
+
+            // Skip if out of stock
+            if ($totalStock <= 0) {
+                return null;
+            }
 
             return [
                 'id' => $product->id,
@@ -766,6 +801,9 @@ class ProductController extends Controller
                 'shortDescription' => null,
                 'imageUrl' => $imageData['image_url'],
                 'imageId' => $imageData['image_id'],
+                'price' => $minPrice,
+                'originalPrice' => $maxPrice,
+                'stock' => $totalStock,
                 'category' => $product->category_id ? [
                     'id' => $product->category_id,
                     'name' => $product->category_name,
@@ -776,9 +814,9 @@ class ProductController extends Controller
                     'name' => $product->brand_name,
                 ] : null,
             ];
-        });
+        })->filter(); // Remove null values (out of stock products)
 
-        return $this->sendSuccess($transformed);
+        return $this->sendSuccess($transformed->values());
     }
 
     /**

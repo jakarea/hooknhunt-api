@@ -29,7 +29,7 @@ class StaffController extends Controller
         }
 
         // Load staff - exclude customer roles (10 = Retail Customer, 11 = Wholesale Customer)
-        $query = User::with(['staffProfile.department', 'staffProfile.photo', 'role'])
+        $query = User::with(['staffProfile.department', 'role'])
             ->whereHas('role', function($q) {
                 $q->whereNotIn('id', [10, 11]); // Exclude customer roles
             });
@@ -170,9 +170,6 @@ class StaffController extends Controller
     {
         $staff = User::with([
             'staffProfile.department',
-            'staffProfile.photo',
-            'staffProfile.nationalId',
-            'staffProfile.resumeMedia',
             'role.permissions:id,name,slug,group_name',
             'directPermissions' => function ($query) {
                 $query->select('permissions.id', 'permissions.name', 'permissions.slug', 'permissions.group_name')
@@ -330,7 +327,7 @@ class StaffController extends Controller
             $profile->save();
 
             DB::commit();
-            return $this->sendSuccess($user->load('staffProfile'), 'Staff updated successfully');
+            return $this->sendSuccess($user->load('profile'), 'Staff updated successfully');
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -509,17 +506,17 @@ class StaffController extends Controller
                 ->get()
                 ->map(function ($user) {
                     $deptName = 'Not Assigned';
-                    if ($user->staffProfile && $user->staffProfile->department) {
-                        $deptName = $user->staffProfile->department->name;
+                    if ($user->profile && $user->profile->department) {
+                        $deptName = $user->profile->department->name;
                     }
 
                     return [
                         'id' => $user->id,
                         'name' => $user->name,
                         'department' => $deptName,
-                        'designation' => $user->staffProfile ? ($user->staffProfile->designation ?? 'N/A') : 'N/A',
-                        'joiningDate' => $user->staffProfile && $user->staffProfile->joining_date
-                            ? $user->staffProfile->joining_date->toIso8601String()
+                        'designation' => $user->profile ? ($user->profile->designation ?? 'N/A') : 'N/A',
+                        'joiningDate' => $user->profile && $user->profile->joining_date
+                            ? $user->profile->joining_date->toIso8601String()
                             : $user->created_at->toIso8601String(),
                         'phone' => $user->phone,
                     ];
