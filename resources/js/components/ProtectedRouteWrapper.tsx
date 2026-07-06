@@ -25,9 +25,17 @@ export function ProtectedRouteWrapper({
   const location = useLocation()
   const { attendance, loading } = useAttendance(user?.id, token)
 
+  console.log('[ProtectedRouteWrapper] render:', {
+    path: location.pathname,
+    hydrated,
+    token: token ? (token.substring(0, 10) + '...') : null,
+    user: user?.id,
+    loading
+  })
 
-  // If still hydrating or loading attendance, show loading state
-  if (!hydrated || loading) {
+
+  // If still hydrating, show loading state
+  if (!hydrated) {
     return <LoadingState />
   }
 
@@ -37,6 +45,11 @@ export function ProtectedRouteWrapper({
   if (!isAuthenticated) {
     localStorage.setItem('intendedUrl', location.pathname + location.search)
     return <Navigate to="/login" replace />
+  }
+
+  // If loading attendance, show loading state (only for authenticated users)
+  if (loading) {
+    return <LoadingState />
   }
 
   const breakIns = Array.isArray(attendance?.break_in) ? attendance.break_in : []

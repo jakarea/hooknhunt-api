@@ -387,6 +387,7 @@ class PublicController extends Controller
 
     /**
      * Get tracking scripts configuration (Facebook Pixel, GA, GTM).
+     * Decodes HTML entities from database to ensure clean HTML is returned.
      */
     public function getTrackingSettings(): JsonResponse
     {
@@ -402,16 +403,33 @@ class PublicController extends Controller
                 ])
                 ->pluck('value', 'key');
 
+            // Helper function to decode HTML entities multiple times if needed
+            $decodeHtml = function ($html) {
+                if (!$html) return null;
+                // Decode up to 3 times to handle triple-encoded HTML
+                $decoded = html_entity_decode($html, ENT_QUOTES | ENT_HTML5);
+                if ($decoded !== $html) {
+                    // If something changed, try decoding again
+                    $decoded2 = html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5);
+                    if ($decoded2 !== $decoded) {
+                        $decoded = html_entity_decode($decoded2, ENT_QUOTES | ENT_HTML5);
+                    } else {
+                        $decoded = $decoded2;
+                    }
+                }
+                return $decoded;
+            };
+
             return $this->sendSuccess([
                 'facebook' => [
                     'pixelId' => $settings['facebook_pixel_id'] ?? null,
-                    'pixelCode' => $settings['facebook_pixel_code'] ?? null,
+                    'pixelCode' => $decodeHtml($settings['facebook_pixel_code'] ?? null),
                 ],
                 'google' => [
                     'analyticsId' => $settings['google_analytics_id'] ?? null,
-                    'analyticsCode' => $settings['google_analytics_code'] ?? null,
+                    'analyticsCode' => $decodeHtml($settings['google_analytics_code'] ?? null),
                     'tagManagerId' => $settings['google_tag_manager_id'] ?? null,
-                    'tagManagerCode' => $settings['google_tag_manager_code'] ?? null,
+                    'tagManagerCode' => $decodeHtml($settings['google_tag_manager_code'] ?? null),
                 ],
             ], 'Tracking settings retrieved successfully.');
 

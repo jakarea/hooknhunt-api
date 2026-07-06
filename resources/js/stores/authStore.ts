@@ -244,6 +244,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const permissionKeysString = localStorage.getItem('permissionKeys')
     const permissionObjectsString = localStorage.getItem('permissionObjects')
 
+    console.log('[authStore] loadUserFromStorage read:', {
+      hasToken: !!token,
+      hasUser: !!userString,
+      tokenVal: token ? (token.substring(0, 10) + '...') : null,
+      userStringVal: userString ? userString.substring(0, 50) : null
+    })
+
 
     if (token && userString) {
       try {
@@ -258,7 +265,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         get().logout()
       }
     } else {
-      set({ hydrated: true })
+      // Clear any partial/corrupted storage if either is missing
+      if (token || userString) {
+        set({ hydrated: true })
+        get().logout()
+      } else {
+        set({ hydrated: true })
+      }
     }
   },
 

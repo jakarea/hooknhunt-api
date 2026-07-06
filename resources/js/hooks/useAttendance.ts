@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '@/lib/api'
+import { useAuthStore } from '@/stores/authStore'
 
 interface Attendance {
   id: number
@@ -16,10 +17,11 @@ interface Attendance {
 export function useAttendance(userId: number | undefined, token: string | null) {
   const [attendance, setAttendance] = useState<Attendance | null>(null)
   const [loading, setLoading] = useState(true)
+  const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin())
 
   useEffect(() => {
     const fetchAttendance = async () => {
-      if (!userId || !token) {
+      if (!userId || !token || isSuperAdmin) {
         setLoading(false)
         return
       }
@@ -51,13 +53,14 @@ export function useAttendance(userId: number | undefined, token: string | null) 
           })
         }
       } catch (error) {
+        console.error('Error fetching attendance:', error)
       } finally {
         setLoading(false)
       }
     }
 
     fetchAttendance()
-  }, [userId, token])
+  }, [userId, token, isSuperAdmin])
 
   return { attendance, loading }
 }
