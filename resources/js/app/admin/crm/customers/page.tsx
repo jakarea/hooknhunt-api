@@ -337,16 +337,13 @@ export default function CustomersPage() {
             total: paginationData.total || 0,
           })
         } else {
-          // Debug: log when pagination data is not found
-          if (import.meta.env.DEV) {
-          }
+          console.warn('Pagination data not found in response:', { data, paginationData })
         }
       } else {
         throw new Error('Failed to fetch customers')
       }
     } catch (error) {
-      if (import.meta.env.DEV) {
-      }
+      console.error('Failed to fetch customers:', error)
       notifications.show({
         title: t('common.error'),
         message: t('crm.customers.errorLoading'),
