@@ -1,7 +1,7 @@
 /**
  * Frontend pure function utilities for applying default values
- * Implements NEW logic: if (default > 0) → OVERWRITE all
- * OLD logic: if (!v.field) → only fill empty (WRONG - removed)
+ * Logic: Only apply defaults to EMPTY/ZERO fields
+ * If variant field has a value (even 0 or undefined), don't override
  * Mirrors backend ApplyDefaults.php logic
  * Used in both CREATE and EDIT pages
  */
@@ -11,22 +11,22 @@
  * Pure function: variants + defaults → updated variants
  *
  * Rules:
- * - If default value > 0 (or !== undefined for optional fields)
- * - Then OVERWRITE all variants with that value
- * - If default = 0 or empty, skip (don't touch existing values)
+ * - ONLY apply defaults if the variant field is empty/undefined/zero
+ * - DO NOT override if variant field already has a value
+ * - This preserves user-entered data while filling in missing fields
  *
  * @param variants Array of variant objects
  * @param defaults Default values to apply
- * @returns Updated variants
+ * @returns Updated variants with defaults applied to empty fields
  */
 export function applyDefaultsToVariants(variants: any[], defaults: any): any[] {
-  console.log('🧪 applyDefaultsToVariants called')
-  console.log('  Input variants:', variants)
-  console.log('  Input defaults:', defaults)
+  console.log('✅ applyDefaultsToVariants called')
+  console.log('  Input variants:', variants.length, 'variants')
+  console.log('  Defaults:', defaults)
 
   const result = variants.map((variant) => applyDefaultsToVariant(variant, defaults))
 
-  console.log('  Result variants:', result)
+  console.log('  Result: updated', result.length, 'variants')
   return result
 }
 
@@ -34,68 +34,69 @@ export function applyDefaultsToVariants(variants: any[], defaults: any): any[] {
  * Apply defaults to single variant
  * Pure function: variant + defaults → updated variant
  *
+ * Only fills in empty/zero fields with defaults
+ * Preserves any existing user-entered values
+ *
  * @param variant Single variant object
  * @param defaults Default values to apply
- * @returns Updated variant
+ * @returns Updated variant with defaults applied to empty fields only
  */
 export function applyDefaultsToVariant(variant: any, defaults: any): any {
   const updated = { ...variant }
   let changed = false
 
-  // Text fields: only apply if not empty
-  if (defaults.name && String(defaults.name).trim() !== '') {
+  // Text fields: only apply if variant field is empty
+  if (defaults.name && String(defaults.name).trim() !== '' && (!updated.name || !String(updated.name).trim())) {
     updated.name = defaults.name
     changed = true
   }
 
-  // Price fields: only apply if > 0
-  if (defaults.purchaseCost > 0) {
+  // Price fields: only apply if variant field is empty/zero/undefined
+  if (defaults.purchaseCost && !updated.purchaseCost) {
     updated.purchaseCost = defaults.purchaseCost
     changed = true
   }
 
-  if (defaults.price > 0) {
+  if (defaults.price && !updated.price) {
     updated.price = defaults.price
     changed = true
   }
 
-  if (defaults.wholesalePrice > 0) {
+  if (defaults.wholesalePrice && !updated.wholesalePrice) {
     updated.wholesalePrice = defaults.wholesalePrice
     changed = true
   }
 
-  if (defaults.specialPrice > 0) {
+  if ((defaults.specialPrice !== undefined && defaults.specialPrice !== null) && (!updated.specialPrice || updated.specialPrice === 0)) {
     updated.specialPrice = defaults.specialPrice
     changed = true
   }
 
-  if (defaults.wholesaleOfferPrice > 0) {
+  if ((defaults.wholesaleOfferPrice !== undefined && defaults.wholesaleOfferPrice !== null) && (!updated.wholesaleOfferPrice || updated.wholesaleOfferPrice === 0)) {
     updated.wholesaleOfferPrice = defaults.wholesaleOfferPrice
     changed = true
   }
 
-  // MOQ: only apply if > 0
-  if (defaults.wholesaleMoq > 0) {
+  // MOQ: only apply if variant field is empty/zero (defaults to 6)
+  if (defaults.wholesaleMoq && !updated.wholesaleMoq) {
     updated.wholesaleMoq = defaults.wholesaleMoq
     changed = true
   }
 
-  // Stock: only apply if > 0
-  if (defaults.stock > 0) {
+  // Stock: only apply if variant field is empty/zero
+  if (defaults.stock !== undefined && defaults.stock !== null && !updated.stock) {
     updated.stock = defaults.stock
     changed = true
   }
 
-  // Weight: only apply if > 0
-  if (defaults.weight > 0) {
+  // Weight: only apply if variant field is empty/zero
+  if (defaults.weight !== undefined && defaults.weight !== null && !updated.weight) {
     updated.weight = defaults.weight
     changed = true
   }
 
   if (changed) {
-    console.log(`✏️ Variant updated:`, { before: variant, after: updated })
-  } else {
-    console.log(`⊘ Variant skipped (no defaults to apply):`, variant)
+    console.log(`✏️ Applied defaults to variant:`, variant.name || 'unnamed')
   }
 
   return updated

@@ -1893,27 +1893,23 @@ export default function CreateProductPage() {
 
   // Apply default values to all variants
   const handleApplyDefaultsToAll = useCallback(() => {
-    console.log('🔧 TESTING: Apply Defaults clicked')
-    console.log('Current variants BEFORE:', JSON.stringify(variants))
+    console.log('✅ Apply Defaults clicked')
+    console.log('Current variants BEFORE:', variants)
+    console.log('Defaults to apply:', defaultValues)
 
-    // Simple test: just multiply all purchaseCost by 2
-    const testUpdated = variants.map(v => ({
-      ...v,
-      purchaseCost: (v.purchaseCost || 0) * 2 + 999, // Add 999 to make change obvious
-      stock: (v.stock || 0) * 2 + 888 // Add 888 to make change obvious
-    }))
+    // Apply defaults to ALL variants using pure function
+    const updatedVariants = applyDefaultsToVariants(variants, defaultValues)
 
-    console.log('Variants AFTER (test):', JSON.stringify(testUpdated))
-    console.log('Should have +999 on purchaseCost and +888 on stock')
+    console.log('Variants AFTER:', updatedVariants)
 
-    setVariants(testUpdated)
+    setVariants(updatedVariants)
 
     notifications.show({
-      title: 'TEST: Apply Defaults',
-      message: `Applied test to ${variants.length} variant(s) - should see +999 cost and +888 stock`,
-      color: 'blue'
+      title: t('common.success') || 'Success',
+      message: `Applied default values to ${variants.length} variant(s): MOQ=${defaultValues.wholesaleMoq}, Weight=${defaultValues.weight}g, Stock=${defaultValues.stock}`,
+      color: 'green'
     })
-  }, [variants])
+  }, [variants, defaultValues, t])
   // Highlights list handlers (now managed by Quill editor)
   // These functions are kept for potential future use or backwards compatibility
 

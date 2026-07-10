@@ -52,6 +52,7 @@ import { notifications } from '@mantine/notifications'
 import { getCategories, getBrands, getProduct, type Category, type Brand, type MediaFile } from '@/utils/api'
 import { useMediaSelector } from '@/hooks/useMediaSelector'
 import { useUIStore } from '@/stores/uiStore'
+import { applyDefaultsToVariants } from '@/utils/ApplyDefaults'
 
 // Utility function to decode HTML entities (handles multiple levels of encoding)
 const decodeHTMLEntities = (text: string): string => {
@@ -2188,56 +2189,23 @@ export default function EditProductPage() {
   }, [wholesaleName, productName, pricingSettings])
 
   const handleApplyDefaultsToAll = useCallback(() => {
-    const pc = typeof defaultValues.purchaseCost === 'number' ? defaultValues.purchaseCost : parseFloat(String(defaultValues.purchaseCost)) || 0
-    const rp = typeof defaultValues.price === 'number' ? defaultValues.price : parseFloat(String(defaultValues.price)) || 0
-    const wp = typeof defaultValues.wholesalePrice === 'number' ? defaultValues.wholesalePrice : parseFloat(String(defaultValues.wholesalePrice)) || 0
-    const sop = typeof defaultValues.specialPrice === 'number' ? defaultValues.specialPrice : undefined
-    const wop = typeof defaultValues.wholesaleOfferPrice === 'number' ? defaultValues.wholesaleOfferPrice : undefined
-    const w = typeof defaultValues.weight === 'number' ? defaultValues.weight : parseFloat(String(defaultValues.weight)) || 0
+    console.log('✅ Apply Defaults clicked')
+    console.log('Current variants BEFORE:', variants)
+    console.log('Defaults to apply:', defaultValues)
 
-    setVariants(prev => prev.map(v => {
-      const updated = { ...v }
-      // Only apply defaults to empty/zero fields — leave existing data untouched
-      if (defaultValues.name && !v.name.trim()) {
-        updated.name = defaultValues.name
-      }
-      // Generate SKU from variant name (only if not manually edited)
-      if (defaultValues.name && !v.sellerSkuManuallyEdited && !v.name.trim()) {
-        updated.sellerSku = defaultValues.name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-      }
-      if (!v.purchaseCost) {
-        updated.purchaseCost = pc
-      }
-      if (!v.price) {
-        updated.price = rp
-      }
-      if (!v.wholesalePrice) {
-        updated.wholesalePrice = wp
-      }
-      if (v.specialPrice === undefined || v.specialPrice === 0) {
-        updated.specialPrice = sop
-      }
-      if (v.wholesaleOfferPrice === undefined || v.wholesaleOfferPrice === 0) {
-        updated.wholesaleOfferPrice = wop
-      }
-      if (!v.wholesaleMoq) {
-        updated.wholesaleMoq = defaultValues.wholesaleMoq
-      }
-      if (!v.weight) {
-        updated.weight = w
-      }
-      if (!v.stock) {
-        updated.stock = defaultValues.stock
-      }
-      return updated
-    }))
+    // Apply defaults to ALL variants using pure function
+    const updatedVariants = applyDefaultsToVariants(variants, defaultValues)
+
+    console.log('Variants AFTER:', updatedVariants)
+
+    setVariants(updatedVariants)
 
     notifications.show({
-      title: t('catalog.productsEdit.notification.defaultValuesApplied') || 'Default Values Applied',
-      message: t('catalog.productsEdit.notification.defaultValuesAppliedMessage', { count: variants.length }) || `Applied to ${variants.length} variant(s)`,
+      title: t('common.success') || 'Success',
+      message: `Applied default values to ${variants.length} variant(s): MOQ=${defaultValues.wholesaleMoq}, Weight=${defaultValues.weight}g, Stock=${defaultValues.stock}`,
       color: 'green'
     })
-  }, [defaultValues, variants.length, t])
+  }, [variants, defaultValues, t])
 
   // ============================================================================
   // FORM SUBMISSION
