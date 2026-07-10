@@ -59,9 +59,12 @@ class VariantDataTransformer
             // Price fields - ONLY price and offer_price exist in database
             // Both retail and wholesale use the SAME fields, distinguished by 'channel'
             'retailPrice' => 'price',
+            'wholesalePrice' => 'price',
             'price' => 'price',
             'retail_price' => 'price',
+            'wholesale_price' => 'price',
             'retailOfferPrice' => 'offer_price',
+            'wholesaleOfferPrice' => 'offer_price',
             'offerPrice' => 'offer_price',
             'offer_price' => 'offer_price',
             'retail_offer_price' => 'offer_price',
