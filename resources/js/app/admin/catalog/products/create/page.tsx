@@ -1890,7 +1890,66 @@ export default function CreateProductPage() {
     }))
   }
 
-  // TODO: Implement default value application logic here
+  // Apply default values to all variants (only if default value is not empty/zero)
+  const handleApplyDefaultsToAll = useCallback(() => {
+    console.log('✅ Apply Defaults clicked')
+    console.log('Defaults:', defaultValues)
+
+    const updated = variants.map(v => {
+      const variant = { ...v }
+
+      // Only apply if default value is > 0 (not empty, not 0)
+      if (defaultValues.purchaseCost > 0) {
+        variant.purchaseCost = defaultValues.purchaseCost
+      }
+      if (defaultValues.price > 0) {
+        variant.price = defaultValues.price
+      }
+      if (defaultValues.wholesalePrice > 0) {
+        variant.wholesalePrice = defaultValues.wholesalePrice
+      }
+      if (defaultValues.specialPrice && defaultValues.specialPrice > 0) {
+        variant.specialPrice = defaultValues.specialPrice
+      }
+      if (defaultValues.wholesaleOfferPrice && defaultValues.wholesaleOfferPrice > 0) {
+        variant.wholesaleOfferPrice = defaultValues.wholesaleOfferPrice
+      }
+      if (defaultValues.wholesaleMoq > 0) {
+        variant.wholesaleMoq = defaultValues.wholesaleMoq
+      }
+      if (defaultValues.weight > 0) {
+        variant.weight = defaultValues.weight
+      }
+      if (defaultValues.stock > 0) {
+        variant.stock = defaultValues.stock
+      }
+
+      return variant
+    })
+
+    setVariants(updated)
+
+    // Clear default values after applying
+    setDefaultValues({
+      name: '',
+      price: 0,
+      wholesalePrice: 0,
+      purchaseCost: 0,
+      specialPrice: undefined,
+      wholesaleOfferPrice: undefined,
+      wholesaleMoq: 6,
+      weight: 0,
+      stock: 0,
+      sellerSku: ''
+    })
+
+    notifications.show({
+      title: t('common.success') || 'Success',
+      message: `Applied default values to ${variants.length} variant(s)`,
+      color: 'green'
+    })
+  }, [variants, defaultValues, t])
+
   // Highlights list handlers (now managed by Quill editor)
   // These functions are kept for potential future use or backwards compatibility
 
@@ -2648,8 +2707,7 @@ export default function CreateProductPage() {
                             <Button
                               size="xs"
                               variant="light"
-                              disabled
-                              title="TODO: Implement default value application"
+                              onClick={handleApplyDefaultsToAll}
                               w="100%"
                             >
                               {t('catalog.productsCreate.applyToAll') || 'Apply'}
