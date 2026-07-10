@@ -25,15 +25,68 @@
 ✅ No separate retail_price or wholesale_price fields
 ```
 
+## Root Issues Discovered & Fixed
+
+### Issue #1: Validation Accepting Non-Existent Fields
+```
+❌ Validation had rules for: retail_price, wholesale_price, retail_offer_price, wholesale_offer_price, wholesale_moq
+❌ Database only has: price, offer_price, purchase_cost, moq
+❌ When these non-existent fields were missing, code defaulted them to 0
+❌ This overwrote existing prices with 0 during partial updates
+```
+
+**Fixed by**:
+- Removed validation for non-existent fields
+- Map multiple input formats to single database field:
+  - `retailPrice`, `retail_price`, `price` → database field `price`
+  - `retailOfferPrice`, `retail_offer_price`, `offerPrice` → database field `offer_price`
+  - `wholesaleMoq` → database field `moq` (not wholesale_moq)
+
+### Issue #2: Field Name Mismatches
+```
+❌ Frontend sends: retailPrice, retailOfferPrice, purchaseCost
+❌ Database expects: price, offer_price, purchase_cost
+❌ No transformation logic to map between them
+```
+
+**Fixed by**:
+- VariantDataTransformer maps both camelCase and snake_case
+- Handles priority: first format in mapping wins
+- Accepts both formats from frontend
+
+### Issue #3: Missing Channel Handling
+```
+❌ No channel field in validation or transformation
+❌ Channel determines retail/wholesale/daraz/pos pricing
+❌ Same database fields used for all channels, distinguished by 'channel' enum
+```
+
+**Fixed by**:
+- Added channel field to validation (enum: retail|wholesale|daraz|pos)
+- Defaults to 'retail' if not provided
+- Properly passed through transformer
+
+### Issue #4: Dangerous Null Defaults During Updates
+```
+❌ CREATE: 'price' => $variantData['retail_price'] ?? 0  (ok for new records)
+❌ UPDATE: 'price' => $variantData['retail_price'] ?? 0  (BUG! overwrites to 0)
+```
+
+**Fixed by**:
+- Created two separate transformation methods:
+  - `transformVariantForCreate()`: Applies defaults for new records only
+  - `transformVariantForUpdate()`: Filters nulls, prevents overwrites
+
 ## Solution Overview
 
-This fix ensures:
-- Frontend sends any format (retailPrice, price, retail_price) → all work
-- Backend validates ONLY actual database fields
-- Field transformation: camelCase → snake_case
-- Decimal rounding: All prices → 2 decimals (BDT standard)
-- Channel handling: Defaults to 'retail' if not provided
-- Critical: CREATE adds safe defaults, UPDATE filters nulls (no overwrites)
+This comprehensive fix ensures:
+- ✅ Frontend sends any format (retailPrice, price, retail_price) → all work
+- ✅ Backend validates ONLY actual database fields
+- ✅ Field transformation: camelCase → snake_case with multi-format support
+- ✅ Decimal rounding: All prices → 2 decimals (BDT standard)
+- ✅ Channel handling: Defaults to 'retail' if not provided, can be overridden
+- ✅ CREATE operations: Safe defaults applied
+- ✅ UPDATE operations: Partial updates don't overwrite existing data
 
 ## Solution Architecture
 
