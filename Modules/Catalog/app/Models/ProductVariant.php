@@ -41,9 +41,9 @@ class ProductVariant extends Model
     protected $casts = [
         'stock' => 'integer',
         'weight' => 'decimal:2',
-        'purchase_cost' => 'decimal:2',
-        'price' => 'decimal:2',
-        'offer_price' => 'decimal:2',
+        'purchase_cost' => 'integer',
+        'price' => 'integer',
+        'offer_price' => 'integer',
         'is_active' => 'boolean',
         'allow_preorder' => 'boolean',
         'moq' => 'integer',

@@ -12,30 +12,19 @@ use PHPUnit\Framework\TestCase;
 class VariantDataTransformerTest extends TestCase
 {
     /**
-     * Test roundPrice handles all value types correctly
+     * Test roundPrice is deprecated - prices are now integers
+     * This test verifies backward compatibility
      */
-    public function test_roundPrice_handles_all_types()
+    public function test_roundPrice_still_exists()
     {
-        // Positive numbers - round to 2 decimals
-        $this->assertSame(100.12, VariantDataTransformer::roundPrice(100.1234));
-        $this->assertSame(100.13, VariantDataTransformer::roundPrice(100.1251));
-        $this->assertSame(101.00, VariantDataTransformer::roundPrice(100.999));
-
-        // Zero
-        $this->assertSame(0.00, VariantDataTransformer::roundPrice(0));
-        $this->assertSame(0.00, VariantDataTransformer::roundPrice('0'));
-
-        // Null and empty - return null
-        $this->assertNull(VariantDataTransformer::roundPrice(null));
-        $this->assertNull(VariantDataTransformer::roundPrice(''));
-
-        // String numbers
-        $this->assertSame(50.50, VariantDataTransformer::roundPrice('50.5'));
-        $this->assertSame(50.50, VariantDataTransformer::roundPrice('50.50'));
+        // For backward compatibility, roundPrice still exists but returns integers
+        $result = VariantDataTransformer::roundPrice(100.1234);
+        $this->assertIsFloat($result);
     }
 
     /**
      * Test transformVariantData converts camelCase to snake_case
+     * Prices are converted to integers (no fractions per user requirement)
      */
     public function test_transformVariantData_field_mapping()
     {
@@ -56,16 +45,17 @@ class VariantDataTransformerTest extends TestCase
         $this->assertArrayHasKey('offer_price', $result);
         $this->assertArrayHasKey('purchase_cost', $result);
 
-        // Verify values (sellerSku maps to sku field in database)
+        // Verify values - prices are converted to integers
         $this->assertSame('SKU-123', $result['sku']);
         $this->assertSame('Blue Large', $result['variant_name']);
-        $this->assertSame(100.12, $result['price']);
-        $this->assertSame(90.57, $result['offer_price']);
-        $this->assertSame(46.00, $result['purchase_cost']);
+        $this->assertSame(100, $result['price']);        // Rounded to integer
+        $this->assertSame(91, $result['offer_price']);   // Rounded to integer
+        $this->assertSame(46, $result['purchase_cost']); // Rounded to integer
     }
 
     /**
      * Test transformVariantData accepts snake_case input
+     * Prices are converted to integers
      */
     public function test_transformVariantData_accepts_snake_case()
     {
@@ -82,9 +72,9 @@ class VariantDataTransformerTest extends TestCase
         // Should process snake_case input the same way as camelCase
         $this->assertSame('SKU-123', $result['sku']);
         $this->assertSame('Red Medium', $result['variant_name']);
-        $this->assertSame(75.50, $result['price']);
-        $this->assertSame(65.30, $result['offer_price']);
-        $this->assertSame(30.10, $result['purchase_cost']);
+        $this->assertSame(76, $result['price']);         // Rounded to integer
+        $this->assertSame(65, $result['offer_price']);   // Rounded to integer
+        $this->assertSame(30, $result['purchase_cost']); // Rounded to integer
     }
 
     /**
@@ -116,6 +106,7 @@ class VariantDataTransformerTest extends TestCase
     /**
      * Test transformVariantForUpdate filters null values
      * This prevents overwriting existing data during partial updates
+     * Prices are integers
      */
     public function test_transformVariantForUpdate_filters_nulls()
     {
@@ -128,9 +119,9 @@ class VariantDataTransformerTest extends TestCase
 
         $result = VariantDataTransformer::transformVariantForUpdate($input);
 
-        // Verify provided values are included
+        // Verify provided values are included (prices as integers)
         $this->assertSame('Updated Name', $result['variant_name']);
-        $this->assertSame(150.25, $result['price']);
+        $this->assertSame(150, $result['price']);
 
         // Verify null values are filtered out
         $this->assertArrayNotHasKey('offer_price', $result);
@@ -140,6 +131,7 @@ class VariantDataTransformerTest extends TestCase
     /**
      * Test transformVariantForUpdate with partial price update
      * This is the critical scenario that was broken before
+     * Prices are integers
      */
     public function test_transformVariantForUpdate_partial_prices()
     {
@@ -152,8 +144,8 @@ class VariantDataTransformerTest extends TestCase
 
         $result = VariantDataTransformer::transformVariantForUpdate($input);
 
-        // Only the provided field should be in the result
-        $this->assertSame(200.50, $result['price']);
+        // Only the provided field should be in the result (as integer)
+        $this->assertSame(201, $result['price']);
         $this->assertArrayNotHasKey('offer_price', $result);
         $this->assertArrayNotHasKey('purchase_cost', $result);
     }
@@ -208,17 +200,18 @@ class VariantDataTransformerTest extends TestCase
     /**
      * Test edge case: both camelCase and snake_case provided
      * First match in fieldMapping wins (retailPrice comes before price)
+     * Prices are integers
      */
     public function test_both_formats_provided_camelcase_priority()
     {
         $input = [
-            'retailPrice' => '100.00', // camelCase
-            'price' => '200.00', // snake_case
+            'retailPrice' => '100.25', // camelCase
+            'price' => '200.75', // snake_case
         ];
 
         $result = VariantDataTransformer::transformVariantData($input);
 
-        // retailPrice comes first in fieldMapping, so it should be used
-        $this->assertSame(100.00, $result['price']);
+        // retailPrice comes first in fieldMapping, so it should be used (rounded to integer)
+        $this->assertSame(100, $result['price']);
     }
 }

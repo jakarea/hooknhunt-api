@@ -97,9 +97,11 @@ class VariantDataTransformer
 
                 $value = $variantData[$inputKey];
 
-                // Handle price fields: round to 2 decimals
+                // Handle price fields: convert to integer (no fractions per user requirement)
                 if (in_array($dbKey, ['price', 'offer_price', 'purchase_cost'])) {
-                    $transformed[$dbKey] = self::roundPrice($value);
+                    if ($value !== null && $value !== '') {
+                        $transformed[$dbKey] = (int) round((float) $value);
+                    }
                 }
                 // Handle numeric fields (only set if value is not null/empty)
                 elseif (in_array($dbKey, ['stock', 'moq', 'weight'])) {
