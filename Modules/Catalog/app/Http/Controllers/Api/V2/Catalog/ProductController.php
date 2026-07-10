@@ -538,12 +538,21 @@ class ProductController extends Controller
                 'hide_from_website' => 'nullable|boolean',
                 'variants' => 'nullable|array',
                 'variants.*.name' => 'required_with:variants|string|max:255',
-                'variants.*.seller_sku' => 'required_with:variants|string|max:100',
+                'variants.*.sku' => 'required_with:variants|string|max:100',
+                'variants.*.channel' => 'nullable|in:retail,wholesale,daraz,pos',
                 'variants.*.purchase_cost' => 'required_with:variants|numeric|min:0',
+                // Database has only 'price' field (retail and wholesale both use this, distinguished by channel)
+                'variants.*.price' => 'required_with:variants|numeric|min:0',
+                'variants.*.retailPrice' => 'required_with:variants|numeric|min:0',
                 'variants.*.retail_price' => 'required_with:variants|numeric|min:0',
-                'variants.*.wholesale_price' => 'nullable|numeric|min:0',
+                // Offer price is optional
+                'variants.*.offer_price' => 'nullable|numeric|min:0',
+                'variants.*.offerPrice' => 'nullable|numeric|min:0',
                 'variants.*.retail_offer_price' => 'nullable|numeric|min:0',
-                'variants.*.wholesale_offer_price' => 'nullable|numeric|min:0',
+                'variants.*.retailOfferPrice' => 'nullable|numeric|min:0',
+                // MOQ field (not wholesale_moq - that doesn't exist in database)
+                'variants.*.moq' => 'nullable|integer|min:0',
+                'variants.*.wholesaleMoq' => 'nullable|integer|min:0',
                 'variants.*.wholesale_moq' => 'nullable|integer|min:0',
                 'variants.*.weight' => 'nullable|numeric|min:0',
                 'variants.*.stock' => 'required_with:variants|integer|min:0',
@@ -630,9 +639,14 @@ class ProductController extends Controller
                 // Use pure transformer to handle field mapping and decimal rounding
                 $transformedData = VariantDataTransformer::transformVariantForCreate($variantData);
 
-                // Add product_id and required enum field
+                // Add product_id and required fields
                 $transformedData['product_id'] = $product->id;
-                $transformedData['channel'] = 'retail';
+
+                // Channel: use provided value or default to 'retail'
+                if (!isset($transformedData['channel'])) {
+                    $transformedData['channel'] = 'retail';
+                }
+
                 $transformedData['is_active'] = true;
                 $transformedData['variant_slug'] = \Illuminate\Support\Str::slug($transformedData['variant_name']) . '-' . time();
 
@@ -884,15 +898,28 @@ class ProductController extends Controller
                 'thank_you' => 'nullable|boolean',
                 'hide_from_website' => 'nullable|boolean',
                 'sort_order' => 'nullable|integer',
-                // Variant validation
+                // Variant validation - only actual database fields
                 'variants' => 'nullable|array',
                 'variants.*.id' => 'nullable|integer|exists:product_variants,id',
                 'variants.*.name' => 'nullable|string|max:255',
                 'variants.*.sku' => 'nullable|string|max:255',
+                'variants.*.custom_sku' => 'nullable|string|max:255',
+                'variants.*.channel' => 'nullable|in:retail,wholesale,daraz,pos',
+                // Price field - database has only 'price' (both retail/wholesale use same field, channel determines use)
+                'variants.*.price' => 'nullable|numeric|min:0',
+                'variants.*.retailPrice' => 'nullable|numeric|min:0',
                 'variants.*.retail_price' => 'nullable|numeric|min:0',
-                'variants.*.wholesale_price' => 'nullable|numeric|min:0',
+                // Offer price is optional
+                'variants.*.offer_price' => 'nullable|numeric|min:0',
+                'variants.*.offerPrice' => 'nullable|numeric|min:0',
                 'variants.*.retail_offer_price' => 'nullable|numeric|min:0',
-                'variants.*.wholesale_offer_price' => 'nullable|numeric|min:0',
+                'variants.*.retailOfferPrice' => 'nullable|numeric|min:0',
+                // Purchase cost
+                'variants.*.purchase_cost' => 'nullable|numeric|min:0',
+                'variants.*.purchaseCost' => 'nullable|numeric|min:0',
+                // MOQ - database has only 'moq' (not wholesale_moq)
+                'variants.*.moq' => 'nullable|integer|min:0',
+                'variants.*.wholesaleMoq' => 'nullable|integer|min:0',
                 'variants.*.wholesale_moq' => 'nullable|integer|min:0',
                 'variants.*.weight' => 'nullable|numeric|min:0',
                 'variants.*.stock' => 'nullable|integer|min:0',
@@ -926,9 +953,11 @@ class ProductController extends Controller
                     // For UPDATE: only include fields that are explicitly provided
                     $updateData = VariantDataTransformer::transformVariantForUpdate($variantData);
 
-                    // Add required fields
-                    $updateData['channel'] = 'retail';
+                    // Add required fields (but don't override channel unless explicitly provided)
                     $updateData['is_active'] = true;
+                    if (!isset($updateData['channel'])) {
+                        $updateData['channel'] = 'retail'; // Default to retail if not provided
+                    }
 
                     // Only generate slug if name was changed
                     if (isset($updateData['variant_name'])) {
@@ -950,7 +979,12 @@ class ProductController extends Controller
                         // Create new variant
                         $createData = VariantDataTransformer::transformVariantForCreate($variantData);
                         $createData['product_id'] = $product->id;
-                        $createData['channel'] = 'retail';
+
+                        // Channel: use provided value or default to 'retail'
+                        if (!isset($createData['channel'])) {
+                            $createData['channel'] = 'retail';
+                        }
+
                         $createData['is_active'] = true;
                         $createData['variant_slug'] = \Illuminate\Support\Str::slug($createData['variant_name']) . '-' . time();
 

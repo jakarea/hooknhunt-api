@@ -27,40 +27,74 @@ class VariantDataTransformer
      * Transform variant data from frontend (camelCase) to database (snake_case)
      * Only includes fields that are explicitly provided
      * NO defaults, NO overwrites of missing fields
+     *
+     * CRITICAL: Database schema has ONLY price and offer_price fields.
+     * Pricing per-channel is determined by the 'channel' field (retail|wholesale|daraz|pos).
+     * Non-existent fields like retail_price, wholesale_price are IGNORED.
      */
     public static function transformVariantData(array $variantData): array
     {
         $transformed = [];
 
         // Map provided fields (only if they exist)
-        // Process camelCase first, then snake_case as fallback
+        // Database fields: price, offer_price, purchase_cost, stock, moq, weight, channel
+        // Do NOT map non-existent fields: retail_price, wholesale_price, etc.
         $fieldMapping = [
-            'sellerSku' => 'seller_sku',
-            'seller_sku' => 'seller_sku',
+            // SKU fields
+            'sku' => 'sku',
+            'sellerSku' => 'sku',
+            'seller_sku' => 'sku',
+            'customSku' => 'custom_sku',
+            'custom_sku' => 'custom_sku',
+
+            // Variant name fields
             'variantName' => 'variant_name',
             'variant_name' => 'variant_name',
             'name' => 'variant_name',
+
+            // Channel field - determines if retail/wholesale/daraz/pos
+            // This is how multi-channel pricing works (not separate fields)
+            'channel' => 'channel',
+
+            // Price fields - ONLY price and offer_price exist in database
+            // Both retail and wholesale use the SAME fields, distinguished by 'channel'
             'retailPrice' => 'price',
+            'price' => 'price',
             'retail_price' => 'price',
             'retailOfferPrice' => 'offer_price',
+            'offerPrice' => 'offer_price',
+            'offer_price' => 'offer_price',
             'retail_offer_price' => 'offer_price',
+
+            // Cost field
             'purchaseCost' => 'purchase_cost',
             'purchase_cost' => 'purchase_cost',
+            'costPrice' => 'purchase_cost',
+
+            // Media
             'thumbnailId' => 'thumbnail_id',
             'thumbnail_id' => 'thumbnail_id',
+
+            // MOQ - ONLY moq exists (not wholesale_moq)
+            'moq' => 'moq',
             'wholesaleMoq' => 'moq',
             'wholesale_moq' => 'moq',
-            'weight' => 'weight',
+
+            // Stock and physical properties
             'stock' => 'stock',
-            'sku' => 'sku',
+            'weight' => 'weight',
             'size' => 'size',
             'color' => 'color',
             'material' => 'material',
-            'moq' => 'moq',
         ];
 
         foreach ($fieldMapping as $inputKey => $dbKey) {
             if (array_key_exists($inputKey, $variantData)) {
+                // Skip if this output field was already set (first format wins)
+                if (isset($transformed[$dbKey])) {
+                    continue;
+                }
+
                 $value = $variantData[$inputKey];
 
                 // Handle price fields: round to 2 decimals
@@ -119,6 +153,10 @@ class VariantDataTransformer
         if (!isset($transformed['stock'])) {
             $transformed['stock'] = 0;
         }
+
+        // Channel is NOT defaulted - must be provided or set by controller
+        // Valid channels: retail, wholesale, daraz, pos
+        // If not provided, controller should set it or validation will fail
 
         return $transformed;
     }

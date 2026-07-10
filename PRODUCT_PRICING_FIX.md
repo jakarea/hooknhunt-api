@@ -1,19 +1,39 @@
 # Product Pricing Fix - Comprehensive Solution
 
-## Problem Statement
-Product prices couldn't be updated after initial creation. The issue existed for 3 months but only surfaced when users tried to use the price update feature.
+## Critical Discovery: Database Schema Mismatch
 
-**Root Cause**: The controller used dangerous `?? 0` defaults when mapping variant data:
-```php
-'price' => $variantData['retail_price'] ?? 0  // BUG: Sets to 0 if field missing
-'offer_price' => $variantData['retail_offer_price'] ?? 0
+**Root Issue**: Backend validation was looking for fields that DON'T EXIST in the database!
+
+### Database Reality
+- ProductVariant table has: `price`, `offer_price`, `purchase_cost` (NOT retail_price, wholesale_price)
+- Multi-channel pricing is handled via the **`channel`** field (enum: retail|wholesale|daraz|pos)
+- Each ProductVariant is for ONE channel only
+- To have same variant for both retail AND wholesale, create TWO ProductVariant records with different channels
+
+### Previous Wrong Architecture
+```
+❌ Validation expected: retail_price, retail_offer_price, wholesale_price, wholesale_offer_price
+❌ Database has: price, offer_price (ONLY 2 fields, not 4!)
+❌ Missing wholesale_* fields defaulted to 0, overwriting existing prices
 ```
 
-During UPDATE operations, missing fields should NOT be overwritten with defaults. This fix ensures:
-- CREATE operations: Safe defaults applied for new records
-- UPDATE operations: Only provided fields are changed, existing data preserved
-- Field transformation: camelCase (frontend) → snake_case (database)
-- Decimal rounding: All prices rounded to 2 decimals (BDT standard)
+### Correct Architecture
+```
+✅ Database fields: price, offer_price, purchase_cost, channel
+✅ channel field determines retail/wholesale/daraz/pos
+✅ Same price field is used for all channels
+✅ No separate retail_price or wholesale_price fields
+```
+
+## Solution Overview
+
+This fix ensures:
+- Frontend sends any format (retailPrice, price, retail_price) → all work
+- Backend validates ONLY actual database fields
+- Field transformation: camelCase → snake_case
+- Decimal rounding: All prices → 2 decimals (BDT standard)
+- Channel handling: Defaults to 'retail' if not provided
+- Critical: CREATE adds safe defaults, UPDATE filters nulls (no overwrites)
 
 ## Solution Architecture
 

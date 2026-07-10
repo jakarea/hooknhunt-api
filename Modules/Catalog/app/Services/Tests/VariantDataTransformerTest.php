@@ -49,15 +49,15 @@ class VariantDataTransformerTest extends TestCase
 
         $result = VariantDataTransformer::transformVariantData($input);
 
-        // Verify field names are mapped correctly
-        $this->assertArrayHasKey('seller_sku', $result);
+        // Verify field names are mapped correctly to actual database fields
+        $this->assertArrayHasKey('sku', $result);
         $this->assertArrayHasKey('variant_name', $result);
         $this->assertArrayHasKey('price', $result);
         $this->assertArrayHasKey('offer_price', $result);
         $this->assertArrayHasKey('purchase_cost', $result);
 
-        // Verify values
-        $this->assertSame('SKU-123', $result['seller_sku']);
+        // Verify values (sellerSku maps to sku field in database)
+        $this->assertSame('SKU-123', $result['sku']);
         $this->assertSame('Blue Large', $result['variant_name']);
         $this->assertSame(100.12, $result['price']);
         $this->assertSame(90.57, $result['offer_price']);
@@ -70,17 +70,17 @@ class VariantDataTransformerTest extends TestCase
     public function test_transformVariantData_accepts_snake_case()
     {
         $input = [
-            'seller_sku' => 'SKU-123',
+            'sku' => 'SKU-123',
             'variant_name' => 'Red Medium',
-            'retail_price' => '75.5',
-            'retail_offer_price' => '65.3',
+            'price' => '75.5',
+            'offer_price' => '65.3',
             'purchase_cost' => '30.1',
         ];
 
         $result = VariantDataTransformer::transformVariantData($input);
 
-        // Should process snake_case input the same way
-        $this->assertSame('SKU-123', $result['seller_sku']);
+        // Should process snake_case input the same way as camelCase
+        $this->assertSame('SKU-123', $result['sku']);
         $this->assertSame('Red Medium', $result['variant_name']);
         $this->assertSame(75.50, $result['price']);
         $this->assertSame(65.30, $result['offer_price']);
@@ -207,18 +207,18 @@ class VariantDataTransformerTest extends TestCase
 
     /**
      * Test edge case: both camelCase and snake_case provided
-     * camelCase should take precedence (checked first in mapping)
+     * First match in fieldMapping wins (retailPrice comes before price)
      */
     public function test_both_formats_provided_camelcase_priority()
     {
         $input = [
             'retailPrice' => '100.00', // camelCase
-            'price' => '200.00', // snake_case (should be ignored)
+            'price' => '200.00', // snake_case
         ];
 
         $result = VariantDataTransformer::transformVariantData($input);
 
-        // camelCase should map to price first
+        // retailPrice comes first in fieldMapping, so it should be used
         $this->assertSame(100.00, $result['price']);
     }
 }
