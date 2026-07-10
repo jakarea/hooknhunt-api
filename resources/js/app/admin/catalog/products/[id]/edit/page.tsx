@@ -3372,6 +3372,7 @@ export default function EditProductPage() {
                                 {/* Variant Name */}
                                 <Group gap="xs" style={{ minWidth: 0 }}>
                                   <TextInput
+                                    id={`variant.${index}.name`}
                                     placeholder={t('catalog.productsCreate.variantNamePlaceholder') || 'Size, Color...'}
                                     value={variant.name}
                                     onChange={(value) => handleUpdateVariant(variant.id, 'name', typeof value === 'string' ? value : value?.currentTarget?.value || '')}
@@ -3384,6 +3385,7 @@ export default function EditProductPage() {
 
                                 {/* SELLER SKU */}
                                 <TextInput
+                                  id={`variant.${index}.sellerSku`}
                                   placeholder={t('catalog.productsCreate.sellerSkuPlaceholder') || 'SKU'}
                                   value={variant.sellerSku}
                                   onChange={(value) => handleUpdateVariant(variant.id, 'sellerSku', typeof value === 'string' ? value : value?.currentTarget?.value || '')}
@@ -3394,6 +3396,7 @@ export default function EditProductPage() {
 
                                 {/* Purchase Cost */}
                                 <NumberInput
+                                  id={`variant.${index}.purchaseCost`}
                                   placeholder="0"
                                   value={variant.purchaseCost}
                                   onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'purchaseCost', value)}
@@ -3408,6 +3411,7 @@ export default function EditProductPage() {
                                 {/* Wholesale Price */}
                                 <Stack gap={4}>
                                   <NumberInput
+                                    id={`variant.${index}.wholesalePrice`}
                                     placeholder="0"
                                     value={variant.wholesalePrice}
                                     onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'wholesalePrice', Math.round(value))}
@@ -3428,6 +3432,7 @@ export default function EditProductPage() {
                                 {/* Wholesale Offer Price */}
                                 <Stack gap={4}>
                                   <NumberInput
+                                    id={`variant.${index}.wholesaleOfferPrice`}
                                     placeholder="0"
                                     value={variant.wholesaleOfferPrice}
                                     onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'wholesaleOfferPrice', Math.round(value))}
@@ -3449,6 +3454,7 @@ export default function EditProductPage() {
                                 {/* Retail Price */}
                                 <Stack gap={4}>
                                   <NumberInput
+                                    id={`variant.${index}.price`}
                                     placeholder="0"
                                     value={variant.price}
                                     onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'price', Math.round(value))}
@@ -3469,6 +3475,7 @@ export default function EditProductPage() {
                                 {/* Retail Offer Price */}
                                 <Stack gap={4}>
                                   <NumberInput
+                                    id={`variant.${index}.specialPrice`}
                                     placeholder="0"
                                     value={variant.specialPrice}
                                     onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'specialPrice', Math.round(value))}
@@ -3489,6 +3496,7 @@ export default function EditProductPage() {
 
                                 {/* Wholesale MOQ */}
                                 <NumberInput
+                                  id={`variant.${index}.wholesaleMoq`}
                                   placeholder="0"
                                   value={variant.wholesaleMoq}
                                   onChange={(value) => handleUpdateVariant(variant.id, 'wholesaleMoq', value || 0)}
@@ -3500,6 +3508,7 @@ export default function EditProductPage() {
 
                                 {/* Weight */}
                                 <NumberInput
+                                  id={`variant.${index}.weight`}
                                   placeholder="0"
                                   value={variant.weight}
                                   onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'weight', value)}
@@ -3514,6 +3523,7 @@ export default function EditProductPage() {
 
                                 {/* Stock */}
                                 <NumberInput
+                                  id={`variant.${index}.stock`}
                                   placeholder="0"
                                   value={variant.stock}
                                   onChange={(value) => handleUpdateVariant(variant.id, 'stock', value || 0)}
