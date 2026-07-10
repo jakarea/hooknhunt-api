@@ -64,7 +64,6 @@ import { CSS } from '@dnd-kit/utilities'
 import { generateSkuFromVariantName } from "@/utils/SKUGenerator"
 import { validateProductForm } from "@/utils/ProductFormValidator"
 import { calculatePricesFromCost } from "@/utils/PriceCalculator"
-import { applyDefaultsToVariants } from "@/utils/ApplyDefaults"
 
 // Utility function to decode HTML entities (handles multiple levels of encoding)
 const decodeHTMLEntities = (text: string): string => {
@@ -1891,25 +1890,7 @@ export default function CreateProductPage() {
     }))
   }
 
-  // Apply default values to all variants
-  const handleApplyDefaultsToAll = useCallback(() => {
-    console.log('✅ Apply Defaults clicked')
-    console.log('Current variants BEFORE:', variants)
-    console.log('Defaults to apply:', defaultValues)
-
-    // Apply defaults to ALL variants using pure function
-    const updatedVariants = applyDefaultsToVariants(variants, defaultValues)
-
-    console.log('Variants AFTER:', updatedVariants)
-
-    setVariants(updatedVariants)
-
-    notifications.show({
-      title: t('common.success') || 'Success',
-      message: `Applied default values to ${variants.length} variant(s): MOQ=${defaultValues.wholesaleMoq}, Weight=${defaultValues.weight}g, Stock=${defaultValues.stock}`,
-      color: 'green'
-    })
-  }, [variants, defaultValues, t])
+  // TODO: Implement default value application logic here
   // Highlights list handlers (now managed by Quill editor)
   // These functions are kept for potential future use or backwards compatibility
 
@@ -2667,7 +2648,8 @@ export default function CreateProductPage() {
                             <Button
                               size="xs"
                               variant="light"
-                              onClick={handleApplyDefaultsToAll}
+                              disabled
+                              title="TODO: Implement default value application"
                               w="100%"
                             >
                               {t('catalog.productsCreate.applyToAll') || 'Apply'}
