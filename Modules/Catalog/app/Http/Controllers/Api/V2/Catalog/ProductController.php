@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Catalog\Models\ProductVariant;
 use App\Modules\Catalog\Models\Category;
+use App\Modules\Catalog\Services\VariantDataTransformer;
 use App\Traits\ImageHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -479,32 +480,28 @@ class ProductController extends Controller
                 $request->merge(['hide_from_website' => $request->input('hideFromWebsite')]);
             }
 
-            // Handle variant field name conversions (camelCase to snake_case)
+            // Normalize variant field names before validation (convert any camelCase to snake_case)
+            // The transformer will handle the actual conversion during save
             if ($request->has('variants')) {
                 $variants = $request->input('variants');
                 foreach ($variants as &$variant) {
-                    // Convert camelCase to snake_case
-                    $variant['seller_sku'] = $variant['sellerSku'] ?? $variant['seller_sku'] ?? null;
-                    $variant['purchase_cost'] = $variant['purchaseCost'] ?? $variant['purchase_cost'] ?? 0;
-                    $variant['retail_price'] = $variant['retailPrice'] ?? $variant['retail_price'] ?? 0;
-                    $variant['wholesale_price'] = $variant['wholesalePrice'] ?? $variant['wholesale_price'] ?? null;
-                    $variant['retail_offer_price'] = $variant['retailOfferPrice'] ?? $variant['retail_offer_price'] ?? 0;
-                    $variant['wholesale_offer_price'] = $variant['wholesaleOfferPrice'] ?? $variant['wholesale_offer_price'] ?? null;
-                    $variant['wholesale_moq'] = $variant['wholesaleMoq'] ?? $variant['wholesale_moq'] ?? null;
-                    $variant['thumbnail_id'] = $variant['thumbnailId'] ?? $variant['thumbnail_id'] ?? null;
-
-                    // Log thumbnail_id conversion for debugging
-                    \Log::info('Variant thumbnail conversion', [
-                        'variant_name' => $variant['name'] ?? 'unknown',
-                        'thumbnailId_before' => $variant['thumbnailId'] ?? 'not set',
-                        'thumbnail_id_before' => $variant['thumbnail_id'] ?? 'not set',
-                        'thumbnail_id_after' => $variant['thumbnail_id'] ?? 'not set'
-                    ]);
-
-                    // Remove camelCase versions
-                    unset($variant['sellerSku'], $variant['purchaseCost'], $variant['retailPrice'],
-                            $variant['wholesalePrice'], $variant['retailOfferPrice'], $variant['wholesaleOfferPrice'],
-                            $variant['wholesaleMoq'], $variant['thumbnailId']);
+                    // Accept both camelCase and snake_case - validation will handle the actual transform
+                    // This just normalizes the input for validation
+                    if (isset($variant['retailPrice']) && !isset($variant['retail_price'])) {
+                        $variant['retail_price'] = $variant['retailPrice'];
+                    }
+                    if (isset($variant['retailOfferPrice']) && !isset($variant['retail_offer_price'])) {
+                        $variant['retail_offer_price'] = $variant['retailOfferPrice'];
+                    }
+                    if (isset($variant['purchaseCost']) && !isset($variant['purchase_cost'])) {
+                        $variant['purchase_cost'] = $variant['purchaseCost'];
+                    }
+                    if (isset($variant['thumbnailId']) && !isset($variant['thumbnail_id'])) {
+                        $variant['thumbnail_id'] = $variant['thumbnailId'];
+                    }
+                    if (isset($variant['wholesaleMoq']) && !isset($variant['wholesale_moq'])) {
+                        $variant['wholesale_moq'] = $variant['wholesaleMoq'];
+                    }
                 }
                 $request->merge(['variants' => $variants]);
             }
@@ -616,53 +613,34 @@ class ProductController extends Controller
     protected function storeWithVariants(array $validated): JsonResponse
     {
         return DB::transaction(function () use ($validated) {
-            // Extract variants from validated data
             $variantsData = $validated['variants'] ?? [];
             unset($validated['variants']);
 
-            // Use name or retail_name as the main name
             if (empty($validated['name']) && !empty($validated['retail_name'])) {
                 $validated['name'] = $validated['retail_name'];
             }
 
-            // Generate slug if not provided
             if (empty($validated['slug']) && !empty($validated['name'])) {
                 $validated['slug'] = \Illuminate\Support\Str::slug($validated['name']) . '-' . time();
             }
 
-            // thumbnail_id and gallery_images already contain media_files IDs
-            // No conversion needed - save directly
             $product = Product::create($validated);
 
-            // Create variants
             foreach ($variantsData as $variantData) {
-                $variantData['product_id'] = $product->id;
-                $variantData['sku'] = $variantData['seller_sku'] ?? \Illuminate\Support\Str::slug($variantData['name'] ?? 'variant') . '-' . time();
-                $variantData['variant_slug'] = \Illuminate\Support\Str::slug($variantData['name'] ?? 'variant') . '-' . time();
-                $variantData['variant_name'] = $variantData['name'];
-                $variantData['purchase_cost'] = $variantData['purchase_cost'] ?? 0;
-                $variantData['price'] = $variantData['retail_price'] ?? 0;
-                $variantData['offer_price'] = $variantData['retail_offer_price'] ?? 0;
-                $variantData['stock'] = $variantData['stock'] ?? 0;
-                $variantData['weight'] = $variantData['weight'] ?? 0;
-                $variantData['moq'] = $variantData['wholesale_moq'] ?? 0;
-                $variantData['thumbnail_id'] = $variantData['thumbnail_id'] ?? null;
-                $variantData['channel'] = 'retail'; // Required field - enum('retail','wholesale','daraz','pos')
-                $variantData['is_active'] = true;
+                // Use pure transformer to handle field mapping and decimal rounding
+                $transformedData = VariantDataTransformer::transformVariantForCreate($variantData);
 
-                // Remove fields that don't exist in the database
-                unset($variantData['name'], $variantData['seller_sku'], $variantData['retail_price'],
-                        $variantData['retail_offer_price'], $variantData['wholesale_price'],
-                        $variantData['wholesale_offer_price'], $variantData['wholesale_moq'],
-                        $variantData['retail_id'], $variantData['wholesale_id']);
+                // Add product_id and required enum field
+                $transformedData['product_id'] = $product->id;
+                $transformedData['channel'] = 'retail';
+                $transformedData['is_active'] = true;
+                $transformedData['variant_slug'] = \Illuminate\Support\Str::slug($transformedData['variant_name']) . '-' . time();
 
-                ProductVariant::create($variantData);
+                ProductVariant::create($transformedData);
             }
 
-            // Clear cache
             $this->clearProductsListCache();
 
-            // Reload product with non-deleted variants only
             $product->load([
                 'category',
                 'brand',
@@ -841,32 +819,28 @@ class ProductController extends Controller
                 $request->merge(['includes_in_box_bn' => $value]);
             }
 
-            // Handle variant field name conversions (camelCase to snake_case)
+            // Normalize variant field names before validation (convert any camelCase to snake_case)
+            // The transformer will handle the actual conversion during save
             if ($request->has('variants')) {
                 $variants = $request->input('variants');
                 foreach ($variants as &$variant) {
-                    // Convert camelCase to snake_case
-                    $variant['seller_sku'] = $variant['sellerSku'] ?? $variant['seller_sku'] ?? null;
-                    $variant['purchase_cost'] = $variant['purchaseCost'] ?? $variant['purchase_cost'] ?? 0;
-                    $variant['retail_price'] = $variant['retailPrice'] ?? $variant['retail_price'] ?? 0;
-                    $variant['wholesale_price'] = $variant['wholesalePrice'] ?? $variant['wholesale_price'] ?? null;
-                    $variant['retail_offer_price'] = $variant['retailOfferPrice'] ?? $variant['retail_offer_price'] ?? 0;
-                    $variant['wholesale_offer_price'] = $variant['wholesaleOfferPrice'] ?? $variant['wholesale_offer_price'] ?? null;
-                    $variant['wholesale_moq'] = $variant['wholesaleMoq'] ?? $variant['wholesale_moq'] ?? null;
-                    $variant['thumbnail_id'] = $variant['thumbnailId'] ?? $variant['thumbnail_id'] ?? null;
-
-                    // Log thumbnail_id conversion for debugging
-                    \Log::info('Variant thumbnail conversion', [
-                        'variant_name' => $variant['name'] ?? 'unknown',
-                        'thumbnailId_before' => $variant['thumbnailId'] ?? 'not set',
-                        'thumbnail_id_before' => $variant['thumbnail_id'] ?? 'not set',
-                        'thumbnail_id_after' => $variant['thumbnail_id'] ?? 'not set'
-                    ]);
-
-                    // Remove camelCase versions
-                    unset($variant['sellerSku'], $variant['purchaseCost'], $variant['retailPrice'],
-                            $variant['wholesalePrice'], $variant['retailOfferPrice'], $variant['wholesaleOfferPrice'],
-                            $variant['wholesaleMoq'], $variant['thumbnailId']);
+                    // Accept both camelCase and snake_case - validation will handle the actual transform
+                    // This just normalizes the input for validation
+                    if (isset($variant['retailPrice']) && !isset($variant['retail_price'])) {
+                        $variant['retail_price'] = $variant['retailPrice'];
+                    }
+                    if (isset($variant['retailOfferPrice']) && !isset($variant['retail_offer_price'])) {
+                        $variant['retail_offer_price'] = $variant['retailOfferPrice'];
+                    }
+                    if (isset($variant['purchaseCost']) && !isset($variant['purchase_cost'])) {
+                        $variant['purchase_cost'] = $variant['purchaseCost'];
+                    }
+                    if (isset($variant['thumbnailId']) && !isset($variant['thumbnail_id'])) {
+                        $variant['thumbnail_id'] = $variant['thumbnailId'];
+                    }
+                    if (isset($variant['wholesaleMoq']) && !isset($variant['wholesale_moq'])) {
+                        $variant['wholesale_moq'] = $variant['wholesaleMoq'];
+                    }
                 }
                 $request->merge(['variants' => $variants]);
             }
@@ -946,43 +920,42 @@ class ProductController extends Controller
                 \Log::info('Processing variants update', ['count' => count($validated['variants'])]);
 
                 foreach ($validated['variants'] as $index => $variantData) {
-                    // Extract variant ID if provided
                     $variantId = $variantData['id'] ?? null;
+
+                    // Use pure transformer to handle field mapping and rounding
+                    // For UPDATE: only include fields that are explicitly provided
+                    $updateData = VariantDataTransformer::transformVariantForUpdate($variantData);
+
+                    // Add required fields
+                    $updateData['channel'] = 'retail';
+                    $updateData['is_active'] = true;
+
+                    // Only generate slug if name was changed
+                    if (isset($updateData['variant_name'])) {
+                        $updateData['variant_slug'] = \Illuminate\Support\Str::slug($updateData['variant_name']) . '-' . time();
+                    }
 
                     \Log::info("Processing variant {$index}", [
                         'variant_id' => $variantId,
-                        'variant_data' => $variantData,
-                        'has_thumbnail_id' => isset($variantData['thumbnail_id']),
-                        'thumbnail_id_value' => $variantData['thumbnail_id'] ?? 'not set',
+                        'update_data' => $updateData,
                     ]);
 
-                    // Prepare variant data
-                    $updateData = [
-                        'variant_name' => $variantData['name'] ?? null,
-                        'sku' => $variantData['sku'] ?? (\Illuminate\Support\Str::slug($variantData['name'] ?? 'variant') . '-' . time()),
-                        'price' => $variantData['retail_price'] ?? 0,
-                        'offer_price' => $variantData['retail_offer_price'] ?? 0,
-                        'stock' => $variantData['stock'] ?? 0,
-                        'weight' => $variantData['weight'] ?? 0,
-                        'moq' => $variantData['wholesale_moq'] ?? 0,
-                        'thumbnail_id' => $variantData['thumbnail_id'] ?? null,
-                        'channel' => 'retail',
-                        'is_active' => true,
-                        'variant_slug' => \Illuminate\Support\Str::slug($variantData['name'] ?? 'variant') . '-' . time(),
-                    ];
-
                     if ($variantId) {
-                        // Update existing variant
-                        \Log::info('Updating variant', ['variant_id' => $variantId, 'update_data' => $updateData]);
+                        \Log::info('Updating variant', ['variant_id' => $variantId, 'data_count' => count($updateData)]);
                         $affected = ProductVariant::where('id', $variantId)
                             ->where('product_id', $product->id)
                             ->update($updateData);
                         \Log::info('Variant update result', ['affected_rows' => $affected]);
                     } else {
                         // Create new variant
-                        $updateData['product_id'] = $product->id;
-                        \Log::info('Creating new variant', ['update_data' => $updateData]);
-                        ProductVariant::create($updateData);
+                        $createData = VariantDataTransformer::transformVariantForCreate($variantData);
+                        $createData['product_id'] = $product->id;
+                        $createData['channel'] = 'retail';
+                        $createData['is_active'] = true;
+                        $createData['variant_slug'] = \Illuminate\Support\Str::slug($createData['variant_name']) . '-' . time();
+
+                        \Log::info('Creating new variant', ['data_count' => count($createData)]);
+                        ProductVariant::create($createData);
                     }
                 }
             } else {
