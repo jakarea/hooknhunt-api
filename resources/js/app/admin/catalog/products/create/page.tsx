@@ -60,6 +60,12 @@ import { DndContext, closestCenter, type DragEndEvent, PointerSensor, useSensor,
 import { SortableContext, useSortable, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
+// Pure functions (shared with edit page)
+import { generateSkuFromVariantName } from "@/utils/SKUGenerator"
+import { validateProductForm } from "@/utils/ProductFormValidator"
+import { calculatePricesFromCost } from "@/utils/PriceCalculator"
+import { applyDefaultsToVariants } from "@/utils/ApplyDefaults"
+
 // Utility function to decode HTML entities (handles multiple levels of encoding)
 const decodeHTMLEntities = (text: string): string => {
   if (!text) return ''
@@ -1794,29 +1800,32 @@ export default function CreateProductPage() {
   }
 
   // Variant handlers
-  const handleAddVariant = () => {
-    const newId = Date.now().toString()
-    setVariants([
-      ...variants,
-      {
-        id: newId,
-        retail_id: null,
-        wholesale_id: null,
-        name: '',
-        price: 0,
-        wholesalePrice: 0,
-        purchaseCost: 0,
-        specialPrice: undefined,
-        wholesaleOfferPrice: undefined,
-        wholesaleMoq: 0,
-        weight: 0,
-        stock: 0,
-        sellerSku: '',
-        sellerSkuManuallyEdited: false,
-        thumbnail: null
-      }
-    ])
-  }
+  const handleAddVariant = useCallback(() => {
+    const variantName = defaultValues.name || ''
+    // Auto-generate SKU from variant name
+    const generatedSku = generateSkuFromVariantName(variantName)
+
+    const newVariant: ProductVariant = {
+      id: `new-${Date.now()}`,
+      retail_id: null,
+      wholesale_id: null,
+      name: variantName,
+      price: defaultValues.price,
+      wholesalePrice: defaultValues.wholesalePrice,
+      purchaseCost: defaultValues.purchaseCost,
+      specialPrice: defaultValues.specialPrice,
+      wholesaleOfferPrice: defaultValues.wholesaleOfferPrice,
+      wholesaleMoq: defaultValues.wholesaleMoq,
+      weight: defaultValues.weight,
+      stock: defaultValues.stock,
+      sellerSku: generatedSku,
+      sellerSkuManuallyEdited: !!defaultValues.sellerSku,
+      thumbnail: null
+    }
+
+    setVariants(prev => [...prev, newVariant])
+    clearError('variants')
+  }, [defaultValues])
 
   const handleRemoveVariant = (id: string) => {
     if (variants.length > 1) {
@@ -1883,58 +1892,28 @@ export default function CreateProductPage() {
   }
 
   // Apply default values to all variants
-  const handleApplyDefaultsToAll = () => {
-    const pc = typeof defaultValues.purchaseCost === 'number' ? defaultValues.purchaseCost : parseFloat(String(defaultValues.purchaseCost)) || 0
-    const rp = typeof defaultValues.price === 'number' ? defaultValues.price : parseFloat(String(defaultValues.price)) || 0
-    const wp = typeof defaultValues.wholesalePrice === 'number' ? defaultValues.wholesalePrice : parseFloat(String(defaultValues.wholesalePrice)) || 0
-    const sop = typeof defaultValues.specialPrice === 'number' ? defaultValues.specialPrice : undefined
-    const wop = typeof defaultValues.wholesaleOfferPrice === 'number' ? defaultValues.wholesaleOfferPrice : undefined
-    const w = typeof defaultValues.weight === 'number' ? defaultValues.weight : parseFloat(String(defaultValues.weight)) || 0
+  const handleApplyDefaultsToAll = useCallback(() => {
+    console.log('🔧 TESTING: Apply Defaults clicked')
+    console.log('Current variants BEFORE:', JSON.stringify(variants))
 
-    setVariants(variants.map(v => {
-      const updated = { ...v }
-      // Only apply defaults to empty/zero fields — leave existing data untouched
-      if (defaultValues.name && !v.name.trim()) {
-        updated.name = defaultValues.name
-      }
-      // Generate SKU from variant name (only if not manually edited)
-      if (defaultValues.name && !v.sellerSkuManuallyEdited && !v.name.trim()) {
-        updated.sellerSku = defaultValues.name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-      }
-      if (!v.purchaseCost) {
-        updated.purchaseCost = pc
-      }
-      if (!v.price) {
-        updated.price = rp
-      }
-      if (!v.wholesalePrice) {
-        updated.wholesalePrice = wp
-      }
-      if (v.specialPrice === undefined || v.specialPrice === 0) {
-        updated.specialPrice = sop
-      }
-      if (v.wholesaleOfferPrice === undefined || v.wholesaleOfferPrice === 0) {
-        updated.wholesaleOfferPrice = wop
-      }
-      if (!v.wholesaleMoq) {
-        updated.wholesaleMoq = defaultValues.wholesaleMoq
-      }
-      if (!v.weight) {
-        updated.weight = w
-      }
-      if (!v.stock) {
-        updated.stock = defaultValues.stock
-      }
-      return updated
+    // Simple test: just multiply all purchaseCost by 2
+    const testUpdated = variants.map(v => ({
+      ...v,
+      purchaseCost: (v.purchaseCost || 0) * 2 + 999, // Add 999 to make change obvious
+      stock: (v.stock || 0) * 2 + 888 // Add 888 to make change obvious
     }))
 
-    notifications.show({
-      title: t('catalog.productsCreate.notification.defaultValuesApplied'),
-      message: t('catalog.productsCreate.notification.defaultValuesAppliedMessage', { count: variants.length }),
-      color: 'green'
-    })
-  }
+    console.log('Variants AFTER (test):', JSON.stringify(testUpdated))
+    console.log('Should have +999 on purchaseCost and +888 on stock')
 
+    setVariants(testUpdated)
+
+    notifications.show({
+      title: 'TEST: Apply Defaults',
+      message: `Applied test to ${variants.length} variant(s) - should see +999 cost and +888 stock`,
+      color: 'blue'
+    })
+  }, [variants])
   // Highlights list handlers (now managed by Quill editor)
   // These functions are kept for potential future use or backwards compatibility
 
@@ -2125,10 +2104,36 @@ export default function CreateProductPage() {
   }
 
   // Legacy handleSubmit for form submit event (no longer used directly)
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = useCallback(async (event: React.FormEvent) => {
     event.preventDefault()
+
+    // Clear previous errors
+    setErrors({})
+
+    // Validate form using pure function
+    const validation = validateProductForm({
+      productName,
+      category,
+      brand,
+      description,
+      variants
+    })
+
+    if (!validation.valid) {
+      setErrors(validation.errors)
+
+      // Scroll to first error
+      const firstErrorKey = Object.keys(validation.errors)[0]
+      const element = document.getElementById(firstErrorKey)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+      return
+    }
+
+    // All valid - submit
     await submitProduct(status as 'draft' | 'published')
-  }
+  }, [productName, category, brand, description, variants, status])
 
   // Transform data for Select components
 
@@ -2539,8 +2544,8 @@ export default function CreateProductPage() {
                               onChange={(value) => setDefaultValues(prev => ({ ...prev, purchaseCost: typeof value === 'number' ? value : prev.purchaseCost }))}
                               onFocus={collapseSidebarIfNeeded}
                               min={0}
-                              step={0.01}
-                              decimalScale={2}
+                              step={1}
+                              precision={0}
                               size="xs"
                             />
                           </Stack>
@@ -2554,8 +2559,8 @@ export default function CreateProductPage() {
                               onChange={(value) => setDefaultValues(prev => ({ ...prev, wholesalePrice: typeof value === 'number' ? value : prev.wholesalePrice }))}
                               onFocus={collapseSidebarIfNeeded}
                               min={0}
-                              step={0.01}
-                              decimalScale={2}
+                              step={1}
+                              precision={0}
                               size="xs"
                             />
                             <Text size="xs" c={defaultValues.wholesalePrice - defaultValues.purchaseCost < 0 ? 'red' : 'green'}>
@@ -2573,8 +2578,8 @@ export default function CreateProductPage() {
                               onBlur={() => setDefaultValues(prev => ({ ...prev, wholesaleOfferPrice: prev.wholesaleOfferPrice || undefined }))}
                               onFocus={collapseSidebarIfNeeded}
                               min={0}
-                              step={0.01}
-                              decimalScale={2}
+                              step={1}
+                              precision={0}
                               size="xs"
                             />
                             {defaultValues.wholesaleOfferPrice !== undefined && defaultValues.wholesaleOfferPrice > 0 && (
@@ -2593,8 +2598,7 @@ export default function CreateProductPage() {
                               onChange={(value) => setDefaultValues(prev => ({ ...prev, price: typeof value === 'number' ? value : prev.price }))}
                               onFocus={collapseSidebarIfNeeded}
                               min={0}
-                              step={0.01}
-                              decimalScale={2}
+
                               size="xs"
                             />
                             <Text size="xs" c={defaultValues.price - defaultValues.purchaseCost < 0 ? 'red' : 'green'}>
@@ -2611,9 +2615,9 @@ export default function CreateProductPage() {
                               onChange={(value) => setDefaultValues(prev => ({ ...prev, specialPrice: typeof value === 'number' ? value : prev.specialPrice }))}
                               onBlur={() => setDefaultValues(prev => ({ ...prev, specialPrice: prev.specialPrice || undefined }))}
                               onFocus={collapseSidebarIfNeeded}
-                              min={0}
-                              step={0.01}
-                              decimalScale={2}
+                              step={1}
+                              precision={0}
+
                               size="xs"
                             />
                             {defaultValues.specialPrice !== undefined && defaultValues.specialPrice > 0 && (
@@ -2645,8 +2649,9 @@ export default function CreateProductPage() {
                               onChange={(value) => setDefaultValues(prev => ({ ...prev, weight: typeof value === 'number' ? value : prev.weight }))}
                               onFocus={collapseSidebarIfNeeded}
                               min={0}
-                              step={0.01}
-                              decimalScale={2}
+                              step={1}
+                              precision={0}
+
                               size="xs"
                               rightSection={<Text size="xs">g</Text>}
                             />
@@ -2746,8 +2751,8 @@ export default function CreateProductPage() {
                                   onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'purchaseCost', value)}
                                   onFocus={collapseSidebarIfNeeded}
                                   min={0}
-                                  step={0.01}
-                                  decimalScale={2}
+                                  step={1}
+                              precision={0}
                                   size="sm"
                                   error={errors[`variant.${index}.purchaseCost`]}
                                 />
@@ -2760,8 +2765,8 @@ export default function CreateProductPage() {
                                     onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'wholesalePrice', value)}
                                     onFocus={collapseSidebarIfNeeded}
                                     min={0}
-                                    step={0.01}
-                                    decimalScale={2}
+                                    step={1}
+                              precision={0}
                                     size="sm"
                                     error={errors[`variant.${index}.wholesalePrice`]}
                                   />
@@ -2781,8 +2786,7 @@ export default function CreateProductPage() {
                                     onBlur={(e) => { const v = variant.wholesaleOfferPrice; if (!v) handleUpdateVariant(variant.id, 'wholesaleOfferPrice', undefined) }}
                                     onFocus={collapseSidebarIfNeeded}
                                     min={0}
-                                    step={0.01}
-                                    decimalScale={2}
+
                                     size="sm"
                                     error={errors[`variant.${index}.wholesaleOfferPrice`]}
                                   />
@@ -2800,9 +2804,9 @@ export default function CreateProductPage() {
                                     value={variant.price}
                                     onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'price', value)}
                                     onFocus={collapseSidebarIfNeeded}
-                                    min={0}
-                                    step={0.01}
-                                    decimalScale={2}
+                                    step={1}
+                              precision={0}
+
                                     size="sm"
                                     error={errors[`variant.${index}.price`]}
                                   />
@@ -2822,8 +2826,9 @@ export default function CreateProductPage() {
                                     onBlur={(e) => { const v = variant.specialPrice; if (!v) handleUpdateVariant(variant.id, 'specialPrice', undefined) }}
                                     onFocus={collapseSidebarIfNeeded}
                                     min={0}
-                                    step={0.01}
-                                    decimalScale={2}
+                                    step={1}
+                              precision={0}
+
                                     size="sm"
                                     error={errors[`variant.${index}.specialPrice`]}
                                   />
@@ -2852,8 +2857,9 @@ export default function CreateProductPage() {
                                   onChange={(value) => typeof value === 'number' && handleUpdateVariant(variant.id, 'weight', value)}
                                   onFocus={collapseSidebarIfNeeded}
                                   min={0}
-                                  step={0.01}
-                                  decimalScale={2}
+                                  step={1}
+                              precision={0}
+
                                   size="sm"
                                   rightSection={<Text size="xs">g</Text>}
                                   error={errors[`variant.${index}.weight`]}
@@ -3163,8 +3169,9 @@ export default function CreateProductPage() {
                         onChange={(value) => setAffiliateCommission(typeof value === 'number' ? value : 5)}
                         min={0}
                         max={100}
-                        step={0.01}
-                        decimalScale={2}
+                        step={1}
+                              precision={0}
+
                         description="Commission rate for affiliates on this product (global default)"
                       />
                     </SimpleGrid>
