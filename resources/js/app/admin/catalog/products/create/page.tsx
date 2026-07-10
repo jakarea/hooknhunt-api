@@ -2015,14 +2015,14 @@ export default function CreateProductPage() {
           wholesale_id: v.wholesale_id || null,
           name: v.name,
           sellerSku: v.sellerSku || null,
-          purchaseCost: Math.round(parseFloat(v.purchaseCost.toString()) * 100) / 100,
-          retailPrice: Math.round(parseFloat(v.price.toString()) * 100) / 100,
-          wholesalePrice: Math.round(parseFloat(v.wholesalePrice.toString()) * 100) / 100,
-          retailOfferPrice: v.specialPrice ? Math.round(parseFloat(v.specialPrice.toString()) * 100) / 100 : null,
-          wholesaleOfferPrice: v.wholesaleOfferPrice ? Math.round(parseFloat(v.wholesaleOfferPrice.toString()) * 100) / 100 : null,
-          wholesaleMoq: Math.round(parseFloat(v.wholesaleMoq.toString())),
-          weight: Math.round(parseFloat(v.weight.toString())),
-          stock: Math.round(parseFloat(v.stock.toString())),
+          purchaseCost: parseFloat(v.purchaseCost.toString()),
+          retailPrice: parseFloat(v.price.toString()),
+          wholesalePrice: parseFloat(v.wholesalePrice.toString()),
+          retailOfferPrice: v.specialPrice ? parseFloat(v.specialPrice.toString()) : null,
+          wholesaleOfferPrice: v.wholesaleOfferPrice ? parseFloat(v.wholesaleOfferPrice.toString()) : null,
+          wholesaleMoq: parseInt(v.wholesaleMoq.toString()),
+          weight: parseFloat(v.weight.toString()),
+          stock: parseInt(v.stock.toString()),
           thumbnail_id: v.thumbnailId || null
         }))
       }

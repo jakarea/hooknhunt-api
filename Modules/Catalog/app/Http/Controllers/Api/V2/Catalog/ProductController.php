@@ -487,8 +487,17 @@ class ProductController extends Controller
                 foreach ($variants as &$variant) {
                     // Accept both camelCase and snake_case - validation will handle the actual transform
                     // This just normalizes the input for validation
+                    if (isset($variant['sellerSku']) && !isset($variant['sku'])) {
+                        $variant['sku'] = $variant['sellerSku'];
+                    }
+                    if (isset($variant['retailPrice']) && !isset($variant['price'])) {
+                        $variant['price'] = $variant['retailPrice'];
+                    }
                     if (isset($variant['retailPrice']) && !isset($variant['retail_price'])) {
                         $variant['retail_price'] = $variant['retailPrice'];
+                    }
+                    if (isset($variant['wholesalePrice']) && !isset($variant['wholesale_price'])) {
+                        $variant['wholesale_price'] = $variant['wholesalePrice'];
                     }
                     if (isset($variant['retailOfferPrice']) && !isset($variant['retail_offer_price'])) {
                         $variant['retail_offer_price'] = $variant['retailOfferPrice'];
@@ -840,8 +849,17 @@ class ProductController extends Controller
                 foreach ($variants as &$variant) {
                     // Accept both camelCase and snake_case - validation will handle the actual transform
                     // This just normalizes the input for validation
+                    if (isset($variant['sellerSku']) && !isset($variant['sku'])) {
+                        $variant['sku'] = $variant['sellerSku'];
+                    }
+                    if (isset($variant['retailPrice']) && !isset($variant['price'])) {
+                        $variant['price'] = $variant['retailPrice'];
+                    }
                     if (isset($variant['retailPrice']) && !isset($variant['retail_price'])) {
                         $variant['retail_price'] = $variant['retailPrice'];
+                    }
+                    if (isset($variant['wholesalePrice']) && !isset($variant['wholesale_price'])) {
+                        $variant['wholesale_price'] = $variant['wholesalePrice'];
                     }
                     if (isset($variant['retailOfferPrice']) && !isset($variant['retail_offer_price'])) {
                         $variant['retail_offer_price'] = $variant['retailOfferPrice'];
