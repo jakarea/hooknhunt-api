@@ -405,10 +405,12 @@ namespace App\Modules\Website\Http\Controllers\Api\V2\Website;
                 return redirect()->away($frontendUrl . '/order-success?' . http_build_query([
                     'tran_id' => $tranId,
                     'invoice' => $order->invoice_no ?? '',
+                    'order_id' => $order->id,
                     'total' => $order->total_amount ?? 0,
                     'name' => $order->customer_name ?? $order->shipping_name ?? 'Customer',
                     'phone' => $order->customer_phone ?? $order->shipping_phone ?? '',
-                    'status'  => $status,
+                    'payment_status' => $order->payment_status,
+                    'status' => $order->status,
                     'gateway' => 'sslcommerz',
                 ]));
             }
@@ -507,10 +509,12 @@ namespace App\Modules\Website\Http\Controllers\Api\V2\Website;
             return redirect()->away($frontendUrl . '/order-success?' . http_build_query([
                 'tran_id' => $epsTransactionId,
                 'invoice' => $merchantTransactionId,
+                'order_id' => $order->id,
                 'total' => $order->total_amount ?? 0,
                 'name' => $order->customer_name ?? $order->shipping_name ?? 'Customer',
                 'phone' => $order->customer_phone ?? $order->shipping_phone ?? '',
-                'status'  => $status,
+                'payment_status' => $order->payment_status,
+                'status' => $order->status,
                 'gateway' => 'eps',
             ]));
         }
