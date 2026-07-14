@@ -1,0 +1,148 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║          COMPLETE URL CONFIGURATION FIX - EXECUTION PLAN                   ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+AUDIT RESULTS SUMMARY
+═══════════════════════════════════════════════════════════════════════════
+
+✅ Database Status:
+   - Total Issues Found: 2 records in media_files table
+   - IDs: 1462, 1463
+   - Issue: Stored URL with https://hooknhunt-api.test instead of production URL
+
+✅ Code Status:
+   - Hardcoded URLs: 2 instances (OrderController.php)
+   - config('app.url') usage: 11 instances (will auto-fix)
+   - APP_URL configuration: Needs manual update
+   - CORS configuration: Missing production domain
+
+═══════════════════════════════════════════════════════════════════════════
+
+EXECUTION STEPS (DO IN ORDER)
+═══════════════════════════════════════════════════════════════════════════
+
+STEP 1: FIX DATABASE (IMMEDIATE)
+────────────────────────────────
+Execute this SQL in production database:
+
+UPDATE media_files 
+SET url = REPLACE(url, 'https://hooknhunt-api.test', 'https://probesh.hooknhunt.com')
+WHERE url LIKE '%hooknhunt-api.test%'
+LIMIT 2;
+
+Verification Query:
+SELECT id, path, url FROM media_files 
+WHERE url LIKE '%hooknhunt-api.test%';
+
+Expected Result: 0 rows returned (all fixed)
+
+────────────────────────────────────────────────────────────────────────────
+
+STEP 2: FIX CODE - HARDCODED URLS
+──────────────────────────────────
+FILE: Modules/Website/app/Http/Controllers/Api/V2/WebsiteAdmin/OrderController.php
+
+LINE 119 - BEFORE:
+    DB::raw('CASE WHEN m.path IS NOT NULL THEN CONCAT("https://hooknhunt-api.test/storage/", m.path) ELSE NULL END as thumbnail_url')
+
+LINE 119 - AFTER:
+    DB::raw('CASE WHEN m.path IS NOT NULL THEN CONCAT(?, "/storage/", m.path) ELSE NULL END as thumbnail_url', [config('app.url')])
+
+────────────────────────────────────────────────────────────────────────────
+
+LINE 778 - SAME CHANGE AS ABOVE
+    (Identical line, same fix)
+
+────────────────────────────────────────────────────────────────────────────
+
+STEP 3: FIX ENVIRONMENT CONFIGURATION
+──────────────────────────────────────
+FILE: .env (for local development - keep as is)
+   APP_URL=https://hooknhunt-api.test
+
+FILE: .env.production (create for production server)
+   APP_URL=https://probesh.hooknhunt.com
+
+════════════════════════════════════════════════════════════════════════════
+
+STEP 4: UPDATE CORS CONFIGURATION
+──────────────────────────────────
+FILE: config/cors.php
+
+CURRENT (Line 22-39):
+    'allowed_origins' => [
+        'https://www.hooknhunt.com',
+        'https://hooknhunt.com',
+        'https://www.probesh.hooknhunt.com',
+        'https://probesh.hooknhunt.com',
+        'https://hooknhunt-api.test',
+        'http://hooknhunt-api.test',
+        // ... more domains
+    ],
+
+ACTION: Already has production domains ✅ (No change needed)
+
+But VERIFY it has:
+   - ✓ 'https://probesh.hooknhunt.com'
+   - ✓ 'https://www.probesh.hooknhunt.com'
+
+════════════════════════════════════════════════════════════════════════════
+
+STEP 5: VERIFY ALL FIXES
+─────────────────────────
+
+Test Checklist:
+   [ ] Database: Query media_files for wrong URLs (should be 0)
+   [ ] Code: Check OrderController.php lines 119, 778 use config('app.url')
+   [ ] .env: Set correct APP_URL for production environment
+   [ ] Test API endpoint for categories - check image URLs
+   [ ] Test API endpoint for sliders - check image URLs  
+   [ ] Test admin orders API - check thumbnail URLs
+   [ ] Verify frontend loads all images correctly
+
+════════════════════════════════════════════════════════════════════════════
+
+DEPLOYMENT SEQUENCE (PRODUCTION)
+═════════════════════════════════
+
+1. Backup database
+2. Run SQL UPDATE on media_files table (Step 1)
+3. Verify SQL UPDATE results
+4. Deploy code changes (Step 2 - OrderController.php)
+5. Set .env.production with correct APP_URL
+6. Clear Laravel cache (php artisan cache:clear)
+7. Test all image endpoints
+8. Monitor admin dashboard for image loading
+
+════════════════════════════════════════════════════════════════════════════
+
+ROLLBACK PLAN (IF NEEDED)
+═════════════════════════
+
+Reverse Database Changes:
+UPDATE media_files 
+SET url = REPLACE(url, 'https://probesh.hooknhunt.com', 'https://hooknhunt-api.test')
+WHERE id IN (1462, 1463);
+
+Reverse Code Changes:
+  - Restore OrderController.php from git
+  - git checkout Modules/Website/app/Http/Controllers/Api/V2/WebsiteAdmin/OrderController.php
+
+════════════════════════════════════════════════════════════════════════════
+
+MONITORING AFTER DEPLOYMENT
+════════════════════════════
+
+Watch for errors in logs:
+   - tail -f storage/logs/laravel.log | grep "hooknhunt-api.test"
+   
+Expected: No results (indicates all URLs fixed)
+
+API Test Commands:
+   curl https://probesh.hooknhunt.com/api/v2/categories
+   curl https://probesh.hooknhunt.com/api/v2/offers/sliders
+   curl https://probesh.hooknhunt.com/api/v2/admin/orders
+
+All should return URLs with https://probesh.hooknhunt.com domain
+
+════════════════════════════════════════════════════════════════════════════
