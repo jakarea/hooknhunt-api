@@ -65,6 +65,26 @@ class MediaFolder extends Model
     }
 
     /**
+     * Load all nested children recursively with file counts.
+     * Used for API tree structure response.
+     */
+    public function loadNestedChildren()
+    {
+        $this->load(['children' => function ($query) {
+            $query->withCount('mediaFiles')
+                  ->orderBy('sort_order')
+                  ->orderBy('name');
+        }]);
+
+        // Recursively load children's children
+        foreach ($this->children as $child) {
+            $child->loadNestedChildren();
+        }
+
+        return $this;
+    }
+
+    /**
      * Get the full path of the folder.
      */
     public function getFullPath(): string

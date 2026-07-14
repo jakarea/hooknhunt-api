@@ -26,15 +26,27 @@ class MediaController extends Controller
         }
 
         $user = auth()->user();
-        $folders = MediaFolder::withCount('mediaFiles')
-            ->get()
-            ->filter(function ($folder) use ($user) {
-                // Hide Staff Documents folder from non-admin users
-                if ($folder->slug === 'staff-documents' && !$user->hasPermissionTo('cms.media.admin')) {
-                    return false;
-                }
-                return $folder->canBeViewedBy($user->role->slug ?? null);
-            });
+        // Get only root-level folders
+        $folders = MediaFolder::whereNull('parent_id')  // Only root folders
+            ->withCount('mediaFiles')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        // Load all nested children recursively for each folder
+        $folders = $folders->map(function ($folder) {
+            $folder->loadNestedChildren();
+            return $folder;
+        });
+
+        // Filter by permissions
+        $folders = $folders->filter(function ($folder) use ($user) {
+            // Hide Staff Documents folder from non-admin users
+            if ($folder->slug === 'staff-documents' && !$user->hasPermissionTo('cms.media.admin')) {
+                return false;
+            }
+            return $folder->canBeViewedBy($user->role->slug ?? null);
+        });
 
         return $this->sendSuccess($folders);
     }
