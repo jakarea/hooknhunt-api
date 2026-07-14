@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Traits\ImageHelper;
 use App\Services\Website\DeliveryChargeCalculator;
+use App\Models\Category;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -21,19 +22,20 @@ class PublicController extends Controller
     public function getActivePaymentGateway(): JsonResponse
     {
         try {
-            $activeGateway = DB::table('settings')
-                ->where('group', 'website')
-                ->where('key', 'active_payment_gateway')
-                ->value('value') ?? 'sslcommerz';
+            $sslcommerzEnabled = config('payments.sslcommerz.enabled', false);
+            $epsEnabled = config('payments.eps.enabled', false);
 
-            if (!in_array($activeGateway, ['sslcommerz', 'eps'])) {
+            $activeGateway = null;
+            if ($epsEnabled) {
+                $activeGateway = 'eps';
+            } elseif ($sslcommerzEnabled) {
                 $activeGateway = 'sslcommerz';
             }
 
             return $this->sendSuccess([
                 'activeGateway' => $activeGateway,
-                'sslcommerz'    => $activeGateway === 'sslcommerz',
-                'eps'           => $activeGateway === 'eps',
+                'sslcommerz' => $sslcommerzEnabled,
+                'eps' => $epsEnabled,
             ], 'Payment gateway configuration retrieved successfully.');
 
         } catch (\Exception $e) {
@@ -208,54 +210,43 @@ class PublicController extends Controller
 
             $suggestions = DB::table('products as p')
                 ->join('product_variants as pv', 'p.id', '=', 'pv.product_id')
+                ->leftJoin('media_files as m', 'p.thumbnail_id', '=', 'm.id')
                 ->where('p.status', 'published')
                 ->where('pv.is_active', true)
                 ->where('pv.stock', '>', 0)
                 ->where(function ($q) use ($query) {
-                    // Search across: product names (EN & BN), code, category names (EN & BN), and seo tags
                     $q->where('p.name', 'like', "%{$query}%")
-                      ->orWhere('p.retail_name_bn', 'like', "%{$query}%")
-                      ->orWhere('p.wholesale_name_bn', 'like', "%{$query}%")
-                      ->orWhere('p.product_code', 'like', "%{$query}%")
-                      ->orWhere('p.seo_tags', 'like', "%{$query}%")
-                      ->orWhereExists(function ($subQ) use ($query) {
-                          // Search in category name (English) - products.category_id = categories.id
-                          $subQ->select(DB::raw(1))
-                              ->from('categories as c')
-                              ->whereColumn('c.id', '=', 'p.category_id')
-                              ->where('c.name', 'like', "%{$query}%");
-                      })
-                      ->orWhereExists(function ($subQ) use ($query) {
-                          // Search in category name Bangla
-                          $subQ->select(DB::raw(1))
-                              ->from('categories as c')
-                              ->whereColumn('c.id', '=', 'p.category_id')
-                              ->where('c.name_bn', 'like', "%{$query}%");
-                      });
+                      ->orWhere('p.product_code', 'like', "%{$query}%");
                 })
                 ->select([
                     'p.id',
                     'p.name',
                     'p.slug',
                     'pv.price',
-                    'p.thumbnail_id',
+                    'm.path as image',
                     DB::raw('(SELECT GROUP_CONCAT(c.name SEPARATOR ", ")
                         FROM categories c
                         INNER JOIN product_category pc ON c.id = pc.category_id
                         WHERE pc.product_id = p.id
                         LIMIT 1) as category')
                 ])
-                ->distinct()
-                ->groupBy('p.id', 'p.name', 'p.slug', 'pv.price', 'p.thumbnail_id', 'category')
+                ->groupBy('p.id', 'p.name', 'p.slug', 'pv.price', 'm.path', 'category')
                 ->limit($limit)
                 ->get();
 
             // Transform suggestions for response
             $suggestionsData = $suggestions->map(function ($product) {
-                // Use media system format: /media/{id}
-                $imageUrl = $product->thumbnail_id
-                    ? config('app.url') . '/media/' . $product->thumbnail_id
-                    : config('app.url') . '/storage/placeholder.jpg';
+                $imagePath = $product->image;
+                $imageUrl = null;
+
+                if ($imagePath) {
+                    $imageUrl = $this->getImageUrl($imagePath);
+                }
+
+                // Fallback to placeholder if no image
+                if (!$imageUrl) {
+                    $imageUrl = config('app.url') . '/storage/placeholder.jpg';
+                }
 
                 return [
                     'id' => $product->id,
@@ -292,8 +283,12 @@ class PublicController extends Controller
             $perPage = (int) ($validated['per_page'] ?? 20);
             $page = (int) ($validated['page'] ?? 1);
 
-            // Get products with correct pricing (use offer_price if available, otherwise price)
             $productsQuery = DB::table('products as p')
+                ->leftJoin('catalog_product_images as cp', 'p.thumbnail_id', '=', 'cp.id')
+                ->leftJoin('media_files as mf', function($join) {
+                    $join->on('p.thumbnail_id', '=', 'mf.id')
+                         ->whereNull('cp.id');
+                })
                 ->where('p.status', 'published')
                 ->whereExists(function ($q) {
                     $q->select(DB::raw(1))
@@ -304,44 +299,23 @@ class PublicController extends Controller
                         ->limit(1);
                 })
                 ->where(function ($q) use ($query) {
-                    // Search across: product names (EN & BN), code, category names (EN & BN), and seo tags
                     $q->where('p.name', 'like', "%{$query}%")
-                      ->orWhere('p.retail_name_bn', 'like', "%{$query}%")
-                      ->orWhere('p.wholesale_name_bn', 'like', "%{$query}%")
-                      ->orWhere('p.product_code', 'like', "%{$query}%")
-                      ->orWhere('p.seo_tags', 'like', "%{$query}%")
-                      ->orWhereExists(function ($subQ) use ($query) {
-                          // Search in category name (English) - products.category_id = categories.id
-                          $subQ->select(DB::raw(1))
-                              ->from('categories as c')
-                              ->whereColumn('c.id', '=', 'p.category_id')
-                              ->where('c.name', 'like', "%{$query}%");
-                      })
-                      ->orWhereExists(function ($subQ) use ($query) {
-                          // Search in category name Bangla
-                          $subQ->select(DB::raw(1))
-                              ->from('categories as c')
-                              ->whereColumn('c.id', '=', 'p.category_id')
-                              ->where('c.name_bn', 'like', "%{$query}%");
-                      });
+                      ->orWhere('p.product_code', 'like', "%{$query}%");
                 })
                 ->select([
                     'p.id',
                     'p.name',
                     'p.slug',
                     'p.thumbnail_id',
-                    // Use COALESCE to prefer offer_price when it exists, otherwise use price
-                    DB::raw('(SELECT COALESCE(MIN(CASE WHEN pv2.offer_price > 0 THEN pv2.offer_price ELSE pv2.price END), MIN(pv2.price))
-                              FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.is_active = 1 AND pv2.stock > 0) as price'),
+                    DB::raw('(SELECT MIN(pv2.price) FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.is_active = 1 AND pv2.stock > 0) as price'),
+                    DB::raw('COALESCE(cp.path, mf.path) as thumbnail_path'),
+                    DB::raw('COALESCE(cp.url, mf.url) as thumbnail_url'),
                 ]);
 
             if (!empty($validated['category_id'])) {
                 $productsQuery->join('product_category as pc', 'p.id', '=', 'pc.product_id')
                     ->where('pc.category_id', $validated['category_id']);
             }
-
-            // Remove duplicates from joined tables
-            $productsQuery->distinct();
 
             $total = $productsQuery->count();
 
@@ -352,12 +326,37 @@ class PublicController extends Controller
 
             $lastPage = (int) ceil($total / $perPage);
 
-            // Transform products for response using media system
+            // Transform products for response
             $productsData = $products->map(function ($product) {
-                // Use media system format: /media/{id}
-                $imageUrl = $product->thumbnail_id
-                    ? config('app.url') . '/media/' . $product->thumbnail_id
-                    : config('app.url') . '/storage/placeholder.jpg';
+                // Use thumbnail_url first (COALESCE result), fallback to thumbnail_path
+                $imageUrl = null;
+
+                if ($product->thumbnail_url && (str_starts_with($product->thumbnail_url, 'http://') || str_starts_with($product->thumbnail_url, 'https://'))) {
+                    $imageUrl = $product->thumbnail_url;
+                } elseif ($product->thumbnail_path) {
+                    $imageUrl = $this->getImageUrl($product->thumbnail_path);
+                }
+
+                // Fallback to first gallery image if no thumbnail
+                if (!$imageUrl && !$product->thumbnail_id) {
+                    $galleryIds = DB::table('products')->where('id', $product->id)->value('gallery_images');
+                    if ($galleryIds) {
+                        $ids = json_decode($galleryIds, true);
+                        if (is_array($ids) && !empty($ids)) {
+                            $firstGalleryImage = DB::table('catalog_product_images')
+                                ->where('id', $ids[0])
+                                ->value('url');
+                            if ($firstGalleryImage) {
+                                $imageUrl = $firstGalleryImage;
+                            }
+                        }
+                    }
+                }
+
+                // Final fallback to placeholder if no image
+                if (!$imageUrl) {
+                    $imageUrl = config('app.url') . '/storage/placeholder.jpg';
+                }
 
                 return [
                     'id' => $product->id,
@@ -387,7 +386,6 @@ class PublicController extends Controller
 
     /**
      * Get tracking scripts configuration (Facebook Pixel, GA, GTM).
-     * Decodes HTML entities from database to ensure clean HTML is returned.
      */
     public function getTrackingSettings(): JsonResponse
     {
@@ -403,39 +401,121 @@ class PublicController extends Controller
                 ])
                 ->pluck('value', 'key');
 
-            // Helper function to decode HTML entities multiple times if needed
-            $decodeHtml = function ($html) {
-                if (!$html) return null;
-                // Decode up to 3 times to handle triple-encoded HTML
-                $decoded = html_entity_decode($html, ENT_QUOTES | ENT_HTML5);
-                if ($decoded !== $html) {
-                    // If something changed, try decoding again
-                    $decoded2 = html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5);
-                    if ($decoded2 !== $decoded) {
-                        $decoded = html_entity_decode($decoded2, ENT_QUOTES | ENT_HTML5);
-                    } else {
-                        $decoded = $decoded2;
-                    }
-                }
-                return $decoded;
-            };
-
             return $this->sendSuccess([
                 'facebook' => [
                     'pixelId' => $settings['facebook_pixel_id'] ?? null,
-                    'pixelCode' => $decodeHtml($settings['facebook_pixel_code'] ?? null),
+                    'pixelCode' => $settings['facebook_pixel_code'] ?? null,
                 ],
                 'google' => [
                     'analyticsId' => $settings['google_analytics_id'] ?? null,
-                    'analyticsCode' => $decodeHtml($settings['google_analytics_code'] ?? null),
+                    'analyticsCode' => $settings['google_analytics_code'] ?? null,
                     'tagManagerId' => $settings['google_tag_manager_id'] ?? null,
-                    'tagManagerCode' => $decodeHtml($settings['google_tag_manager_code'] ?? null),
+                    'tagManagerCode' => $settings['google_tag_manager_code'] ?? null,
                 ],
             ], 'Tracking settings retrieved successfully.');
 
         } catch (\Exception $e) {
             Log::error('Error getting tracking settings', ['error' => $e->getMessage()]);
             return $this->sendError('Failed to retrieve tracking settings.', null, 500);
+        }
+    }
+
+    /**
+     * Get all categories (public).
+     * Returns paginated format: { data: { data: [], total: number } }
+     */
+    public function categories(): JsonResponse
+    {
+        try {
+            $categories = Category::with('children')
+                ->whereNull('parent_id')
+                ->where('is_active', true)
+                ->orderBy('sort_order', 'asc')
+                ->get();
+
+            $data = $categories->map(function ($category) {
+                $imageUrl = null;
+                if ($category->image_id) {
+                    $imageUrl = config('app.url') . '/media/' . $category->image_id;
+                }
+
+                // Transform children recursively
+                $children = $category->children ? $category->children->map(function ($child) {
+                    return [
+                        'id' => $child->id,
+                        'name' => $child->name,
+                        'slug' => $child->slug,
+                        'parent_id' => $child->parent_id,
+                        'image_id' => $child->image_id,
+                        'imageUrl' => $child->image_id ? config('app.url') . '/media/' . $child->image_id : null,
+                        'is_active' => $child->is_active,
+                        'sort_order' => $child->sort_order,
+                    ];
+                })->toArray() : [];
+
+                return [
+                    'id' => $category->id,
+                    'name' => $category->name,
+                    'slug' => $category->slug,
+                    'parent_id' => $category->parent_id,
+                    'image_id' => $category->image_id,
+                    'imageUrl' => $imageUrl,
+                    'is_active' => $category->is_active,
+                    'sort_order' => $category->sort_order,
+                    'children' => $children,
+                ];
+            });
+
+            // Return in paginated format expected by frontend
+            return $this->sendSuccess([
+                'data' => $data,
+                'total' => $categories->count(),
+            ], 'Categories retrieved successfully.');
+
+        } catch (\Exception $e) {
+            Log::error('Error getting categories', ['error' => $e->getMessage()]);
+            return $this->sendError('Failed to retrieve categories.', null, 500);
+        }
+    }
+
+    /**
+     * Get promotional sliders (offers/sliders).
+     * Returns camelCase format that sliderStore expects.
+     */
+    public function sliders(): JsonResponse
+    {
+        try {
+            $sliders = DB::table('sliders')
+                ->select('id', 'title', 'sub_title', 'image_url', 'video_url', 'capsule_title', 'features', 'cta1_label', 'cta1_link', 'cta2_label', 'cta2_link', 'sort_order', 'is_active', 'media_type')
+                ->where('is_active', true)
+                ->orderBy('sort_order', 'asc')
+                ->get();
+
+            // Convert to camelCase for frontend (sliderStore will normalize to snake_case)
+            $data = $sliders->map(function ($slider) {
+                return [
+                    'id' => $slider->id,
+                    'title' => $slider->title,
+                    'subTitle' => $slider->sub_title,
+                    'imageUrl' => $slider->image_url,
+                    'videoUrl' => $slider->video_url,
+                    'capsuleTitle' => $slider->capsule_title,
+                    'features' => $slider->features,
+                    'cta1Label' => $slider->cta1_label,
+                    'cta1Link' => $slider->cta1_link,
+                    'cta2Label' => $slider->cta2_label,
+                    'cta2Link' => $slider->cta2_link,
+                    'sortOrder' => $slider->sort_order,
+                    'isActive' => $slider->is_active,
+                    'mediaType' => $slider->media_type,
+                ];
+            });
+
+            return $this->sendSuccess($data, 'Sliders retrieved successfully.');
+
+        } catch (\Exception $e) {
+            Log::error('Error getting sliders', ['error' => $e->getMessage()]);
+            return $this->sendError('Failed to retrieve sliders.', null, 500);
         }
     }
 }
