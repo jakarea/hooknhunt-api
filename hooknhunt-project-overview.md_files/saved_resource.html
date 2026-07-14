@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<!-- saved from url=(0253)https://b7dea666-88a0-4ea2-90e6-26db399dc284.frame.claudeusercontent.com/_f/1783836428-4e39/?__frame_t=1lPaR5s8NL1US8UGqcgbp6xU.c1e3d42b-ebf9-4976-a0fc-177a40a564b1.2ccc7e67-5dca-4321-ba5e-4f642f07466a.1783840034&__frame_v=manifest.21ba44c2bfde1499.json -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><!-- frame-runtime --><!--<base href="/_f/1783836428-4e39/">--><base href="."><script>window.__FRAME_PREAMBLE={"capabilities":{"downloads":"downloads.DUzXFHNF.js","mcp":"mcp.Djj5DQjZ.js","self":"self.DqF_PxOe.js"},"transforms":"_transforms.DYk1Ltlh.js"}</script><script>(function(){"use strict";const X="modulepreload",Y=function(e){return"/"+e},Z={},U=function(t,n,u){let o=Promise.resolve();function i(f){const a=new Event("vite:preloadError",{cancelable:!0});if(a.payload=f,window.dispatchEvent(a),!a.defaultPrevented)throw f}return o.then(f=>{for(const a of f||[])a.status==="rejected"&&i(a.reason);return t().catch(i)})},D=["light","dark","system"];function $(e){if(e==null||typeof e!="object")return!1;const t=e.__frame_init;return t!=null&&typeof t=="object"}function q(e){if(e==null||typeof e!="object")return!1;const t=e.__frame_theme;if(t==null||typeof t!="object")return!1;const n=t.theme;return typeof n=="string"&&D.includes(n)}function M(e){if(window===top||e.type==="auxclick"&&e.button!==1)return;const t=e.composedPath?e.composedPath():[e.target];let n=null;for(let f=0;f<t.length;f++){const a=t[f];if(a&&a.matches&&a.matches("a[href],area[href]")){n=a;break}}if(!n&&e.target&&e.target.closest&&(n=e.target.closest("a[href],area[href]")),!n)return;const u=n.getAttribute("href");if(!u)return;let o,i;try{o=new URL(u,document.baseURI),i=new URL(document.baseURI).origin}catch{return}(o.protocol==="http:"||o.protocol==="https:")&&o.origin!==i&&(e.preventDefault(),parent.postMessage({__frame_nav:!0,url:o.href},"*"))}const L={};function y(e){if(window===top)return;const t=Date.now();t-(L[e]||0)<500||(L[e]=t,parent.postMessage({__frame_engaged:!0,kind:e},"*"))}const F=2e3,T=["wheel","touchstart","touchmove","keydown","pointerdown"];let k=0;function B(e){e.isTrusted&&(k=Date.now())}function z(){addEventListener("click",M,!0),addEventListener("auxclick",M,!0)}function W(){for(let e=0;e<T.length;e++)addEventListener(T[e],B,{capture:!0,passive:!0});addEventListener("scroll",e=>{e.isTrusted&&Date.now()-k<F&&y("scroll")},{capture:!0,passive:!0}),addEventListener("pointermove",e=>{e.isTrusted&&y("pointer")},{capture:!0,passive:!0}),addEventListener("click",e=>{e.isTrusted&&y("click")},{capture:!0,passive:!0})}function x(e,t,n){const u=[...t.values()].filter(o=>o.targets.some(i=>i.startsWith(e+".")));return{wrap(o,i){const f=`${e}.${o}`,a=u.filter(s=>s.targets.includes(f));return a.length===0?(...s)=>{try{return i(...s)}catch(d){return Promise.reject(d)}}:(...s)=>{let d=s;for(const c of a){const l=c.module.parameters;if(l)try{d=l(d)}catch{return Promise.reject({code:"transform_error",id:c.id,scope:e,message:"parameters transform failed"})}}let m;try{m=i(...d)}catch(c){m=Promise.reject(c)}return m.then(c=>{for(let l=a.length-1;l>=0;l--){const h=a[l],p=h.module.returns;if(p)try{c=p(c)}catch{return n({id:h.id,scope:e,leg:"returns"}),c}}return c},c=>{for(let l=a.length-1;l>=0;l--){const h=a[l],p=h.module.throws;if(p)try{c=p(c)}catch{return n({id:h.id,scope:e,leg:"throws"}),Promise.reject(c)}}return Promise.reject(c)})}}}}function H(e,t,n,u=()=>{}){const o=new Set(e.changes??[]),i=new Map;for(const f of o){const a=t[f];a&&i.set(f,a)}return{contract:e.contract,changes:o,flags:new Set(e.flags??[]),capabilities:e.capabilities??{},transforms:i,shellOrigin:n.shellOrigin,mount:n.mount,pipe:f=>x(f,i,u)}}(function(){const e=Object.defineProperty,t=globalThis,n=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let u=0;for(let o=0;o<n.length;o++){const i=n[o];try{e(t,i,{value:void 0,writable:!1,configurable:!1})}catch{try{delete t[i]}catch{}try{e(t,i,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof t[i]=="function"&&u++}if(u&&window!==top)try{parent.postMessage({__frame_rtc_lockdown_failed:u},"*")}catch{}})();const K=1e4,G=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function J(e){for(const t of G)if(t.endsWith(":*"))try{const n=new URL(e);if(`${n.protocol}//${n.hostname}:*`===t)return!0}catch{}else if(e===t)return!0;return!1}const w=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities??{}}),E=window.__FRAME_PREAMBLE?.transforms,C=/^[\w.-]+\.js$/,V=/^[a-z][a-z0-9_-]{0,63}$/;let A=null,g=null;function P(e,t,n){try{Object.defineProperty(e,t,{value:n,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(e,t,{value:n,writable:!1,configurable:!0,enumerable:!0})}catch{}}}let R=!1;function N(e){const t=document.documentElement;e==="light"||e==="dark"?(t.dataset.theme=e,t.style.colorScheme=e,R=!0):R&&(delete t.dataset.theme,t.style.colorScheme="",R=!1)}const _=new Map;function Q(e,t){const n=_.get(e);if(!n)return;Object.assign(n.impl,t),n.impl.__settled=()=>Promise.reject({code:"capability_removed",message:`${e}: method not in this runtime`});const u=n.queue;n.queue=[];for(const o of u){const i=t[o.method];i?i(...o.args).then(o.resolve,o.reject):o.reject({code:"capability_removed",message:`${e}.${o.method} is not in this runtime`})}}function O(e,t){const n=_.get(e);if(!n)return;n.impl.__settled=()=>Promise.reject(t);const u=n.queue;n.queue=[];for(const o of u)o.reject(t)}const j=Object.getOwnPropertyDescriptor(window,"claude");if(window!==top&&!(j&&j.writable===!1)){z(),W();const e=j?.value??{};P(window,"claude",e);const t=s=>{const d={impl:Object.create(null),queue:[]};_.set(s,d);const m=new Proxy(d.impl,{get:(c,l)=>{if(typeof l=="string"&&!(l==="then"||l==="toJSON"||l==="valueOf"))return l==="toString"?Object.prototype.toString:(...h)=>{const p=c[l]??c.__settled;return p?p(...h):new Promise((b,S)=>{d.queue.push({method:l,args:h,resolve:b,reject:S})})}},set:()=>!1});P(e,s,m)};for(const s of Object.keys(w)){if(e[s]!==void 0){P(e,s,e[s]);continue}t(s)}let n=null,u=null,o=0;const i=s=>{s.source!==parent||!J(s.origin)||$(s.data)&&(n=s.data.__frame_init,g=s.origin,removeEventListener("message",i),clearTimeout(o),u?.())};addEventListener("message",i),parent.postMessage({__frame_connect:!0},"*");const f=new Promise(s=>{u=s,o=setTimeout(()=>{removeEventListener("message",i),s()},K)}),a=document.readyState==="loading"?new Promise(s=>document.addEventListener("DOMContentLoaded",()=>s(),{once:!0})):Promise.resolve();f.then(async()=>{if(!n||!g){for(const r of _.keys())O(r,{code:"not_granted",message:"frame initialization did not arrive - capability unavailable"});return}N(n.theme);const s=g;addEventListener("message",r=>{r.source!==parent||r.origin!==s||q(r.data)&&N(r.data.__frame_theme.theme)});const d=r=>U(()=>import("/_runtime/"+r),void 0),m=Object.keys(n.capabilities??{});for(const r of m)Object.hasOwn(w,r)||V.test(r)&&e[r]===void 0&&(t(r),O(r,{code:"capability_disabled",message:"capability not in this runtime generation"}));const c=m.filter(r=>Object.hasOwn(w,r)).map(r=>[r,w[r]]).filter(r=>typeof r[1]=="string"&&C.test(r[1])),[l,...h]=await Promise.allSettled([E&&C.test(E)?d(E):Promise.resolve({}),...c.map(([,r])=>d(r))]),p=g;A=H(n,l.status==="fulfilled"&&l.value?.TRANSFORMS||{},{shellOrigin:p,mount:Q},r=>parent.postMessage({__frame_cap_telemetry:r},p));const b=r=>parent.postMessage({__frame_cap_telemetry:{kind:"cap-load-error",cap:r}},p),S=A;h.forEach((r,v)=>{const I=c[v][0];if(r.status!=="fulfilled"){b(I);return}try{r.value?.install?.(S)}catch{b(I)}});for(const[r,v]of _)v.queue.length===0&&Object.keys(v.impl).length>0||O(r,{code:m.includes(r)?"capability_disabled":"not_granted",message:"capability not available in this session"});await a,parent.postMessage({__frame_ready:!0},g)})}})();</script><!-- /frame-runtime --><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<style>:root{color-scheme:light}body{background:#fff;color:rgba(0,0,0,.8);max-width:720px;margin:0 auto;padding:32px;display:flex;flex-direction:column;gap:10px;font:14px/1.55 -apple-system,BlinkMacSystemFont,'SF Pro','Segoe UI',sans-serif;overflow-wrap:break-word}body>:first-child{margin-top:0}h1,h2,h3,h4,h5,h6{margin:6px 0 0;line-height:1.25;font-weight:600;text-wrap:balance}h1{font-size:1.35em}h2{font-size:1.15em;color:rgba(0,0,0,.6)}h3,h4,h5,h6{font-size:1em}p,ul,ol,blockquote,table,pre,hr{margin:0}strong{font-weight:600}a{color:hsl(210 100% 45%);text-decoration:none}a:hover{text-decoration:underline}ul,ol{display:flex;flex-direction:column;gap:6px;padding-left:22px}ul{list-style:disc}ol{list-style:decimal}:is(li,td,th)>*+:is(p,ul,ol,blockquote){margin-top:6px}blockquote{display:flex;flex-direction:column;gap:10px;border-left:2px solid rgba(0,0,0,.1);padding-left:10px;color:rgba(0,0,0,.6)}:not(pre)>code{background:rgba(0,0,0,.04);padding:1px 3px;border-radius:4px;font:.92em 'SF Mono',ui-monospace,Menlo,Consolas,monospace}a>code{background:none;color:inherit}pre{background:rgba(0,0,0,.04);padding:10px 12px;border-radius:6px;overflow-x:auto;font:12px/1.5 'SF Mono',ui-monospace,Menlo,Consolas,monospace;margin-block:4px}pre code{background:none;padding:0;font:inherit}table{width:100%;border-collapse:separate;border-spacing:2px;font:inherit}th,td{padding:6px 8px;border-radius:3px;text-align:left;vertical-align:top}th{background:rgba(0,0,0,.06);font-weight:600}td{background:rgba(0,0,0,.04)}:is(th,td) :not(pre)>code{background:transparent}hr{border:0;border-top:1px solid rgba(0,0,0,.16);margin-block:10px}img{max-width:100%;height:auto;border-radius:4px}</style>
+<h1>🎣 Hook &amp; Hunt - Project Architecture Overview</h1>
+<h2>Quick Summary</h2>
+<p><strong>Hook &amp; Hunt</strong> is an e-commerce platform for fishing equipment with:</p>
+<ul>
+<li><strong>Backend</strong>: Laravel with 13 modular systems (Catalog, Orders, Payments, Affiliate, Admin, etc.)</li>
+<li><strong>Frontend</strong>: Next.js 16 with React 19, TypeScript, Zustand state management</li>
+<li><strong>Language Support</strong>: English &amp; Bengali</li>
+<li><strong>Payment Gateways</strong>: EPS and SSL Commerz</li>
+<li><strong>Tech Stack</strong>: Laravel/PHP backend, Next.js/React frontend, MySQL database</li>
+</ul>
+<hr>
+<h2>Backend Architecture (Laravel)</h2>
+<h3>Directory Structure</h3>
+<pre><code>hooknhunt-api/
+├── Modules/                    # 13 Event-driven modules
+│   ├── Admin/                  # Admin dashboard
+│   ├── Affiliate/              # Affiliate program
+│   ├── CMS/                    # Content management
+│   ├── CRM/                    # Customer relations
+│   ├── Catalog/                # Product management ⭐
+│   ├── Finance/                # Payments &amp; reporting
+│   ├── HRM/                    # Human resources
+│   ├── Inventory/              # Stock tracking
+│   ├── Procurement/            # Purchase orders
+│   ├── Shipping/               # Delivery management
+│   ├── System/                 # Utilities
+│   └── Website/                # Customer API ⭐
+├── app/                        # Core Laravel app
+│   ├── Http/Middleware/        # 19 middleware files
+│   ├── Services/               # Business logic
+│   ├── Models/                 # Database models
+│   ├── Traits/                 # Shared code
+│   └── Providers/              # Service setup
+├── config/                     # 22 config files
+├── database/                   # Migrations &amp; seeders
+├── routes/                     # API endpoints
+├── storage/                    # File uploads
+└── tests/                      # Test suite
+</code></pre>
+<h3>Key Modules</h3>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Catalog</strong></td>
+<td>Product management, SKU generation, pricing, variants, images</td>
+</tr>
+<tr>
+<td><strong>Website</strong></td>
+<td>Customer-facing API, orders, order status, delivery calculations</td>
+</tr>
+<tr>
+<td><strong>Finance</strong></td>
+<td>Payment processing, refunds, financial reporting</td>
+</tr>
+<tr>
+<td><strong>Affiliate</strong></td>
+<td>Affiliate programs, commission tracking, performance stats</td>
+</tr>
+<tr>
+<td><strong>Admin</strong></td>
+<td>Dashboard, user management, system settings</td>
+</tr>
+<tr>
+<td><strong>Inventory</strong></td>
+<td>Stock levels, warehouse management</td>
+</tr>
+<tr>
+<td><strong>Shipping</strong></td>
+<td>Delivery logistics, courier integration</td>
+</tr>
+<tr>
+<td><strong>CRM</strong></td>
+<td>Customer interactions, leads management</td>
+</tr>
+</tbody></table>
+<h3>Authentication &amp; Security</h3>
+<ul>
+<li><strong>Method</strong>: Laravel Sanctum (token-based API auth)</li>
+<li><strong>Middleware Stack</strong>:<ul>
+<li><code>Authenticate.php</code> - API token validation</li>
+<li><code>CheckAdminRole.php</code> - Role-based access</li>
+<li><code>SanitizeInput.php</code> - XSS protection</li>
+<li><code>RateLimitAuth.php</code> - Brute force prevention</li>
+<li><code>RateLimitOrderPlacement.php</code> - Order spam protection</li>
+<li><code>CamelCaseResponse.php</code> - API response normalization</li>
+</ul>
+</li>
+</ul>
+<h3>Key Services (app/Services/)</h3>
+<ul>
+<li><code>ApplyDefaults.ts</code> - Apply default values to product variants</li>
+<li><code>ProductFormValidator.ts</code> - Form validation logic</li>
+<li><code>PriceCalculator.ts</code> - Pricing computation</li>
+<li><code>SKUGenerator.php</code> - Product SKU generation</li>
+<li><code>OrderManagementService.php</code> - Order processing</li>
+<li><code>OrderStatusTransitionService.php</code> - Order state management</li>
+<li><code>DeliveryChargeCalculator.php</code> - Shipping cost calculation</li>
+</ul>
+<h3>Payment Gateway Integration</h3>
+<ul>
+<li><p><strong>EPS Payment</strong>: Configuration at <code>config/epsPayment.php</code></p>
+<ul>
+<li>Gateway: <a href="https://pg.eps.com.bd/PG">https://pg.eps.com.bd/PG</a></li>
+<li>Callback: <code>PaymentGatewayController@epsSuccess()</code></li>
+<li>Status update: Sets <code>payment_status</code> to 'paid' in database</li>
+</ul>
+</li>
+<li><p><strong>SSL Commerz</strong>: Configuration at <code>config/sslcommerz.php</code></p>
+<ul>
+<li>Gateway: SSL Commerz payment gateway</li>
+<li>Callback: <code>PaymentGatewayController@sslCommerz()</code></li>
+<li>Status update: Sets <code>payment_status</code> to 'paid' in database</li>
+</ul>
+</li>
+</ul>
+<h3>Database Models (Key Ones)</h3>
+<ul>
+<li><strong>User</strong> - Customer accounts</li>
+<li><strong>Product</strong> - Product catalog</li>
+<li><strong>ProductVariant</strong> - Product variants (color, size, etc.)</li>
+<li><strong>SalesOrder</strong> - Customer orders</li>
+<li><strong>OrderItem</strong> - Items in an order</li>
+<li><strong>AffiliateProgram</strong> - Affiliate setup</li>
+<li><strong>AffiliateUser</strong> - Affiliate members</li>
+</ul>
+<hr>
+<h2>Frontend Architecture (Next.js)</h2>
+<h3>Directory Structure</h3>
+<pre><code>hooknhunt-ui/src/
+├── app/                       # File-based routing (Next.js)
+│   ├── (auth)/                # Login, signup, password reset
+│   ├── admin/                 # Admin dashboard
+│   ├── checkout/              # Checkout flow ⭐
+│   ├── payment/               # Payment pages ⭐
+│   ├── products/              # Product listing
+│   ├── search/                # Product search
+│   ├── cart/                  # Shopping cart
+│   ├── order-success/         # Order confirmation ⭐
+│   ├── order-fail/            # Payment failed
+│   ├── track-order/           # Order tracking
+│   ├── affiliate-test/        # Affiliate pages
+│   ├── account/               # User account
+│   └── layout.tsx             # Root layout
+├── components/                # Reusable React components
+│   ├── common/                # Header, Footer, Nav
+│   ├── checkout/              # Checkout UI
+│   ├── product/               # Product display
+│   ├── cart/                  # Cart components
+│   ├── admin/                 # Admin UI
+│   └── user/                  # User profile
+├── hooks/                     # Custom React hooks
+│   ├── usePayment.ts          # Payment processing ⭐
+│   ├── useAffiliate.ts        # Affiliate data
+│   ├── usePayment.ts          # Payment gateway flow
+│   ├── useDeliveryCalculation.ts - Shipping cost
+│   └── useServiceCharge.ts    # Service charges
+├── stores/                    # Zustand state stores
+│   ├── cartStore.ts           # Shopping cart
+│   ├── productStore.ts        # Product cache
+│   ├── couponStore.ts         # Coupon codes
+│   ├── deliveryStore.ts       # Delivery options
+│   └── profileStore.ts        # User profile
+├── lib/                       # Utilities
+│   ├── api.ts                 # Axios API client
+│   ├── i18n.ts                # i18n setup
+│   └── redirectGuard.ts       # Auth redirects
+├── types/                     # TypeScript types
+│   ├── api.ts                 # API response types
+│   ├── affiliate.ts           # Affiliate types
+│   └── payment.ts             # Payment types
+├── locales/                   # i18n translations
+│   ├── en/                    # English
+│   └── bn/                    # Bengali
+└── middleware.ts              # Auth middleware
+</code></pre>
+<h3>State Management (Zustand)</h3>
+<p>Modern store-based state management with 9 stores:</p>
+<ul>
+<li><code>productStore.ts</code> - Product data caching</li>
+<li><code>cartStore.ts</code> - Shopping cart ⭐</li>
+<li><code>couponStore.ts</code> - Discount codes</li>
+<li><code>deliveryStore.ts</code> - Shipping options</li>
+<li><code>profileStore.ts</code> - User profile</li>
+<li><code>reviewStore.ts</code> - Product reviews</li>
+<li><code>categoryStore.ts</code> - Product categories</li>
+<li><code>crossCartStore.ts</code> - Cross-sell cart</li>
+<li><code>sliderStore.ts</code> - Carousel/slider state</li>
+</ul>
+<h3>Key Pages (Critical for Business)</h3>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Purpose</th>
+<th>Key Logic</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/checkout</code></td>
+<td>Checkout flow</td>
+<td>Order creation, payment method selection, EPS/SSL integration</td>
+</tr>
+<tr>
+<td><code>/checkout/payment/[orderId]</code></td>
+<td>Payment page</td>
+<td>Show order details, initiate payment gateway</td>
+</tr>
+<tr>
+<td><code>/pay/[token]</code></td>
+<td>Payment link</td>
+<td>Generate payment from link token</td>
+</tr>
+<tr>
+<td><code>/order-success</code></td>
+<td>Order confirmation</td>
+<td>Show order details, clear cart, payment status ⭐</td>
+</tr>
+<tr>
+<td><code>/order-fail</code></td>
+<td>Payment failed</td>
+<td>Retry payment option</td>
+</tr>
+<tr>
+<td><code>/(auth)/login</code></td>
+<td>User login</td>
+<td>Authentication via Sanctum tokens</td>
+</tr>
+<tr>
+<td><code>/admin</code></td>
+<td>Admin dashboard</td>
+<td>Admin features (orders, products, users)</td>
+</tr>
+</tbody></table>
+<h3>Payment Flow (Critical)</h3>
+<ol>
+<li>User selects payment method (EPS/SSL Commerz)</li>
+<li>Order created via <code>api.createSalesOrder()</code></li>
+<li>Payment initiated: <code>api.initiateEpsPayment()</code> or <code>api.initiateSSLPayment()</code></li>
+<li>Backend returns <code>gatewayUrl</code></li>
+<li>Frontend redirects: <code>window.location.href = gatewayUrl</code> ⭐</li>
+<li>User completes payment on gateway</li>
+<li>Gateway calls backend callback</li>
+<li>Backend updates order: <code>payment_status = 'paid'</code></li>
+<li>Backend redirects to <code>/order-success?payment_status=paid&amp;order_id=123</code></li>
+<li>Frontend clears cart on <code>/order-success</code> page</li>
+</ol>
+<h3>Important Hook: usePayment.ts</h3>
+<ul>
+<li><code>initiatePayment()</code> - Call backend to initiate payment</li>
+<li><code>redirectToGateway()</code> - Redirect to payment gateway</li>
+<li><code>initiateAndPay()</code> - Complete payment flow</li>
+</ul>
+<h3>API Integration (lib/api.ts)</h3>
+<p>Axios instance with:</p>
+<ul>
+<li>Base URL: Backend API</li>
+<li>Default headers: Content-Type, Authorization token</li>
+<li>Error handling: Standardized error responses</li>
+<li>Key endpoints:<ul>
+<li><code>createSalesOrder()</code> - Create order</li>
+<li><code>initiateEpsPayment()</code> - EPS gateway</li>
+<li><code>initiateSSLPayment()</code> - SSL Commerz gateway</li>
+<li><code>getOrderByOrderNumber()</code> - Fetch order</li>
+<li><code>validatePaymentLink()</code> - Validate payment link</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h2>Data Flow: Checkout → Payment → Order Success</h2>
+<pre><code>FRONTEND (Checkout)
+├─ User adds items to cart
+├─ Navigates to /checkout
+├─ Enters shipping info
+├─ Selects EPS payment method
+├─ Clicks "Pay Now"
+└─→ Calls api.createSalesOrder()
+
+BACKEND (Order Creation)
+├─ Creates SalesOrder record
+├─ Sets status = 'pending'
+├─ Creates OrderItems for each product
+├─ Reserves inventory
+└─→ Returns { orderId, orderNumber }
+
+FRONTEND (Payment Initiation)
+├─ Calls api.initiateEpsPayment(orderId)
+├─ Receives { gatewayUrl, ... }
+├─ Clears cart from Zustand store
+└─→ Redirects: window.location.href = gatewayUrl
+
+EPS PAYMENT GATEWAY
+├─ User enters card details
+├─ Completes payment
+└─→ Calls backend callback with payment result
+
+BACKEND (Payment Callback)
+├─ Validates payment signature
+├─ Updates order: payment_status = 'paid'
+├─ Triggers financial events
+└─→ Redirects: /order-success?payment_status=paid&amp;order_id=123
+
+FRONTEND (Order Success)
+├─ Receives payment_status in query params
+├─ Displays "Thank You" message
+├─ Clears cart (again, for safety)
+└─→ Shows order confirmation details
+</code></pre>
+<hr>
+<h2>Technology Stack</h2>
+<h3>Backend</h3>
+<ul>
+<li><strong>Language</strong>: PHP 8.x</li>
+<li><strong>Framework</strong>: Laravel 11</li>
+<li><strong>Database</strong>: MySQL/MariaDB</li>
+<li><strong>API</strong>: RESTful API with Laravel Sanctum</li>
+<li><strong>Task Queue</strong>: Laravel Queue (if configured)</li>
+<li><strong>Build</strong>: Vite + Node.js (for some assets)</li>
+</ul>
+<h3>Frontend</h3>
+<ul>
+<li><strong>Framework</strong>: Next.js 16</li>
+<li><strong>UI Library</strong>: React 19</li>
+<li><strong>Language</strong>: TypeScript</li>
+<li><strong>Styling</strong>: Tailwind CSS</li>
+<li><strong>State Management</strong>: Zustand</li>
+<li><strong>Forms</strong>: React Hook Form</li>
+<li><strong>i18n</strong>: next-i18next (English, Bengali)</li>
+<li><strong>HTTP Client</strong>: Axios</li>
+<li><strong>Charts</strong>: Recharts</li>
+<li><strong>Deployment</strong>: Vercel</li>
+</ul>
+<h3>External Services</h3>
+<ul>
+<li><strong>Payment 1</strong>: EPS (<a href="https://pg.eps.com.bd/">https://pg.eps.com.bd</a>)</li>
+<li><strong>Payment 2</strong>: SSL Commerz</li>
+<li><strong>Authentication</strong>: Laravel Sanctum (token-based)</li>
+</ul>
+<hr>
+<h2>Current Issues Fixed (This Session)</h2>
+<p>✅ <strong>Field Name Mismatch</strong> - Frontend camelCase → Backend snake_case conversion
+✅ <strong>Default Values</strong> - Not applying to all variant rows
+✅ <strong>Payment Status</strong> - Order showing "unpaid" after successful payment
+✅ <strong>Duplicate Redirects</strong> - Payment opening in multiple tabs</p>
+<hr>
+<h2>Next Steps for Full Review</h2>
+<p>⏳ Backend review (models, controllers, migrations, validation)
+⏳ Frontend review (components, hooks, API integration patterns)
+⏳ Architecture patterns and design decisions
+⏳ Potential improvements and technical debt</p>
+<p><strong>Workflow Status</strong>: Still running - will provide complete analysis soon!</p>
+
+</body></html>
